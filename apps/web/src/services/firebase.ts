@@ -11,7 +11,10 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  updateDoc 
+  updateDoc,
+  collection,
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 
 export interface UserProfile {
@@ -27,6 +30,19 @@ export interface UserProfile {
     alerts: boolean;
   };
   createdAt?: string;
+}
+
+export interface Holding {
+  id: string;
+  userId: string;
+  symbol: string;
+  name: string;
+  assetClass: string;
+  quantity: number;
+  purchasePrice: number;
+  currentPrice: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Config variables from Vite
@@ -220,6 +236,87 @@ export const dbService = {
         const merged = { ...current, ...updates };
         localStorage.setItem(`profile_${uid}`, JSON.stringify(merged));
       }
+    }
+  },
+
+  async getHoldings(userId: string): Promise<Holding[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'holdings');
+      const snapshot = await getDocs(colRef);
+      const holdings: Holding[] = [];
+      snapshot.forEach(doc => {
+        holdings.push({ id: doc.id, ...doc.data() } as Holding);
+      });
+      return holdings.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    } else {
+      const saved = localStorage.getItem(`holdings_${userId}`);
+      const holdings: Holding[] = saved ? JSON.parse(saved) : [];
+      return holdings.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    }
+  },
+
+  async addHolding(userId: string, data: Omit<Holding, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<Holding> {
+    const timestamp = new Date().toISOString();
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'holdings');
+      const docRef = doc(colRef);
+      const newHolding: Holding = {
+        id: docRef.id,
+        userId,
+        ...data,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      await setDoc(docRef, newHolding);
+      return newHolding;
+    } else {
+      const saved = localStorage.getItem(`holdings_${userId}`);
+      const holdings: Holding[] = saved ? JSON.parse(saved) : [];
+      const newHolding: Holding = {
+        id: 'holding_' + Math.random().toString(36).substr(2, 9),
+        userId,
+        ...data,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      holdings.push(newHolding);
+      localStorage.setItem(`holdings_${userId}`, JSON.stringify(holdings));
+      return newHolding;
+    }
+  },
+
+  async updateHolding(userId: string, holdingId: string, updates: Partial<Omit<Holding, 'id' | 'userId' | 'createdAt'>>): Promise<void> {
+    const timestamp = new Date().toISOString();
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'holdings', holdingId);
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: timestamp
+      });
+    } else {
+      const saved = localStorage.getItem(`holdings_${userId}`);
+      const holdings: Holding[] = saved ? JSON.parse(saved) : [];
+      const index = holdings.findIndex(h => h.id === holdingId);
+      if (index !== -1) {
+        holdings[index] = {
+          ...holdings[index],
+          ...updates,
+          updatedAt: timestamp
+        };
+        localStorage.setItem(`holdings_${userId}`, JSON.stringify(holdings));
+      }
+    }
+  },
+
+  async deleteHolding(userId: string, holdingId: string): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'holdings', holdingId);
+      await deleteDoc(docRef);
+    } else {
+      const saved = localStorage.getItem(`holdings_${userId}`);
+      let holdings: Holding[] = saved ? JSON.parse(saved) : [];
+      holdings = holdings.filter(h => h.id !== holdingId);
+      localStorage.setItem(`holdings_${userId}`, JSON.stringify(holdings));
     }
   }
 };

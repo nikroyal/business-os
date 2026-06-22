@@ -577,3 +577,205 @@ input:checked + .slider:before {
   padding-bottom: 0.5rem;
   margin-bottom: 1.25rem;
 }
+
+/* Editorial Financial Tables */
+.financial-table-wrapper {
+  overflow-x: auto;
+  margin-top: 1rem;
+  border-bottom: 2px solid var(--text-primary);
+}
+
+.financial-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.financial-table th {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-top: 2px solid var(--text-primary);
+  border-bottom: 1px solid var(--text-primary);
+  padding: 0.75rem 0.5rem;
+  font-weight: 600;
+}
+
+.financial-table td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #E2DACD;
+  vertical-align: middle;
+}
+
+.financial-table tbody tr:hover {
+  background: #FCFAF6;
+}
+
+.financial-table .num-val {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.financial-table th.num-val {
+  text-align: right;
+}
+
+/* Allocation bar visualizer */
+.allocation-bar-container {
+  display: flex;
+  height: 12px;
+  background: #E2DACD;
+  width: 100%;
+  margin: 1rem 0;
+  border: 1px solid var(--text-primary);
+}
+
+.allocation-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.allocation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  margin-top: 0.5rem;
+}
+
+.allocation-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.color-indicator {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--text-primary);
+}
+
+/* Portfolio metric highlights */
+.metric-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: var(--border-thin);
+  border-top: 3px solid var(--text-primary);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-subtle);
+}
+
+.metric-card.accent {
+  border-top-color: var(--color-accent);
+}
+
+.metric-card.success {
+  border-top-color: var(--color-success-border);
+}
+
+.metric-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.metric-change {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Editorial Modal / Dialog */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(34, 34, 34, 0.4);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeInModal 0.2s ease-out;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border: 2px solid var(--text-primary);
+  width: 90%;
+  max-width: 500px;
+  padding: 2.5rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  position: relative;
+  animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUpModal {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Responsive sidebar tweaks for mobile/tablet */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: var(--border-thin);
+    padding: 1.5rem;
+  }
+  .nav-item.active {
+    margin-right: 0;
+    border-right-color: var(--border-thin);
+  }
+  .main-content {
+    padding: 2rem 1.5rem;
+  }
+}
+
+/* Dashboard Grid Layout (Desktop/Mobile) */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2.5rem;
+}
+
+@media (max-width: 992px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
