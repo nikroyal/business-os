@@ -25,8 +25,6 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   'Other': '#555555'          // Muted charcoal
 };
 
-const USD_INR_RATE = 83.50; // Exchange rate conversion factor for reporting
-
 export const Dashboard: React.FC = () => {
   const { user, profile } = useAuth();
   
@@ -34,6 +32,7 @@ export const Dashboard: React.FC = () => {
   const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
   const [loadingHoldings, setLoadingHoldings] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,6 +70,7 @@ export const Dashboard: React.FC = () => {
         prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
       }
       setMarketPrices(prices);
+      setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
       console.error('Error fetching holdings:', err);
       setError('Failed to load portfolio holdings.');
@@ -206,11 +206,22 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Mixed Currency conversion calculations to standardize base reporting in USD
+  // Configurable reporting currencies (defaults to INR, rates from settings profile)
+  const reportingCurrency = profile?.reportingCurrency || 'INR';
+  const usdToInrRate = profile?.usdToInrRate || 83.50;
+
+  // Mixed Currency conversion calculations to standardize reporting base (USD or INR)
   const totalCost = holdings.reduce((acc, h) => {
     const cost = h.quantity * h.purchasePrice;
-    if (h.currency === 'INR') {
-      return acc + (cost / USD_INR_RATE);
+    if (h.currency === reportingCurrency) {
+      return acc + cost;
+    }
+    // Convert to reporting base
+    if (h.currency === 'INR' && reportingCurrency === 'USD') {
+      return acc + (cost / usdToInrRate);
+    }
+    if (h.currency === 'USD' && reportingCurrency === 'INR') {
+      return acc + (cost * usdToInrRate);
     }
     return acc + cost;
   }, 0);
@@ -218,8 +229,15 @@ export const Dashboard: React.FC = () => {
   const totalValue = holdings.reduce((acc, h) => {
     const price = marketPrices[h.id] !== undefined ? marketPrices[h.id] : (h.currentPrice || h.purchasePrice);
     const value = h.quantity * price;
-    if (h.currency === 'INR') {
-      return acc + (value / USD_INR_RATE);
+    if (h.currency === reportingCurrency) {
+      return acc + value;
+    }
+    // Convert to reporting base
+    if (h.currency === 'INR' && reportingCurrency === 'USD') {
+      return acc + (value / usdToInrRate);
+    }
+    if (h.currency === 'USD' && reportingCurrency === 'INR') {
+      return acc + (value * usdToInrRate);
     }
     return acc + value;
   }, 0);
@@ -227,13 +245,17 @@ export const Dashboard: React.FC = () => {
   const totalGainLoss = totalValue - totalCost;
   const totalGainLossPercent = totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0;
 
-  // Allocation Map Calculations (Standardized in USD for relative comparison)
+  // Allocation Map Calculations (Standardized in selected reporting currency)
   const allocationMap: Record<string, number> = {};
   holdings.forEach(h => {
     const price = marketPrices[h.id] !== undefined ? marketPrices[h.id] : (h.currentPrice || h.purchasePrice);
     let val = h.quantity * price;
-    if (h.currency === 'INR') {
-      val = val / USD_INR_RATE;
+    if (h.currency !== reportingCurrency) {
+      if (h.currency === 'INR' && reportingCurrency === 'USD') {
+        val = val / usdToInrRate;
+      } else if (h.currency === 'USD' && reportingCurrency === 'INR') {
+        val = val * usdToInrRate;
+      }
     }
     allocationMap[h.assetClass] = (allocationMap[h.assetClass] || 0) + val;
   });
@@ -293,7 +315,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-success-text)' }}>
             <CheckCircle size={12} />
-            <span>MARKET PROVIDER ACTIVE</span>
+            <span>PORTFOLIO LEDGER ONLINE {lastUpdated ? `(UPDATED AT ${lastUpdated})` : ''}</span>
           </div>
         </div>
       </div>
@@ -306,25 +328,25 @@ export const Dashboard: React.FC = () => {
           {/* Portfolio Metric Highlights */}
           <div className="metric-summary-grid">
             <div className="metric-card">
-              <span className="metric-label">Total Portfolio Value (USD)</span>
-              <div className="metric-value">{formatCurrency(totalValue, 'USD')}</div>
+              <span className="metric-label">Total Value ({reportingCurrency})</span>
+              <div className="metric-value">{formatCurrency(totalValue, reportingCurrency)}</div>
               <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
-                <span>Converted net asset value</span>
+                <span>Converted portfolio value</span>
               </div>
             </div>
             
             <div className="metric-card">
-              <span className="metric-label">Invested Capital (USD)</span>
-              <div className="metric-value">{formatCurrency(totalCost, 'USD')}</div>
+              <span className="metric-label">Invested Capital ({reportingCurrency})</span>
+              <div className="metric-value">{formatCurrency(totalCost, reportingCurrency)}</div>
               <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
                 <span>Converted cost basis</span>
               </div>
             </div>
             
             <div className="metric-card success" style={{ borderTopColor: totalGainLoss >= 0 ? 'var(--color-success-border)' : 'var(--color-danger-border)' }}>
-              <span className="metric-label">Total Gain / Loss (USD)</span>
+              <span className="metric-label">Total Gain / Loss ({reportingCurrency})</span>
               <div className="metric-value" style={{ color: totalGainLoss >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                {formatCurrency(totalGainLoss, 'USD')}
+                {formatCurrency(totalGainLoss, reportingCurrency)}
               </div>
               <div className="metric-change" style={{ color: totalGainLoss >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
                 {totalGainLoss >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
@@ -475,7 +497,7 @@ export const Dashboard: React.FC = () => {
                           <span style={{ fontWeight: 500 }}>{item.assetClass}</span>
                         </div>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                          <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value, 'USD')}</span>
+                          <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value, reportingCurrency)}</span>
                           <span style={{ fontWeight: 'bold' }}>{item.percentage.toFixed(1)}%</span>
                         </div>
                       </div>
@@ -500,9 +522,9 @@ export const Dashboard: React.FC = () => {
                 </span>
               </div>
               <div>
-                <span className="mono-tag" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Configured Timezone</span>
+                <span className="mono-tag" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Reporting Base</span>
                 <span style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', fontFamily: 'var(--font-serif)' }}>
-                  {profile?.timezone || 'UTC'}
+                  {reportingCurrency} (1 USD = {usdToInrRate} INR)
                 </span>
               </div>
             </div>

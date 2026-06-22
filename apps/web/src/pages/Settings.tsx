@@ -35,6 +35,11 @@ export const Settings: React.FC = () => {
   const [dailyBriefing, setDailyBriefing] = useState(true);
   const [weeklyReport, setWeeklyReport] = useState(true);
   const [alerts, setAlerts] = useState(true);
+  
+  // Phase 4 Settings
+  const [finnhubApiKey, setFinnhubApiKey] = useState('');
+  const [reportingCurrency, setReportingCurrency] = useState<'USD' | 'INR'>('INR');
+  const [usdToInrRate, setUsdToInrRate] = useState('83.50');
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -48,6 +53,9 @@ export const Settings: React.FC = () => {
       setDailyBriefing(profile.emailPreferences?.dailyBriefing ?? true);
       setWeeklyReport(profile.emailPreferences?.weeklyReport ?? true);
       setAlerts(profile.emailPreferences?.alerts ?? true);
+      setFinnhubApiKey(profile.finnhubApiKey || '');
+      setReportingCurrency(profile.reportingCurrency || 'INR');
+      setUsdToInrRate((profile.usdToInrRate ?? 83.50).toString());
     }
   }, [profile]);
 
@@ -77,7 +85,10 @@ export const Settings: React.FC = () => {
           dailyBriefing,
           weeklyReport,
           alerts
-        }
+        },
+        finnhubApiKey,
+        reportingCurrency,
+        usdToInrRate: parseFloat(usdToInrRate) || 83.50
       });
       showToast('Settings saved successfully.');
     } catch (err: any) {
@@ -288,6 +299,58 @@ export const Settings: React.FC = () => {
               />
               <span className="slider"></span>
             </label>
+          </div>
+        </section>
+
+        {/* Section 6: Market Data & Portfolio Currency */}
+        <section className="card">
+          <h2 style={{ fontSize: '1.35rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <Sparkles size={18} style={{ color: 'var(--color-accent)' }} />
+            Market Data & Reporting Currency
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Set your external data provider credentials and base valuation currency.
+          </p>
+
+          <div className="form-group">
+            <label className="form-label">Finnhub API Key</label>
+            <input 
+              type="password" 
+              className="form-input" 
+              placeholder="Paste your Finnhub token here" 
+              value={finnhubApiKey}
+              onChange={(e) => setFinnhubApiKey(e.target.value)}
+            />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+              Used to fetch live assets quotation and metadata. Left blank to use environment default or mock scaffold.
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: 0 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Portfolio Reporting Currency</label>
+              <select 
+                className="form-input form-select"
+                value={reportingCurrency}
+                onChange={(e) => setReportingCurrency(e.target.value as 'USD' | 'INR')}
+              >
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">USD to INR Conversion Rate</label>
+              <input 
+                type="number" 
+                step="any"
+                className="form-input" 
+                placeholder="83.50" 
+                value={usdToInrRate}
+                onChange={(e) => setUsdToInrRate(e.target.value)}
+                required
+              />
+            </div>
           </div>
         </section>
 

@@ -29,6 +29,9 @@ export interface UserProfile {
     weeklyReport: boolean;
     alerts: boolean;
   };
+  finnhubApiKey?: string;
+  reportingCurrency?: 'USD' | 'INR';
+  usdToInrRate?: number;
   createdAt?: string;
 }
 

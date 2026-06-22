@@ -9,41 +9,292 @@ export interface MarketDataProvider {
   name: string;
   getPrice(ticker: string, exchange?: string): Promise<number>;
   getMetadata(ticker: string, exchange?: string): Promise<AssetMetadata | null>;
+  getHistoricalPrices(ticker: string, days: number, exchange?: string): Promise<number[]>;
 }
 
 /**
- * FinnhubProvider Scaffold
- * Relies on simulated returns for Phase 3 before live API keys and endpoints are added.
+ * Live Finnhub Provider with Caching, Rate-Limit Protection, and Suffix Mapping
  */
 export class FinnhubProvider implements MarketDataProvider {
   name = 'Finnhub';
 
+  // Cache store and time-to-live settings
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private readonly PRICE_TTL = 5 * 60 * 1000;         // 5 minutes
+  private readonly METADATA_TTL = 24 * 60 * 60 * 1000;  // 24 hours
+
+  // Throttling fields to enforce standard rate limiting
+  private lastCallTime = 0;
+  private readonly MIN_CALL_INTERVAL = 1100; // 1.1s intervals (~54 requests/min)
+
+  /**
+   * Spacing out consecutive API requests to protect against the 60 calls/min rate limits
+   */
+  private async throttle(): Promise<void> {
+    const now = Date.now();
+    const elapsed = now - this.lastCallTime;
+    if (elapsed < this.MIN_CALL_INTERVAL) {
+      const waitTime = this.MIN_CALL_INTERVAL - elapsed;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    this.lastCallTime = Date.now();
+  }
+
+  /**
+   * Extracts API keys from settings profiles or environment files
+   */
+  private getApiKey(): string | null {
+    // 1. Check if user configured their own key in settings profile
+    const savedUser = localStorage.getItem('business_os_mock_user');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        const profileStr = localStorage.getItem(`profile_${parsed.uid}`);
+        if (profileStr) {
+          const profile = JSON.parse(profileStr);
+          if (profile.finnhubApiKey && profile.finnhubApiKey.trim() !== '') {
+            return profile.finnhubApiKey.trim();
+          }
+        }
+      } catch (err) {
+        console.warn('[FinnhubProvider] Failed to extract API key from user profile:', err);
+      }
+    }
+
+    // 2. Check environment config fallback
+    const envKey = import.meta.env.VITE_FINNHUB_API_KEY;
+    if (envKey && envKey !== 'your-finnhub-api-key' && envKey.trim() !== '') {
+      return envKey.trim();
+    }
+
+    return null;
+  }
+
+  /**
+   * Formats ticker to canonical Finnhub symbol. Add .NS for NSE and .BO for BSE.
+   */
+  private formatSymbol(ticker: string, exchange?: string): string {
+    const cleanTicker = ticker.toUpperCase().trim();
+    if (!exchange) return cleanTicker;
+
+    const cleanExchange = exchange.toUpperCase().trim();
+    if (cleanExchange === 'NSE') {
+      return `${cleanTicker}.NS`;
+    }
+    if (cleanExchange === 'BSE') {
+      return `${cleanTicker}.BO`;
+    }
+    return cleanTicker;
+  }
+
+  /**
+   * Fetches live price for a given asset ticker
+   */
   async getPrice(ticker: string, exchange?: string): Promise<number> {
-    console.log(`[FinnhubProvider] Scaffold getPrice requested for ${ticker} on ${exchange || 'NASDAQ'}`);
+    const symbol = this.formatSymbol(ticker, exchange);
+    const cacheKey = `price_${symbol}`;
     
-    // Static mock prices for demonstration/testing
+    // Check Cache
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < this.PRICE_TTL)) {
+      return cached.data;
+    }
+
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      console.log(`[FinnhubProvider] No token provided. Returning mock price for ${symbol}`);
+      return this.getMockPrice(ticker, exchange);
+    }
+
+    await this.throttle();
+
+    try {
+      const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`;
+      const res = await fetch(url);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+
+      const data = await res.json();
+      
+      // c is the current price returned by Finnhub
+      if (data && typeof data.c === 'number' && data.c > 0) {
+        this.cache.set(cacheKey, { data: data.c, timestamp: Date.now() });
+        return data.c;
+      }
+
+      // Suffix fallback: if ticker fails with NS/BO suffix, try standard lookup as fallback
+      if (symbol.includes('.')) {
+        console.warn(`[FinnhubProvider] Suffix quote failed for ${symbol}. Retrying unsuffixed.`);
+        const baseSymbol = ticker.toUpperCase().trim();
+        const baseRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${baseSymbol}&token=${apiKey}`);
+        if (baseRes.ok) {
+          const baseData = await baseRes.json();
+          if (baseData && typeof baseData.c === 'number' && baseData.c > 0) {
+            this.cache.set(cacheKey, { data: baseData.c, timestamp: Date.now() });
+            return baseData.c;
+          }
+        }
+      }
+
+      console.warn(`[FinnhubProvider] Finnhub returned 0 or invalid response for ${symbol}. Falling back to mock.`);
+      return this.getMockPrice(ticker, exchange);
+    } catch (err: any) {
+      console.error(`[FinnhubProvider] Live price fetch failed for ${symbol}:`, err);
+      return this.getMockPrice(ticker, exchange);
+    }
+  }
+
+  /**
+   * Fetches metadata profile for a given asset ticker
+   */
+  async getMetadata(ticker: string, exchange?: string): Promise<AssetMetadata | null> {
+    const symbol = this.formatSymbol(ticker, exchange);
+    const cacheKey = `metadata_${symbol}`;
+
+    // Check Cache
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < this.METADATA_TTL)) {
+      return cached.data;
+    }
+
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      console.log(`[FinnhubProvider] No token provided. Returning mock metadata for ${symbol}`);
+      return this.getMockMetadata(ticker, exchange);
+    }
+
+    await this.throttle();
+
+    try {
+      const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${apiKey}`;
+      const res = await fetch(url);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+
+      const data = await res.json();
+      
+      if (data && data.name) {
+        const metadata: AssetMetadata = {
+          ticker: data.ticker || ticker.toUpperCase().trim(),
+          exchange: exchange || (data.exchange ? data.exchange.split(' ')[0] : 'NASDAQ'),
+          name: data.name,
+          currency: data.currency || (exchange === 'NSE' || exchange === 'BSE' ? 'INR' : 'USD')
+        };
+        this.cache.set(cacheKey, { data: metadata, timestamp: Date.now() });
+        return metadata;
+      }
+
+      // Retry unsuffixed if suffix failed
+      if (symbol.includes('.')) {
+        console.warn(`[FinnhubProvider] Suffix metadata lookup failed for ${symbol}. Retrying unsuffixed.`);
+        const baseSymbol = ticker.toUpperCase().trim();
+        const baseRes = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${baseSymbol}&token=${apiKey}`);
+        if (baseRes.ok) {
+          const baseData = await baseRes.json();
+          if (baseData && baseData.name) {
+            const metadata: AssetMetadata = {
+              ticker: baseData.ticker || baseSymbol,
+              exchange: exchange || 'NASDAQ',
+              name: baseData.name,
+              currency: baseData.currency || 'USD'
+            };
+            this.cache.set(cacheKey, { data: metadata, timestamp: Date.now() });
+            return metadata;
+          }
+        }
+      }
+
+      return this.getMockMetadata(ticker, exchange);
+    } catch (err: any) {
+      console.error(`[FinnhubProvider] Live metadata lookup failed for ${symbol}:`, err);
+      return this.getMockMetadata(ticker, exchange);
+    }
+  }
+
+  /**
+   * Fetches historical stock daily candles
+   */
+  async getHistoricalPrices(ticker: string, days: number, exchange?: string): Promise<number[]> {
+    const symbol = this.formatSymbol(ticker, exchange);
+    const cacheKey = `history_${symbol}_${days}`;
+
+    // Check Cache
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < this.PRICE_TTL)) {
+      return cached.data;
+    }
+
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      return this.getMockHistory(ticker, days);
+    }
+
+    await this.throttle();
+
+    try {
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - (days * 24 * 60 * 60);
+      const url = `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data && data.s === 'ok' && Array.isArray(data.c)) {
+        this.cache.set(cacheKey, { data: data.c, timestamp: Date.now() });
+        return data.c;
+      }
+
+      // Retry unsuffixed if suffix failed
+      if (symbol.includes('.')) {
+        console.warn(`[FinnhubProvider] Suffix history candle failed for ${symbol}. Retrying unsuffixed.`);
+        const baseSymbol = ticker.toUpperCase().trim();
+        const baseRes = await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${baseSymbol}&resolution=D&from=${from}&to=${to}&token=${apiKey}`);
+        if (baseRes.ok) {
+          const baseData = await baseRes.json();
+          if (baseData && baseData.s === 'ok' && Array.isArray(baseData.c)) {
+            this.cache.set(cacheKey, { data: baseData.c, timestamp: Date.now() });
+            return baseData.c;
+          }
+        }
+      }
+
+      return this.getMockHistory(ticker, days);
+    } catch (err: any) {
+      console.error(`[FinnhubProvider] Live history fetch failed for ${symbol}:`, err);
+      return this.getMockHistory(ticker, days);
+    }
+  }
+
+  // --- MOCK FALLBACK UTILITIES ---
+
+  private getMockPrice(ticker: string, _exchange?: string): number {
+    const cleanTicker = ticker.toUpperCase().trim();
     const mockPrices: Record<string, number> = {
-      'AAPL': 175.50,
-      'GOOG': 150.20,
-      'NVDA': 125.80,
-      'MSFT': 420.10,
-      'TSLA': 180.40,
-      'BTC': 65000.00,
-      'RELIANCE': 2950.00,
-      'TCS': 3850.00
+      'AAPL': 178.45,
+      'GOOG': 152.10,
+      'NVDA': 128.25,
+      'MSFT': 422.30,
+      'TSLA': 184.50,
+      'BTC': 64800.00,
+      'RELIANCE': 2945.50,
+      'TCS': 3820.00
     };
 
-    const cleanTicker = ticker.toUpperCase().trim();
     if (cleanTicker in mockPrices) {
       return mockPrices[cleanTicker];
     }
-
-    return 100.00; // Return flat baseline default price
+    return 100.00;
   }
 
-  async getMetadata(ticker: string, exchange?: string): Promise<AssetMetadata | null> {
-    console.log(`[FinnhubProvider] Scaffold getMetadata requested for ${ticker} on ${exchange || 'NASDAQ'}`);
-    
+  private getMockMetadata(ticker: string, exchange?: string): AssetMetadata {
+    const cleanTicker = ticker.toUpperCase().trim();
     const mockMetadata: Record<string, AssetMetadata> = {
       'AAPL': { ticker: 'AAPL', exchange: 'NASDAQ', name: 'Apple Inc.', currency: 'USD' },
       'GOOG': { ticker: 'GOOG', exchange: 'NASDAQ', name: 'Alphabet Inc.', currency: 'USD' },
@@ -55,12 +306,10 @@ export class FinnhubProvider implements MarketDataProvider {
       'TCS': { ticker: 'TCS', exchange: 'NSE', name: 'Tata Consultancy Services Ltd.', currency: 'INR' }
     };
 
-    const cleanTicker = ticker.toUpperCase().trim();
     if (cleanTicker in mockMetadata) {
       return mockMetadata[cleanTicker];
     }
 
-    // Default dynamic structure if not hardcoded
     return {
       ticker: cleanTicker,
       exchange: exchange || 'NASDAQ',
@@ -68,11 +317,22 @@ export class FinnhubProvider implements MarketDataProvider {
       currency: exchange === 'NSE' || exchange === 'BSE' ? 'INR' : 'USD'
     };
   }
+
+  private getMockHistory(ticker: string, days: number): number[] {
+    const base = this.getMockPrice(ticker);
+    const history: number[] = [];
+    let current = base;
+    for (let i = 0; i < days; i++) {
+      const change = (Math.random() - 0.5) * (base * 0.04);
+      current = Math.max(1.0, current + change);
+      history.push(current);
+    }
+    return history;
+  }
 }
 
 /**
- * MarketDataService orchestrator
- * Aggregates calls to selected provider (defaults to Finnhub) and acts as layout intermediary.
+ * MarketDataService orchestrator layer
  */
 class MarketDataServiceImpl {
   private provider: MarketDataProvider;
@@ -81,34 +341,34 @@ class MarketDataServiceImpl {
     this.provider = new FinnhubProvider();
   }
 
-  /**
-   * Inject a different provider at runtime if needed
-   */
   setProvider(provider: MarketDataProvider) {
     this.provider = provider;
   }
 
-  /**
-   * Retrieves valuation price for a canonical ticker and exchange
-   */
   async getPrice(ticker: string, exchange?: string, fallbackPrice?: number): Promise<number> {
     try {
       return await this.provider.getPrice(ticker, exchange);
     } catch (err) {
-      console.warn(`[MarketDataService] Failed to retrieve price for ${ticker}:`, err);
+      console.warn(`[MarketDataService] Error resolving price for ${ticker}:`, err);
       return fallbackPrice !== undefined ? fallbackPrice : 0;
     }
   }
 
-  /**
-   * Retrieves company and symbol metadata details
-   */
   async getMetadata(ticker: string, exchange?: string): Promise<AssetMetadata | null> {
     try {
       return await this.provider.getMetadata(ticker, exchange);
     } catch (err) {
-      console.warn(`[MarketDataService] Failed to retrieve metadata for ${ticker}:`, err);
+      console.warn(`[MarketDataService] Error resolving metadata for ${ticker}:`, err);
       return null;
+    }
+  }
+
+  async getHistoricalPrices(ticker: string, days: number, exchange?: string): Promise<number[]> {
+    try {
+      return await this.provider.getHistoricalPrices(ticker, days, exchange);
+    } catch (err) {
+      console.warn(`[MarketDataService] Error resolving historical candles for ${ticker}:`, err);
+      return [];
     }
   }
 }
