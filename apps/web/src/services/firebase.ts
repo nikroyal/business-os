@@ -51,6 +51,28 @@ export interface Holding {
   updatedAt: string;
 }
 
+export interface PortfolioSnapshot {
+  date: string; // YYYY-MM-DD
+  portfolioValue: number;
+  investedCapital: number;
+  gainLoss: number;
+  holdingsCount: number;
+}
+
+export interface WatchlistItem {
+  id: string;
+  userId: string;
+  symbol: string;
+  ticker: string;
+  exchange: string;
+  currency: string;
+  name: string;
+  addedAt: string;
+}
+
+
+
+
 // Config variables from Vite
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -370,5 +392,87 @@ export const dbService = {
       holdings = holdings.filter(h => h.id !== holdingId);
       localStorage.setItem(`holdings_${userId}`, JSON.stringify(holdings));
     }
+  },
+
+  async savePortfolioSnapshot(userId: string, snapshot: { date: string; portfolioValue: number; investedCapital: number; gainLoss: number; holdingsCount: number }): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'portfolioSnapshots', snapshot.date);
+      await setDoc(docRef, snapshot);
+    } else {
+      const saved = localStorage.getItem(`snapshots_${userId}`);
+      const list: any[] = saved ? JSON.parse(saved) : [];
+      const filtered = list.filter(item => item.date !== snapshot.date);
+      filtered.push(snapshot);
+      localStorage.setItem(`snapshots_${userId}`, JSON.stringify(filtered));
+    }
+  },
+
+  async getWatchlist(userId: string): Promise<WatchlistItem[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'watchlist');
+      const snapshot = await getDocs(colRef);
+      const items: WatchlistItem[] = [];
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        items.push({
+          id: doc.id,
+          userId,
+          symbol: d.symbol || '',
+          ticker: d.ticker || d.symbol || '',
+          exchange: d.exchange || 'NASDAQ',
+          currency: d.currency || 'USD',
+          name: d.name || d.symbol || '',
+          addedAt: d.addedAt || new Date().toISOString()
+        });
+
+      });
+      return items.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    } else {
+      const saved = localStorage.getItem(`watchlist_${userId}`);
+      const items: WatchlistItem[] = saved ? JSON.parse(saved) : [];
+      return items.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    }
+  },
+
+  async addWatchlistItem(userId: string, item: Omit<WatchlistItem, 'id' | 'userId' | 'addedAt'>): Promise<WatchlistItem> {
+    const timestamp = new Date().toISOString();
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'watchlist');
+      const docRef = doc(colRef);
+      const newItem: WatchlistItem = {
+        id: docRef.id,
+        userId,
+        ...item,
+        addedAt: timestamp
+      };
+      await setDoc(docRef, newItem);
+      return newItem;
+    } else {
+      const saved = localStorage.getItem(`watchlist_${userId}`);
+      const items: WatchlistItem[] = saved ? JSON.parse(saved) : [];
+      const newItem: WatchlistItem = {
+        id: 'watch_' + Math.random().toString(36).substr(2, 9),
+        userId,
+        ...item,
+        addedAt: timestamp
+      };
+      items.push(newItem);
+      localStorage.setItem(`watchlist_${userId}`, JSON.stringify(items));
+      return newItem;
+    }
+  },
+
+  async deleteWatchlistItem(userId: string, itemId: string): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'watchlist', itemId);
+      await deleteDoc(docRef);
+    } else {
+      const saved = localStorage.getItem(`watchlist_${userId}`);
+      let items: WatchlistItem[] = saved ? JSON.parse(saved) : [];
+      items = items.filter(i => i.id !== itemId);
+      localStorage.setItem(`watchlist_${userId}`, JSON.stringify(items));
+    }
   }
 };
+
+

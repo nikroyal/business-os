@@ -6,7 +6,8 @@ import {
   Settings, 
   LogOut, 
   BookOpen,
-  Database
+  Database,
+  Eye
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -47,6 +48,14 @@ export const Sidebar: React.FC = () => {
           <Compass size={20} />
           <span>Dashboard</span>
         </NavLink>
+
+        <NavLink 
+          to="/watchlist" 
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Eye size={20} />
+          <span>Watchlist</span>
+        </NavLink>
         
         <NavLink 
           to="/settings" 
@@ -56,6 +65,7 @@ export const Sidebar: React.FC = () => {
           <span>Settings</span>
         </NavLink>
       </nav>
+
 
       <div className="sidebar-footer">
         {isMockMode && (

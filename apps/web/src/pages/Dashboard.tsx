@@ -3,6 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { dbService } from '../services/firebase';
 import type { Holding } from '../services/firebase';
 import { marketDataService } from '../services/marketDataService';
+import type { AssetMetadata } from '../services/marketDataService';
+import { PortfolioAnalyticsService } from '../services/portfolioAnalyticsService';
+import type { PortfolioAnalytics } from '../services/portfolioAnalyticsService';
+import { WatchlistService } from '../services/watchlistService';
+import type { WatchlistAssetIntelligence } from '../services/watchlistService';
+import { useNavigate } from 'react-router-dom';
 import { 
   CheckCircle, 
   Calendar, 
@@ -13,23 +19,33 @@ import {
   TrendingDown, 
   Briefcase,
   AlertCircle,
-  X
+  X,
+  ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
 
-const ASSET_CLASS_COLORS: Record<string, string> = {
-  'Equity': '#8c2a2a',        // Elegant burgundy
-  'Crypto': '#B45309',        // Warm amber/gold
-  'Cash': '#2C6B50',          // Sage green
-  'Fixed Income': '#4A5568',  // Slate blue
-  'Real Estate': '#B59963',   // Warm brass/gold
-  'Other': '#555555'          // Muted charcoal
+
+// Map sectors/industries to consistent editorial colors
+const SECTOR_COLORS: Record<string, string> = {
+  'Technology': '#8c2a2a',
+  'Financial Services': '#4A5568',
+  'Energy / Conglomerate': '#B45309',
+  'Energy': '#D97706',
+  'Cryptocurrency': '#2C6B50',
+  'Cash & Cash Equivalents': '#555555',
+  'Automotive': '#9A3412',
+  'Real Estate': '#B59963',
+  'Other': '#718096'
 };
 
 export const Dashboard: React.FC = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
+  const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
+  const [watchlistSummary, setWatchlistSummary] = useState<WatchlistAssetIntelligence[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -57,23 +73,58 @@ export const Dashboard: React.FC = () => {
     day: 'numeric'
   });
 
+  const reportingCurrency = profile?.reportingCurrency || 'INR';
+  const usdToInrRate = profile?.usdToInrRate || 83.50;
+
   const fetchHoldings = async () => {
     if (!user) return;
     setLoadingHoldings(true);
+    setError(null);
     try {
       const list = await dbService.getHoldings(user.uid);
       setHoldings(list);
 
-      // Fetch prices via MarketDataService layer
+      // Fetch prices and metadata via services
       const prices: Record<string, number> = {};
+      const metadataMap: Record<string, AssetMetadata | null> = {};
+      
       for (const h of list) {
         prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+        const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
+        metadataMap[h.ticker || h.symbol] = meta;
       }
       setMarketPrices(prices);
+
+      // Run analytics engine
+      const calcResult = PortfolioAnalyticsService.calculate(
+        list,
+        prices,
+        metadataMap,
+        reportingCurrency,
+        usdToInrRate,
+        profile?.riskProfile
+      );
+      setAnalytics(calcResult);
+
+      // Save daily portfolio snapshot
+      const todayStr = new Date().toISOString().split('T')[0];
+      await dbService.savePortfolioSnapshot(user.uid, {
+        date: todayStr,
+        portfolioValue: calcResult.totalValue,
+        investedCapital: calcResult.totalCost,
+        gainLoss: calcResult.totalGainLoss,
+        holdingsCount: list.length
+      });
+
+      // Fetch watchlist intelligence
+      const watchListIntell = await WatchlistService.getWatchlistIntelligence(user.uid);
+      setWatchlistSummary(watchListIntell.slice(0, 5)); // display top 5 on dashboard
+
+
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
-      console.error('Error fetching holdings:', err);
-      setError('Failed to load portfolio holdings.');
+      console.error('Error compiling dashboard portfolio data:', err);
+      setError('Failed to resolve portfolio stats and compile analytics reports.');
     } finally {
       setLoadingHoldings(false);
     }
@@ -83,7 +134,7 @@ export const Dashboard: React.FC = () => {
     if (user) {
       fetchHoldings();
     }
-  }, [user]);
+  }, [user, reportingCurrency, usdToInrRate, profile?.riskProfile]);
 
   const openAddModal = () => {
     setEditingHolding(null);
@@ -206,70 +257,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Configurable reporting currencies (defaults to INR, rates from settings profile)
-  const reportingCurrency = profile?.reportingCurrency || 'INR';
-  const usdToInrRate = profile?.usdToInrRate || 83.50;
-
-  // Mixed Currency conversion calculations to standardize reporting base (USD or INR)
-  const totalCost = holdings.reduce((acc, h) => {
-    const cost = h.quantity * h.purchasePrice;
-    if (h.currency === reportingCurrency) {
-      return acc + cost;
-    }
-    // Convert to reporting base
-    if (h.currency === 'INR' && reportingCurrency === 'USD') {
-      return acc + (cost / usdToInrRate);
-    }
-    if (h.currency === 'USD' && reportingCurrency === 'INR') {
-      return acc + (cost * usdToInrRate);
-    }
-    return acc + cost;
-  }, 0);
-
-  const totalValue = holdings.reduce((acc, h) => {
-    const price = marketPrices[h.id] !== undefined ? marketPrices[h.id] : (h.currentPrice || h.purchasePrice);
-    const value = h.quantity * price;
-    if (h.currency === reportingCurrency) {
-      return acc + value;
-    }
-    // Convert to reporting base
-    if (h.currency === 'INR' && reportingCurrency === 'USD') {
-      return acc + (value / usdToInrRate);
-    }
-    if (h.currency === 'USD' && reportingCurrency === 'INR') {
-      return acc + (value * usdToInrRate);
-    }
-    return acc + value;
-  }, 0);
-
-  const totalGainLoss = totalValue - totalCost;
-  const totalGainLossPercent = totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0;
-
-  // Allocation Map Calculations (Standardized in selected reporting currency)
-  const allocationMap: Record<string, number> = {};
-  holdings.forEach(h => {
-    const price = marketPrices[h.id] !== undefined ? marketPrices[h.id] : (h.currentPrice || h.purchasePrice);
-    let val = h.quantity * price;
-    if (h.currency !== reportingCurrency) {
-      if (h.currency === 'INR' && reportingCurrency === 'USD') {
-        val = val / usdToInrRate;
-      } else if (h.currency === 'USD' && reportingCurrency === 'INR') {
-        val = val * usdToInrRate;
-      }
-    }
-    allocationMap[h.assetClass] = (allocationMap[h.assetClass] || 0) + val;
-  });
-
-  const allocationList = Object.entries(allocationMap).map(([assetClass, val]) => {
-    const percentage = totalValue > 0 ? (val / totalValue) * 100 : 0;
-    return {
-      assetClass,
-      value: val,
-      percentage
-    };
-  }).sort((a, b) => b.value - a.value);
-
-  // Formatting helpers
   const formatCurrency = (val: number, currencyCode: string = 'USD') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -320,16 +307,34 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div style={{ 
+          background: 'var(--color-danger-bg)', 
+          border: '1px solid var(--color-danger-border)', 
+          color: 'var(--color-danger-text)', 
+          padding: '1rem 1.5rem', 
+          marginBottom: '2rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
+          <AlertCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="dashboard-grid">
         
-        {/* Left Column: Summary and Holdings Ledger */}
+        {/* Left Column: Metrics, Health, Ledger, Detailed Allocations */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           
           {/* Portfolio Metric Highlights */}
           <div className="metric-summary-grid">
             <div className="metric-card">
               <span className="metric-label">Total Value ({reportingCurrency})</span>
-              <div className="metric-value">{formatCurrency(totalValue, reportingCurrency)}</div>
+              <div className="metric-value">
+                {analytics ? formatCurrency(analytics.totalValue, reportingCurrency) : formatCurrency(0, reportingCurrency)}
+              </div>
               <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
                 <span>Converted portfolio value</span>
               </div>
@@ -337,28 +342,143 @@ export const Dashboard: React.FC = () => {
             
             <div className="metric-card">
               <span className="metric-label">Invested Capital ({reportingCurrency})</span>
-              <div className="metric-value">{formatCurrency(totalCost, reportingCurrency)}</div>
+              <div className="metric-value">
+                {analytics ? formatCurrency(analytics.totalCost, reportingCurrency) : formatCurrency(0, reportingCurrency)}
+              </div>
               <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
                 <span>Converted cost basis</span>
               </div>
             </div>
             
-            <div className="metric-card success" style={{ borderTopColor: totalGainLoss >= 0 ? 'var(--color-success-border)' : 'var(--color-danger-border)' }}>
+            <div className="metric-card success" style={{ 
+              borderTopColor: (analytics?.totalGainLoss || 0) >= 0 ? 'var(--color-success-border)' : 'var(--color-danger-border)' 
+            }}>
               <span className="metric-label">Total Gain / Loss ({reportingCurrency})</span>
-              <div className="metric-value" style={{ color: totalGainLoss >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                {formatCurrency(totalGainLoss, reportingCurrency)}
+              <div className="metric-value" style={{ 
+                color: (analytics?.totalGainLoss || 0) >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' 
+              }}>
+                {analytics ? formatCurrency(analytics.totalGainLoss, reportingCurrency) : formatCurrency(0, reportingCurrency)}
               </div>
-              <div className="metric-change" style={{ color: totalGainLoss >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                {totalGainLoss >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                <span>{formatPercent(totalGainLossPercent)}</span>
+              <div className="metric-change" style={{ 
+                color: (analytics?.totalGainLoss || 0) >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' 
+              }}>
+                {(analytics?.totalGainLoss || 0) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                <span>{analytics ? formatPercent(analytics.totalGainLossPercent) : '0.00%'}</span>
               </div>
             </div>
           </div>
 
+          {/* New row: Health Summary & Diversification Gauge side-by-side */}
+          {analytics && holdings.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+              
+              {/* Portfolio Health Summary Widget */}
+              <div className="card" style={{ padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                  <h3 style={{ fontSize: '1.15rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                    Portfolio Health Summary
+                  </h3>
+                  <span style={{ 
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    padding: '0.2rem 0.5rem',
+                    border: '1px solid',
+                    color: analytics.health.status === 'Healthy' ? 'var(--color-success-text)' : analytics.health.status === 'Warning' ? '#B45309' : 'var(--color-danger-text)',
+                    borderColor: analytics.health.status === 'Healthy' ? 'var(--color-success-border)' : analytics.health.status === 'Warning' ? '#F59E0B' : 'var(--color-danger-border)',
+                    backgroundColor: analytics.health.status === 'Healthy' ? 'var(--color-success-bg)' : analytics.health.status === 'Warning' ? '#FFFBEB' : 'var(--color-danger-bg)',
+                    textTransform: 'uppercase'
+                  }}>
+                    {analytics.health.status} ({analytics.health.score}/100)
+                  </span>
+                </div>
+                
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: 1.4 }}>
+                  {analytics.health.summary}
+                </p>
+
+                {analytics.health.flags.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                    {analytics.health.flags.map((flag, idx) => (
+                      <div key={idx} style={{ 
+                        display: 'flex', 
+                        gap: '0.5rem', 
+                        borderLeft: `3px solid ${flag.type === 'danger' ? 'var(--color-danger-border)' : flag.type === 'warning' ? '#F59E0B' : 'var(--color-primary)'}`,
+                        paddingLeft: '0.6rem',
+                        fontSize: '0.75rem'
+                      }}>
+                        <ShieldAlert size={14} style={{ 
+                          color: flag.type === 'danger' ? 'var(--color-danger-text)' : flag.type === 'warning' ? '#B45309' : 'var(--text-secondary)',
+                          flexShrink: 0,
+                          marginTop: '0.1rem'
+                        }} />
+                        <div>
+                          <strong style={{ color: 'var(--text-primary)', display: 'block' }}>{flag.message}</strong>
+                          <span style={{ color: 'var(--text-muted)' }}>{flag.suggestion}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #E2DACD', background: '#FCFAF6', padding: '1rem', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      No risk warnings. Portfolio metrics are fully secure.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Portfolio Diversification Score Widget */}
+              <div className="card" style={{ padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                  <h3 style={{ fontSize: '1.15rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                    Diversification Score
+                  </h3>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1rem', marginTop: '0.5rem' }}>
+                  <div style={{ position: 'relative', width: '70px', height: '70px', borderRadius: '50%', background: '#F0EBE1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '1.3rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
+                      {analytics.diversification.score}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="mono-tag" style={{ 
+                      fontSize: '0.65rem', 
+                      background: analytics.diversification.status === 'Excellent' ? 'var(--color-success-bg)' : analytics.diversification.status === 'Good' ? '#ECFDF5' : analytics.diversification.status === 'Average' ? '#FFFBEB' : 'var(--color-danger-bg)',
+                      color: analytics.diversification.status === 'Excellent' ? 'var(--color-success-text)' : analytics.diversification.status === 'Good' ? '#059669' : analytics.diversification.status === 'Average' ? '#B45309' : 'var(--color-danger-text)'
+                    }}>
+                      {analytics.diversification.status} Rating
+                    </span>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0', lineHeight: 1.3 }}>
+                      {analytics.diversification.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Score Progress Bar */}
+                <div style={{ background: '#E2DACD', height: '6px', width: '100%', borderRadius: 0, position: 'relative', overflow: 'hidden', marginTop: 'auto', marginBottom: '0.5rem' }}>
+                  <div style={{ 
+                    height: '100%', 
+                    width: `${analytics.diversification.score}%`, 
+                    backgroundColor: analytics.diversification.score >= 80 ? 'var(--color-success-text)' : analytics.diversification.score >= 60 ? '#10B981' : analytics.diversification.score >= 40 ? '#F59E0B' : 'var(--color-danger-text)' 
+                  }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  <span>POOR</span>
+                  <span>AVERAGE</span>
+                  <span>GOOD</span>
+                  <span>EXCELLENT</span>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* Holdings Section */}
           <div className="card" style={{ padding: '2rem 2.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #222222', paddingBottom: '0.75rem' }}>
-              <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-serif)' }}>
+              <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
                 Asset Ledger
               </h2>
               <button onClick={openAddModal} className="btn btn-primary btn-sm">
@@ -454,63 +574,282 @@ export const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Right Column: Editorial Sidebars */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-          
-          {/* Allocation Summary Card */}
-          <div className="card" style={{ padding: '1.5rem 2rem' }}>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)' }}>
-              Allocation Summary
-            </h3>
-            {holdings.length === 0 ? (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                Add assets to view portfolio allocation.
-              </p>
-            ) : (
-              <>
-                <div className="allocation-bar-container">
-                  {allocationList.map((item, idx) => {
-                    const color = ASSET_CLASS_COLORS[item.assetClass] || ASSET_CLASS_COLORS['Other'];
-                    return (
-                      <div 
-                        key={idx}
-                        className="allocation-segment"
-                        style={{ 
-                          width: `${item.percentage}%`,
-                          backgroundColor: color 
-                        }}
-                        title={`${item.assetClass}: ${item.percentage.toFixed(1)}%`}
-                      />
-                    );
-                  })}
-                </div>
+          {/* Allocation Details Section - Sectors, Countries, and Currencies */}
+          {analytics && holdings.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+              
+              {/* Sector & Geographic Allocation Cards side-by-side */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-                  {allocationList.map((item, idx) => {
-                    const color = ASSET_CLASS_COLORS[item.assetClass] || ASSET_CLASS_COLORS['Other'];
-                    return (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div className="color-indicator" style={{ backgroundColor: color }} />
-                          <span style={{ fontWeight: 500 }}>{item.assetClass}</span>
+                {/* Sector Allocation */}
+                <div className="card" style={{ padding: '1.5rem 2rem' }}>
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                    Sector Allocation
+                  </h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '1rem' }}>
+                    {analytics.sectorAllocation.map((item, idx) => {
+                      const color = SECTOR_COLORS[item.name] || SECTOR_COLORS['Other'];
+                      return (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ fontWeight: 500 }}>{item.name}</span>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                              <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value, reportingCurrency)}</span>
+                              <span style={{ fontWeight: 'bold' }}>{item.percentage.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                          <div style={{ background: '#E2DACD', height: '5px', width: '100%' }}>
+                            <div style={{ height: '100%', width: `${item.percentage}%`, backgroundColor: color }} />
+                          </div>
                         </div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                          <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value, reportingCurrency)}</span>
-                          <span style={{ fontWeight: 'bold' }}>{item.percentage.toFixed(1)}%</span>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Geographic Allocation */}
+                <div className="card" style={{ padding: '1.5rem 2rem' }}>
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                    Geographic Allocation
+                  </h3>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '1rem' }}>
+                    {analytics.geographicAllocation.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                          <div>
+                            <span style={{ fontWeight: 500 }}>{item.name}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginLeft: '0.4rem' }}>({item.region})</span>
+                          </div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                            <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value, reportingCurrency)}</span>
+                            <span style={{ fontWeight: 'bold' }}>{item.percentage.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                        <div style={{ background: '#E2DACD', height: '5px', width: '100%' }}>
+                          <div style={{ 
+                            height: '100%', 
+                            width: `${item.percentage}%`, 
+                            backgroundColor: item.name === 'United States' ? '#8c2a2a' : item.name === 'India' ? '#B45309' : item.name === 'Global' ? '#2C6B50' : '#718096' 
+                          }} />
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </>
+
+              </div>
+
+              {/* Currency Exposure */}
+              <div className="card" style={{ padding: '1.5rem 2rem' }}>
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                  Currency Exposure
+                </h3>
+                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+                  {analytics.currencyExposure.map((item, idx) => (
+                    <div key={idx} style={{ 
+                      flex: '1', 
+                      minWidth: '150px', 
+                      background: '#FCFAF6', 
+                      border: '1px solid #E2DACD', 
+                      padding: '1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem'
+                    }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>{item.name} Exposure</span>
+                      <span style={{ fontSize: '1.25rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
+                        {item.percentage.toFixed(2)}%
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {formatCurrency(item.value, reportingCurrency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+        </div>
+
+        {/* Right Column: Editorial Sidebars (Concentration Risk, Winners/Losers, Watchlist Summary, Strategic Parameters) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+          
+          {/* Concentration Risk Card */}
+          {analytics && holdings.length > 0 && (
+            <div className="card" style={{ padding: '1.5rem 2rem' }}>
+              <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                Concentration Risk
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Herfindahl Index (HHI):</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>{analytics.concentrationRisk.hhi.toFixed(0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Concentration Status:</span>
+                  <span style={{ 
+                    fontFamily: 'var(--font-mono)', 
+                    fontWeight: 'bold',
+                    color: analytics.concentrationRisk.status === 'High' ? 'var(--color-danger-text)' : analytics.concentrationRisk.status === 'Moderate' ? '#B45309' : 'var(--color-success-text)' 
+                  }}>{analytics.concentrationRisk.status}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Top Holding Weight:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{analytics.concentrationRisk.topAssetWeight.toFixed(1)}%</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Top 3 Assets Weight:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)' }}>{analytics.concentrationRisk.top3Weight.toFixed(1)}%</span>
+                </div>
+                
+                <div style={{ 
+                  marginTop: '0.5rem',
+                  borderTop: '1px dashed #E2DACD',
+                  paddingTop: '0.75rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.3
+                }}>
+                  {analytics.concentrationRisk.description}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Top Winners & Top Losers Performers Card */}
+          {analytics && holdings.length > 0 && (
+            <div className="card" style={{ padding: '1.5rem 2rem' }}>
+              <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                Top Performers
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1.0rem' }}>
+                
+                {/* Winners */}
+                <div>
+                  <span className="mono-tag" style={{ fontSize: '0.65rem', background: '#ECFDF5', color: '#059669', marginBottom: '0.5rem', display: 'inline-block' }}>Top Winners</span>
+                  {analytics.bestPerformers.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {analytics.bestPerformers.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{item.ticker}</span>
+                          <span style={{ color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
+                            {formatPercent(item.gainLossPercent)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No positive overall gains.</span>
+                  )}
+                </div>
+
+                {/* Losers */}
+                <div>
+                  <span className="mono-tag" style={{ fontSize: '0.65rem', background: 'var(--color-danger-bg)', color: 'var(--color-danger-text)', marginBottom: '0.5rem', display: 'inline-block' }}>Top Losers</span>
+                  {analytics.worstPerformers.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {analytics.worstPerformers.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{item.ticker}</span>
+                          <span style={{ color: 'var(--color-danger-text)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
+                            {formatPercent(item.gainLossPercent)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No negative overall gains.</span>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* Watchlist Summary Widget */}
+          <div className="card" style={{ padding: '1.5rem 2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.15rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                Monitored Securities
+              </h3>
+              <button 
+                onClick={() => navigate('/watchlist')}
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  cursor: 'pointer', 
+                  color: 'var(--color-accent)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  gap: '0.1rem' 
+                }}
+              >
+                <span>Edit</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {watchlistSummary.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: '0 0 0.5rem 0' }}>
+                  No securities monitored.
+                </p>
+                <button onClick={() => navigate('/watchlist')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}>
+                  Setup Watchlist
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {watchlistSummary.map((asset) => {
+                  const hasPrice = asset.quote.current > 0;
+                  return (
+                    <div 
+                      key={asset.item.id} 
+                      onClick={() => navigate('/watchlist')}
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        paddingBottom: '0.5rem', 
+                        borderBottom: '1px dashed #E2DACD',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 'bold', display: 'block' }}>{asset.item.symbol}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{asset.item.exchange}</span>
+                      </div>
+                      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                        <span style={{ fontWeight: 600, display: 'block' }}>
+                          {hasPrice ? formatCurrency(asset.quote.current, asset.item.currency) : '—'}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          fontWeight: 'bold',
+                          color: asset.quote.percentChange >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)'
+                        }}>
+                          {hasPrice ? formatPercent(asset.quote.percentChange) : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
           {/* Strategic Parameters Snapshot */}
           <div className="card" style={{ padding: '1.5rem 2rem' }}>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
               Strategic Parameters Snapshot
             </h3>
             
@@ -532,13 +871,13 @@ export const Dashboard: React.FC = () => {
 
           {/* Interests track widget */}
           <div className="card" style={{ padding: '1.5rem 2rem' }}>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
               Analysis Verticals
             </h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', margin: 0 }}>
               Focus categories assigned to the scanning agent.
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
               {profile?.interests && profile.interests.length > 0 ? (
                 profile.interests.map((interest: string, idx: number) => (
                   <div key={idx} style={{
@@ -564,10 +903,10 @@ export const Dashboard: React.FC = () => {
 
           {/* Alerts configuration state card */}
           <div className="card" style={{ padding: '1.5rem 2rem' }}>
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
               Dispatch Status
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', marginTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
                 <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>Daily Briefing:</span>
                 <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold', fontSize: '0.75rem', color: profile?.emailPreferences?.dailyBriefing ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
