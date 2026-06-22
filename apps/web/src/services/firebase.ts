@@ -37,9 +37,13 @@ export interface Holding {
   userId: string;
   symbol: string;
   name: string;
+  ticker: string;
+  exchange: string;
   assetClass: string;
+  currency: string;
   quantity: number;
   purchasePrice: number;
+  purchaseDate: string; // YYYY-MM-DD
   currentPrice: number;
   createdAt: string;
   updatedAt: string;
@@ -240,17 +244,63 @@ export const dbService = {
   },
 
   async getHoldings(userId: string): Promise<Holding[]> {
+    const migrateHolding = (h: any): Holding => {
+      const timestamp = h.createdAt || new Date().toISOString();
+      const purchaseDate = h.purchaseDate || (timestamp ? timestamp.split('T')[0] : new Date().toISOString().split('T')[0]);
+      
+      const symbol = h.symbol || '';
+      const ticker = h.ticker || symbol;
+      
+      let exchange = h.exchange;
+      if (!exchange) {
+        if (h.assetClass?.toLowerCase() === 'crypto') {
+          exchange = 'CRYPTO';
+        } else if (h.assetClass?.toLowerCase() === 'cash') {
+          exchange = 'CASH';
+        } else if (['RELIANCE', 'TCS', 'INFY', 'WIPRO'].includes(ticker.toUpperCase())) {
+          exchange = 'NSE';
+        } else {
+          exchange = 'NASDAQ';
+        }
+      }
+
+      const currency = h.currency || (['NSE', 'BSE'].includes(exchange) ? 'INR' : 'USD');
+      const assetClass = h.assetClass || 'Equity';
+      const quantity = typeof h.quantity === 'number' ? h.quantity : parseFloat(h.quantity) || 0;
+      const purchasePrice = typeof h.purchasePrice === 'number' ? h.purchasePrice : parseFloat(h.purchasePrice) || 0;
+      const currentPrice = typeof h.currentPrice === 'number' ? h.currentPrice : (parseFloat(h.currentPrice) || purchasePrice);
+      const name = h.name || `${ticker} Asset`;
+
+      return {
+        id: h.id,
+        userId: h.userId,
+        symbol,
+        name,
+        ticker,
+        exchange,
+        assetClass,
+        currency,
+        quantity,
+        purchasePrice,
+        purchaseDate,
+        currentPrice,
+        createdAt: timestamp,
+        updatedAt: h.updatedAt || timestamp
+      };
+    };
+
     if (realDb) {
       const colRef = collection(realDb, 'users', userId, 'holdings');
       const snapshot = await getDocs(colRef);
       const holdings: Holding[] = [];
       snapshot.forEach(doc => {
-        holdings.push({ id: doc.id, ...doc.data() } as Holding);
+        holdings.push(migrateHolding({ id: doc.id, ...doc.data() }));
       });
       return holdings.sort((a, b) => a.symbol.localeCompare(b.symbol));
     } else {
       const saved = localStorage.getItem(`holdings_${userId}`);
-      const holdings: Holding[] = saved ? JSON.parse(saved) : [];
+      const raw: any[] = saved ? JSON.parse(saved) : [];
+      const holdings: Holding[] = raw.map(item => migrateHolding(item));
       return holdings.sort((a, b) => a.symbol.localeCompare(b.symbol));
     }
   },

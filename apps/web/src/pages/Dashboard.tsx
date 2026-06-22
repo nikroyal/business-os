@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { dbService } from '../services/firebase';
 import type { Holding } from '../services/firebase';
+import { marketDataService } from '../services/marketDataService';
 import { 
   CheckCircle, 
   Calendar, 
@@ -24,10 +25,13 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   'Other': '#555555'          // Muted charcoal
 };
 
+const USD_INR_RATE = 83.50; // Exchange rate conversion factor for reporting
+
 export const Dashboard: React.FC = () => {
   const { user, profile } = useAuth();
   
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
   const [loadingHoldings, setLoadingHoldings] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,10 +43,13 @@ export const Dashboard: React.FC = () => {
   // Form Fields
   const [symbol, setSymbol] = useState('');
   const [name, setName] = useState('');
+  const [ticker, setTicker] = useState('');
+  const [exchange, setExchange] = useState('NASDAQ');
+  const [currency, setCurrency] = useState('USD');
   const [assetClass, setAssetClass] = useState('Equity');
   const [quantity, setQuantity] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
-  const [currentPrice, setCurrentPrice] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -57,6 +64,13 @@ export const Dashboard: React.FC = () => {
     try {
       const list = await dbService.getHoldings(user.uid);
       setHoldings(list);
+
+      // Fetch prices via MarketDataService layer
+      const prices: Record<string, number> = {};
+      for (const h of list) {
+        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+      }
+      setMarketPrices(prices);
     } catch (err: any) {
       console.error('Error fetching holdings:', err);
       setError('Failed to load portfolio holdings.');
@@ -75,10 +89,13 @@ export const Dashboard: React.FC = () => {
     setEditingHolding(null);
     setSymbol('');
     setName('');
+    setTicker('');
+    setExchange('NASDAQ');
+    setCurrency('USD');
     setAssetClass('Equity');
     setQuantity('');
     setPurchasePrice('');
-    setCurrentPrice('');
+    setPurchaseDate(new Date().toISOString().split('T')[0]);
     setError(null);
     setIsModalOpen(true);
   };
@@ -87,26 +104,45 @@ export const Dashboard: React.FC = () => {
     setEditingHolding(holding);
     setSymbol(holding.symbol);
     setName(holding.name);
+    setTicker(holding.ticker || holding.symbol);
+    setExchange(holding.exchange || 'NASDAQ');
+    setCurrency(holding.currency || 'USD');
     setAssetClass(holding.assetClass);
     setQuantity(holding.quantity.toString());
     setPurchasePrice(holding.purchasePrice.toString());
-    setCurrentPrice(holding.currentPrice.toString());
+    setPurchaseDate(holding.purchaseDate || new Date().toISOString().split('T')[0]);
     setError(null);
     setIsModalOpen(true);
+  };
+
+  // Pre-fill details using MarketDataService metadata helper
+  const handleTickerBlur = async () => {
+    if (!ticker) return;
+    const cleanTicker = ticker.toUpperCase().trim();
+    try {
+      const metadata = await marketDataService.getMetadata(cleanTicker, exchange);
+      if (metadata) {
+        if (!name) setName(metadata.name);
+        if (!symbol) setSymbol(metadata.ticker);
+        if (metadata.exchange && exchange === 'NASDAQ') setExchange(metadata.exchange);
+        if (metadata.currency) setCurrency(metadata.currency);
+      }
+    } catch (err) {
+      console.warn('Error pre-filling ticker metadata:', err);
+    }
   };
 
   const handleSaveHolding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
-    if (!symbol || !name || !quantity || !purchasePrice || !currentPrice) {
-      setError('Please fill in all fields.');
+    if (!symbol || !ticker || !exchange || !currency || !quantity || !purchasePrice || !purchaseDate) {
+      setError('Please fill in all required fields.');
       return;
     }
 
     const qty = parseFloat(quantity);
     const pPrice = parseFloat(purchasePrice);
-    const cPrice = parseFloat(currentPrice);
 
     if (isNaN(qty) || qty <= 0) {
       setError('Quantity must be a positive number.');
@@ -116,21 +152,29 @@ export const Dashboard: React.FC = () => {
       setError('Purchase price must be positive or zero.');
       return;
     }
-    if (isNaN(cPrice) || cPrice < 0) {
-      setError('Current price must be positive or zero.');
-      return;
-    }
 
     setSaving(true);
     setError(null);
 
+    // Get current price from the marketDataService or fallback to purchase price
+    let currentValPrice = pPrice;
+    try {
+      currentValPrice = await marketDataService.getPrice(ticker.toUpperCase().trim(), exchange, pPrice);
+    } catch (err) {
+      console.warn('Failed to pre-fetch price during save, using purchase price:', err);
+    }
+
     const data = {
       symbol: symbol.toUpperCase().trim(),
-      name: name.trim(),
+      ticker: ticker.toUpperCase().trim(),
+      exchange,
+      currency,
       assetClass,
+      name: name.trim() || `${ticker.toUpperCase().trim()} Asset`,
       quantity: qty,
       purchasePrice: pPrice,
-      currentPrice: cPrice
+      purchaseDate,
+      currentPrice: currentValPrice
     };
 
     try {
@@ -162,16 +206,35 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Calculations
-  const totalCost = holdings.reduce((acc, h) => acc + (h.quantity * h.purchasePrice), 0);
-  const totalValue = holdings.reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0);
+  // Mixed Currency conversion calculations to standardize base reporting in USD
+  const totalCost = holdings.reduce((acc, h) => {
+    const cost = h.quantity * h.purchasePrice;
+    if (h.currency === 'INR') {
+      return acc + (cost / USD_INR_RATE);
+    }
+    return acc + cost;
+  }, 0);
+
+  const totalValue = holdings.reduce((acc, h) => {
+    const price = marketPrices[h.id] !== undefined ? marketPrices[h.id] : (h.currentPrice || h.purchasePrice);
+    const value = h.quantity * price;
+    if (h.currency === 'INR') {
+      return acc + (value / USD_INR_RATE);
+    }
+    return acc + value;
+  }, 0);
+
   const totalGainLoss = totalValue - totalCost;
   const totalGainLossPercent = totalCost > 0 ? (totalGainLoss / totalCost) * 100 : 0;
 
-  // Allocation Map Calculations
+  // Allocation Map Calculations (Standardized in USD for relative comparison)
   const allocationMap: Record<string, number> = {};
   holdings.forEach(h => {
-    const val = h.quantity * h.currentPrice;
+    const price = marketPrices[h.id] !== undefined ? marketPrices[h.id] : (h.currentPrice || h.purchasePrice);
+    let val = h.quantity * price;
+    if (h.currency === 'INR') {
+      val = val / USD_INR_RATE;
+    }
     allocationMap[h.assetClass] = (allocationMap[h.assetClass] || 0) + val;
   });
 
@@ -185,10 +248,10 @@ export const Dashboard: React.FC = () => {
   }).sort((a, b) => b.value - a.value);
 
   // Formatting helpers
-  const formatCurrency = (val: number) => {
+  const formatCurrency = (val: number, currencyCode: string = 'USD') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currencyCode,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(val);
@@ -230,7 +293,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-success-text)' }}>
             <CheckCircle size={12} />
-            <span>PORTFOLIO LEDGER ACTIVE</span>
+            <span>MARKET PROVIDER ACTIVE</span>
           </div>
         </div>
       </div>
@@ -243,25 +306,25 @@ export const Dashboard: React.FC = () => {
           {/* Portfolio Metric Highlights */}
           <div className="metric-summary-grid">
             <div className="metric-card">
-              <span className="metric-label">Total Portfolio Value</span>
-              <div className="metric-value">{formatCurrency(totalValue)}</div>
+              <span className="metric-label">Total Portfolio Value (USD)</span>
+              <div className="metric-value">{formatCurrency(totalValue, 'USD')}</div>
               <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
-                <span>Real-time net asset value</span>
+                <span>Converted net asset value</span>
               </div>
             </div>
             
             <div className="metric-card">
-              <span className="metric-label">Invested Capital</span>
-              <div className="metric-value">{formatCurrency(totalCost)}</div>
+              <span className="metric-label">Invested Capital (USD)</span>
+              <div className="metric-value">{formatCurrency(totalCost, 'USD')}</div>
               <div className="metric-change" style={{ color: 'var(--text-secondary)' }}>
-                <span>Total cost basis</span>
+                <span>Converted cost basis</span>
               </div>
             </div>
             
             <div className="metric-card success" style={{ borderTopColor: totalGainLoss >= 0 ? 'var(--color-success-border)' : 'var(--color-danger-border)' }}>
-              <span className="metric-label">Total Gain / Loss</span>
+              <span className="metric-label">Total Gain / Loss (USD)</span>
               <div className="metric-value" style={{ color: totalGainLoss >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                {formatCurrency(totalGainLoss)}
+                {formatCurrency(totalGainLoss, 'USD')}
               </div>
               <div className="metric-change" style={{ color: totalGainLoss >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
                 {totalGainLoss >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
@@ -284,7 +347,7 @@ export const Dashboard: React.FC = () => {
 
             {loadingHoldings ? (
               <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
-                <span className="mono-tag">Loading Holdings...</span>
+                <span className="mono-tag">Loading Ledger...</span>
               </div>
             ) : holdings.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '4rem 1rem', border: '1px dashed #E2DACD', background: '#FCFAF6' }}>
@@ -301,6 +364,7 @@ export const Dashboard: React.FC = () => {
                     <tr>
                       <th>Asset</th>
                       <th>Class</th>
+                      <th>Exchange</th>
                       <th className="num-val">Qty</th>
                       <th className="num-val">Avg Cost</th>
                       <th className="num-val">Current</th>
@@ -311,7 +375,8 @@ export const Dashboard: React.FC = () => {
                   </thead>
                   <tbody>
                     {holdings.map((holding) => {
-                      const value = holding.quantity * holding.currentPrice;
+                      const price = marketPrices[holding.id] !== undefined ? marketPrices[holding.id] : (holding.currentPrice || holding.purchasePrice);
+                      const value = holding.quantity * price;
                       const cost = holding.quantity * holding.purchasePrice;
                       const gain = value - cost;
                       const gainPercent = cost > 0 ? (gain / cost) * 100 : 0;
@@ -319,7 +384,7 @@ export const Dashboard: React.FC = () => {
                         <tr key={holding.id}>
                           <td style={{ fontWeight: 600 }}>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{holding.symbol}</span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{holding.ticker || holding.symbol}</span>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{holding.name}</span>
                             </div>
                           </td>
@@ -328,13 +393,18 @@ export const Dashboard: React.FC = () => {
                               {holding.assetClass}
                             </span>
                           </td>
+                          <td>
+                            <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                              {holding.exchange}
+                            </span>
+                          </td>
                           <td className="num-val">{holding.quantity.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })}</td>
-                          <td className="num-val">{formatCurrency(holding.purchasePrice)}</td>
-                          <td className="num-val">{formatCurrency(holding.currentPrice)}</td>
-                          <td className="num-val" style={{ fontWeight: 600 }}>{formatCurrency(value)}</td>
+                          <td className="num-val">{formatCurrency(holding.purchasePrice, holding.currency)}</td>
+                          <td className="num-val">{formatCurrency(price, holding.currency)}</td>
+                          <td className="num-val" style={{ fontWeight: 600 }}>{formatCurrency(value, holding.currency)}</td>
                           <td className="num-val" style={{ color: gain >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                              <span>{formatCurrency(gain)}</span>
+                              <span>{formatCurrency(gain, holding.currency)}</span>
                               <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>{formatPercent(gainPercent)}</span>
                             </div>
                           </td>
@@ -405,7 +475,7 @@ export const Dashboard: React.FC = () => {
                           <span style={{ fontWeight: 500 }}>{item.assetClass}</span>
                         </div>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                          <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value)}</span>
+                          <span style={{ marginRight: '0.5rem', color: 'var(--text-secondary)' }}>{formatCurrency(item.value, 'USD')}</span>
                           <span style={{ fontWeight: 'bold' }}>{item.percentage.toFixed(1)}%</span>
                         </div>
                       </div>
@@ -534,16 +604,31 @@ export const Dashboard: React.FC = () => {
             )}
             
             <form onSubmit={handleSaveHolding} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Ticker Symbol</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. AAPL, BTC, CASH" 
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value)}
-                  required
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Ticker Symbol</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. AAPL, BTC, TCS" 
+                    value={ticker}
+                    onChange={(e) => setTicker(e.target.value)}
+                    onBlur={handleTickerBlur}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Custom Display Tag</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="e.g. AAPL" 
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -551,11 +636,42 @@ export const Dashboard: React.FC = () => {
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="e.g. Apple Inc., Bitcoin, US Dollar" 
+                  placeholder="e.g. Apple Inc., US Dollar" 
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Exchange</label>
+                  <select 
+                    className="form-input form-select"
+                    value={exchange}
+                    onChange={(e) => setExchange(e.target.value)}
+                  >
+                    <option value="NASDAQ">NASDAQ</option>
+                    <option value="NYSE">NYSE</option>
+                    <option value="NSE">NSE (India)</option>
+                    <option value="BSE">BSE (India)</option>
+                    <option value="CRYPTO">Crypto Exchange</option>
+                    <option value="CASH">Cash Holdings</option>
+                    <option value="OTHER">Other / Private</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Currency</label>
+                  <select 
+                    className="form-input form-select"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="INR">INR (₹)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -589,7 +705,7 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Avg Buy Price ($)</label>
+                  <label className="form-label">Avg Buy Price</label>
                   <input 
                     type="number" 
                     step="any"
@@ -603,14 +719,12 @@ export const Dashboard: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label className="form-label">Current Price ($)</label>
+                <label className="form-label">Purchase Date</label>
                 <input 
-                  type="number" 
-                  step="any"
+                  type="date" 
                   className="form-input" 
-                  placeholder="0.00" 
-                  value={currentPrice}
-                  onChange={(e) => setCurrentPrice(e.target.value)}
+                  value={purchaseDate}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
                   required
                 />
               </div>
