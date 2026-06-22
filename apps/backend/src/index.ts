@@ -372,4 +372,13 @@ app.all('*', (c) => {
   return c.json({ error: 'Endpoint not found' }, 404);
 });
 
-export default app;
+import { checkAndRunScheduled } from './dispatch';
+
+export default {
+  fetch: app.fetch,
+  async scheduled(event: any, env: Bindings, ctx: any) {
+    console.log('[Worker Cron] Triggered scheduled event:', event.cron);
+    ctx.waitUntil(checkAndRunScheduled(env as any));
+  }
+};
+

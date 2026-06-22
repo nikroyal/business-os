@@ -39,6 +39,12 @@ export interface UserProfile {
   geminiApiKey?: string;
   geminiModel?: string;
   geminiTone?: 'editorial' | 'analytical' | 'succinct';
+
+  // Dispatch Configuration
+  preferredDeliveryTime?: string;
+  preferredTimezone?: string;
+  emailDeliveryAddress?: string;
+  aiCommentaryIncluded?: boolean;
 }
 
 export interface Holding {
@@ -723,6 +729,22 @@ export const dbService = {
     } else {
       localStorage.setItem(`ai_commentary_${userId}_${id}`, JSON.stringify(data));
       return data;
+    }
+  },
+
+  async getDispatchHistory(userId: string): Promise<any[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'dispatchHistory');
+      const snapshot = await getDocs(colRef);
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      return list.sort((a: any, b: any) => b.generatedAt.localeCompare(a.generatedAt));
+    } else {
+      const saved = localStorage.getItem(`dispatchHistory_${userId}`);
+      const list = saved ? JSON.parse(saved) : [];
+      return list.sort((a: any, b: any) => b.generatedAt.localeCompare(a.generatedAt));
     }
   }
 };

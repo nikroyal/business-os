@@ -16,6 +16,8 @@ export interface PlatformHealth {
     gemini: ServiceStatus;
     resend: ServiceStatus;
   };
+  lastSuccessDispatch?: string;
+  lastFailedDispatch?: string;
 }
 
 const LOCAL_STORAGE_KEY = 'business_os_health_status';
@@ -194,6 +196,21 @@ export class ServiceHealthService {
       health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
       health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
       health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
+    }
+
+    // Fetch dispatch history to identify last success and last failed dispatches
+    try {
+      const history = await dbService.getDispatchHistory(userId);
+      const lastSuccess = history.find((h: any) => h.status === 'success');
+      const lastFailed = history.find((h: any) => h.status === 'failed');
+      if (lastSuccess) {
+        health.lastSuccessDispatch = lastSuccess.deliveredAt || lastSuccess.generatedAt;
+      }
+      if (lastFailed) {
+        health.lastFailedDispatch = lastFailed.generatedAt;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch dispatch history for health metrics:', err);
     }
 
     // Persist last successful health check to localStorage

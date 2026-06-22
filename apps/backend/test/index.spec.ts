@@ -6,6 +6,7 @@ import {
 } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import worker from "../src";
+import { renderDailyFTEmail, renderWeeklyFTEmail } from "../src/dispatch";
 
 describe("BusinessOS Backend Worker API Tests", () => {
 	describe("GET /api/health", () => {
@@ -58,6 +59,109 @@ describe("BusinessOS Backend Worker API Tests", () => {
 			});
 			// Since we don't have FINNHUB_API_KEY configured in vitest env, it will return 500 or fallback, but it won't be 401!
 			expect(response.status).not.toBe(401);
+		});
+	});
+
+	describe("Scheduled Worker Cron Trigger", () => {
+		it("triggers the scheduled function without throwing", async () => {
+			const ctx = createExecutionContext();
+			const event = { cron: "*/30 * * * *" };
+			// Run scheduled trigger
+			await expect((async () => {
+				if (worker.scheduled) {
+					await worker.scheduled(event, env, ctx);
+				}
+				await waitOnExecutionContext(ctx);
+			})()).resolves.not.toThrow();
+		});
+	});
+
+	describe("Email Template Rendering", () => {
+		const mockProfile: any = {
+			uid: "user123",
+			email: "user@example.com",
+			displayName: "John Doe",
+			riskProfile: "moderate",
+			interests: ["AI"],
+			timezone: "UTC",
+			emailPreferences: { dailyBriefing: true, weeklyReport: true, alerts: true },
+			reportingCurrency: "USD"
+		};
+
+		const mockReport: any = {
+			id: "report_123",
+			userId: "user123",
+			date: "2026-06-22",
+			title: "Daily Briefing Title",
+			summary: "Editorial summary text here.",
+			sections: {
+				marketSnapshot: {
+					globalTrend: "bullish",
+					usMarket: "US market commentary",
+					indianMarket: "Indian market commentary",
+					cryptoMarket: "Crypto market commentary"
+				},
+				portfolioSummary: {
+					totalValue: 100000,
+					totalGainLoss: 5000,
+					performanceLabel: "Modest Gains",
+					allocationHighlights: "High concentration in Tech"
+				},
+				watchlistMovers: [
+					{ ticker: "AAPL", exchange: "NASDAQ", price: 180.50, changePercent: 1.25, direction: "up" }
+				],
+				riskFlags: [
+					{ level: "warning", message: "Concentration high", suggestion: "Diversify positions" }
+				],
+				learningItem: {
+					term: "HHI",
+					definition: "Measure of concentration risk",
+					context: "HHI under 1500 is good"
+				}
+			},
+			createdAt: "2026-06-22T12:00:00Z"
+		};
+
+		it("renders daily FT email correctly without AI commentary", () => {
+			const html = renderDailyFTEmail(mockProfile, mockReport, null);
+			expect(html).toContain("Daily Briefing");
+			expect(html).toContain("Daily Briefing Title");
+			expect(html).toContain("Editorial summary text here.");
+		});
+
+		it("renders daily FT email correctly with AI commentary", () => {
+			const mockCommentary = {
+				executiveSummary: "AI summary context.",
+				portfolioCommentary: "AI portfolio details.",
+				riskCommentary: "AI risk details.",
+				opportunityCommentary: "AI opportunities details.",
+				marketContext: "AI market details."
+			};
+			const html = renderDailyFTEmail(mockProfile, mockReport, mockCommentary);
+			expect(html).toContain("AI Editorial Insights");
+			expect(html).toContain("AI summary context.");
+		});
+
+		it("renders weekly FT email correctly", () => {
+			const mockAnalytics: any = {
+				totalValue: 100000,
+				totalCost: 95000,
+				totalGainLoss: 5000,
+				totalGainLossPercent: 5.26,
+				sectorAllocation: [{ name: "Technology", value: 80000, percentage: 80 }],
+				geographicAllocation: [{ name: "United States", value: 100000, percentage: 100, region: "North America" }],
+				currencyExposure: [{ name: "USD", value: 100000, percentage: 100 }],
+				concentrationRisk: { hhi: 6400, status: "High", topAssetWeight: 80, top3Weight: 100, description: "Highly concentrated" },
+				topHoldings: [],
+				bestPerformers: [],
+				worstPerformers: [],
+				diversification: { score: 45, status: "Average", description: "Moderate diversification" },
+				health: { status: "Warning", score: 65, summary: "Warning state", flags: [] }
+			};
+			const html = renderWeeklyFTEmail(mockProfile, mockAnalytics, [], null);
+			expect(html).toContain("Weekly Summary");
+			expect(html).toContain("Weekly Portfolio Valuation");
+			expect(html).toContain("6400 (High)");
 		});
 	});
 });

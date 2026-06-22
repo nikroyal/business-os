@@ -223,6 +223,34 @@ export const PlatformHealthWidget: React.FC = () => {
             ))}
           </div>
 
+          {/* Daily Dispatch Stats */}
+          {health && (health.lastSuccessDispatch || health.lastFailedDispatch) && (
+            <div style={{
+              borderTop: '1px dashed #E2DACD',
+              paddingTop: '0.6rem',
+              marginTop: '0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+              fontSize: '0.65rem',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-secondary)'
+            }}>
+              {health.lastSuccessDispatch && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, color: '#222222' }}>LAST SUCCESS DISPATCH:</span>
+                  <span>{formatTimestamp(health.lastSuccessDispatch)}</span>
+                </div>
+              )}
+              {health.lastFailedDispatch && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--color-danger-text)' }}>LAST FAILED DISPATCH:</span>
+                  <span style={{ color: 'var(--color-danger-text)' }}>{formatTimestamp(health.lastFailedDispatch)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Footer Sync Meta */}
           <div style={{
             borderTop: '1px solid #E2DACD',

@@ -48,6 +48,11 @@ export const Settings: React.FC = () => {
   const [geminiModel, setGeminiModel] = useState('gemini-1.5-flash');
   const [geminiTone, setGeminiTone] = useState<'editorial' | 'analytical' | 'succinct'>('editorial');
 
+  // Dispatch Settings
+  const [preferredDeliveryTime, setPreferredDeliveryTime] = useState('07:00');
+  const [emailDeliveryAddress, setEmailDeliveryAddress] = useState('');
+  const [aiCommentaryIncluded, setAiCommentaryIncluded] = useState(true);
+
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -65,6 +70,9 @@ export const Settings: React.FC = () => {
       setGeminiEnabled(profile.geminiEnabled ?? false);
       setGeminiModel(profile.geminiModel || 'gemini-1.5-flash');
       setGeminiTone(profile.geminiTone || 'editorial');
+      setPreferredDeliveryTime(profile.preferredDeliveryTime || '07:00');
+      setEmailDeliveryAddress(profile.emailDeliveryAddress || profile.email || '');
+      setAiCommentaryIncluded(profile.aiCommentaryIncluded ?? true);
     }
   }, [profile]);
 
@@ -99,7 +107,11 @@ export const Settings: React.FC = () => {
         usdToInrRate: parseFloat(usdToInrRate) || 83.50,
         geminiEnabled,
         geminiModel,
-        geminiTone
+        geminiTone,
+        preferredDeliveryTime,
+        preferredTimezone: timezone,
+        emailDeliveryAddress,
+        aiCommentaryIncluded
       });
       showToast('Settings saved successfully.');
     } catch (err: any) {
@@ -329,20 +341,55 @@ export const Settings: React.FC = () => {
             </label>
           </div>
 
-          <div className="toggle-switch" style={{ marginBottom: 0 }}>
-            <div>
-              <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>Market Scanning Alerts</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Real-time updates regarding watchlist drops.</span>
+
+
+          {(dailyBriefing || weeklyReport) && (
+            <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '1.5rem', marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <h3 style={{ fontSize: '1rem', fontFamily: 'var(--font-serif)', margin: 0, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Dispatch Transmission Schedule
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Preferred Delivery Time (Local Time)</label>
+                  <input 
+                    type="time" 
+                    className="form-input" 
+                    value={preferredDeliveryTime}
+                    onChange={(e) => setPreferredDeliveryTime(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Email Delivery Address</label>
+                  <input 
+                    type="email" 
+                    className="form-input" 
+                    value={emailDeliveryAddress}
+                    onChange={(e) => setEmailDeliveryAddress(e.target.value)}
+                    placeholder="Enter delivery email"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="toggle-switch" style={{ marginBottom: 0 }}>
+                <div>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>Include AI Editorial Commentary</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Embed Google Gemini dry analytical commentaries directly into the dispatch brief.</span>
+                </div>
+                <label className="switch">
+                  <input 
+                    type="checkbox" 
+                    checked={aiCommentaryIncluded}
+                    onChange={(e) => setAiCommentaryIncluded(e.target.checked)}
+                  />
+                  <span className="slider"></span>
+                </label>
+              </div>
             </div>
-            <label className="switch">
-              <input 
-                type="checkbox" 
-                checked={alerts}
-                onChange={(e) => setAlerts(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-          </div>
+          )}
         </section>
 
         {/* Section 6: Market Data & Portfolio Currency */}
