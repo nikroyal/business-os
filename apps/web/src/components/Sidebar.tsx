@@ -7,7 +7,8 @@ import {
   LogOut, 
   BookOpen,
   Database,
-  Eye
+  Eye,
+  FileText
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -56,6 +57,14 @@ export const Sidebar: React.FC = () => {
           <Eye size={20} />
           <span>Watchlist</span>
         </NavLink>
+
+        <NavLink 
+          to="/reports" 
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <FileText size={20} />
+          <span>Reports</span>
+        </NavLink>
         
         <NavLink 
           to="/settings" 
@@ -65,6 +74,7 @@ export const Sidebar: React.FC = () => {
           <span>Settings</span>
         </NavLink>
       </nav>
+
 
 
       <div className="sidebar-footer">

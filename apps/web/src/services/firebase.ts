@@ -70,6 +70,48 @@ export interface WatchlistItem {
   addedAt: string;
 }
 
+export interface DailyReport {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  summary: string;
+  sections: {
+    marketSnapshot: {
+      globalTrend: 'bullish' | 'bearish' | 'neutral';
+      usMarket: string;
+      indianMarket: string;
+      cryptoMarket: string;
+    };
+    portfolioSummary: {
+      totalValue: number;
+      totalGainLoss: number;
+      performanceLabel: string;
+      allocationHighlights: string;
+    };
+    watchlistMovers: {
+      ticker: string;
+      exchange: string;
+      price: number;
+      changePercent: number;
+      direction: 'up' | 'down';
+    }[];
+    riskFlags: {
+      level: 'info' | 'warning' | 'danger';
+      message: string;
+      suggestion: string;
+    }[];
+    learningItem: {
+      term: string;
+      definition: string;
+      context: string;
+    };
+  };
+  rawContent?: string;
+  createdAt: string;
+}
+
+
 
 
 
@@ -472,7 +514,79 @@ export const dbService = {
       items = items.filter(i => i.id !== itemId);
       localStorage.setItem(`watchlist_${userId}`, JSON.stringify(items));
     }
+  },
+
+  async getReports(userId: string): Promise<DailyReport[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'reports');
+      const snapshot = await getDocs(colRef);
+      const list: DailyReport[] = [];
+      snapshot.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() } as DailyReport);
+      });
+      return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    } else {
+      const saved = localStorage.getItem(`reports_${userId}`);
+      const list: DailyReport[] = saved ? JSON.parse(saved) : [];
+      return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+  },
+
+  async getReport(userId: string, reportId: string): Promise<DailyReport | null> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'reports', reportId);
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        return { id: snapshot.id, ...snapshot.data() } as DailyReport;
+      }
+      return null;
+    } else {
+      const saved = localStorage.getItem(`reports_${userId}`);
+      const list: DailyReport[] = saved ? JSON.parse(saved) : [];
+      const item = list.find(r => r.id === reportId);
+      return item || null;
+    }
+  },
+
+  async saveReport(userId: string, report: Omit<DailyReport, 'id' | 'createdAt'>): Promise<DailyReport> {
+    const timestamp = new Date().toISOString();
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'reports');
+      const docRef = doc(colRef);
+      const newReport: DailyReport = {
+        id: docRef.id,
+        ...report,
+        createdAt: timestamp
+      };
+      await setDoc(docRef, newReport);
+      return newReport;
+    } else {
+      const saved = localStorage.getItem(`reports_${userId}`);
+      const list: DailyReport[] = saved ? JSON.parse(saved) : [];
+      const newReport: DailyReport = {
+        id: 'report_' + Math.random().toString(36).substr(2, 9),
+        ...report,
+        createdAt: timestamp
+      };
+      list.push(newReport);
+      localStorage.setItem(`reports_${userId}`, JSON.stringify(list));
+      return newReport;
+    }
+  }
+,
+
+  async deleteReport(userId: string, reportId: string): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'reports', reportId);
+      await deleteDoc(docRef);
+    } else {
+      const saved = localStorage.getItem(`reports_${userId}`);
+      let list: DailyReport[] = saved ? JSON.parse(saved) : [];
+      list = list.filter(r => r.id !== reportId);
+      localStorage.setItem(`reports_${userId}`, JSON.stringify(list));
+    }
   }
 };
+
 
 
