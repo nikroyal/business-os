@@ -37,7 +37,6 @@ export const Settings: React.FC = () => {
   const [alerts, setAlerts] = useState(true);
   
   // Phase 4 Settings
-  const [finnhubApiKey, setFinnhubApiKey] = useState('');
   const [reportingCurrency, setReportingCurrency] = useState<'USD' | 'INR'>('INR');
   const [usdToInrRate, setUsdToInrRate] = useState('83.50');
 
@@ -53,7 +52,6 @@ export const Settings: React.FC = () => {
       setDailyBriefing(profile.emailPreferences?.dailyBriefing ?? true);
       setWeeklyReport(profile.emailPreferences?.weeklyReport ?? true);
       setAlerts(profile.emailPreferences?.alerts ?? true);
-      setFinnhubApiKey(profile.finnhubApiKey || '');
       setReportingCurrency(profile.reportingCurrency || 'INR');
       setUsdToInrRate((profile.usdToInrRate ?? 83.50).toString());
     }
@@ -86,7 +84,6 @@ export const Settings: React.FC = () => {
           weeklyReport,
           alerts
         },
-        finnhubApiKey,
         reportingCurrency,
         usdToInrRate: parseFloat(usdToInrRate) || 83.50
       });
@@ -309,22 +306,8 @@ export const Settings: React.FC = () => {
             Market Data & Reporting Currency
           </h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            Set your external data provider credentials and base valuation currency.
+            Set your reporting and base valuation currency options.
           </p>
-
-          <div className="form-group">
-            <label className="form-label">Finnhub API Key</label>
-            <input 
-              type="password" 
-              className="form-input" 
-              placeholder="Paste your Finnhub token here" 
-              value={finnhubApiKey}
-              onChange={(e) => setFinnhubApiKey(e.target.value)}
-            />
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
-              Used to fetch live assets quotation and metadata. Left blank to use environment default or mock scaffold.
-            </span>
-          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: 0 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>

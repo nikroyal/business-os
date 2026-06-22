@@ -41,33 +41,11 @@ export class FinnhubProvider implements MarketDataProvider {
   }
 
   /**
-   * Extracts API keys from settings profiles or environment files
+   * Retrieves the backend api base URL
    */
-  private getApiKey(): string | null {
-    // 1. Check if user configured their own key in settings profile
-    const savedUser = localStorage.getItem('business_os_mock_user');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        const profileStr = localStorage.getItem(`profile_${parsed.uid}`);
-        if (profileStr) {
-          const profile = JSON.parse(profileStr);
-          if (profile.finnhubApiKey && profile.finnhubApiKey.trim() !== '') {
-            return profile.finnhubApiKey.trim();
-          }
-        }
-      } catch (err) {
-        console.warn('[FinnhubProvider] Failed to extract API key from user profile:', err);
-      }
-    }
-
-    // 2. Check environment config fallback
-    const envKey = import.meta.env.VITE_FINNHUB_API_KEY;
-    if (envKey && envKey !== 'your-finnhub-api-key' && envKey.trim() !== '') {
-      return envKey.trim();
-    }
-
-    return null;
+  private getApiBaseUrl(): string {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+    return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   }
 
   /**
@@ -100,16 +78,11 @@ export class FinnhubProvider implements MarketDataProvider {
       return cached.data;
     }
 
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
-      console.log(`[FinnhubProvider] No token provided. Returning mock price for ${symbol}`);
-      return this.getMockPrice(ticker, exchange);
-    }
-
     await this.throttle();
 
     try {
-      const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`;
+      const apiBaseUrl = this.getApiBaseUrl();
+      const url = `${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(symbol)}`;
       const res = await fetch(url);
       
       if (!res.ok) {
@@ -128,7 +101,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix quote failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${baseSymbol}&token=${apiKey}`);
+        const baseRes = await fetch(`${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && typeof baseData.c === 'number' && baseData.c > 0) {
@@ -159,16 +132,11 @@ export class FinnhubProvider implements MarketDataProvider {
       return cached.data;
     }
 
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
-      console.log(`[FinnhubProvider] No token provided. Returning mock metadata for ${symbol}`);
-      return this.getMockMetadata(ticker, exchange);
-    }
-
     await this.throttle();
 
     try {
-      const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${apiKey}`;
+      const apiBaseUrl = this.getApiBaseUrl();
+      const url = `${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(symbol)}`;
       const res = await fetch(url);
       
       if (!res.ok) {
@@ -192,7 +160,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix metadata lookup failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${baseSymbol}&token=${apiKey}`);
+        const baseRes = await fetch(`${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.name) {
@@ -228,17 +196,13 @@ export class FinnhubProvider implements MarketDataProvider {
       return cached.data;
     }
 
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
-      return this.getMockHistory(ticker, days);
-    }
-
     await this.throttle();
 
     try {
       const to = Math.floor(Date.now() / 1000);
       const from = to - (days * 24 * 60 * 60);
-      const url = `https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${apiKey}`;
+      const apiBaseUrl = this.getApiBaseUrl();
+      const url = `${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}`;
       const res = await fetch(url);
 
       if (!res.ok) {
@@ -255,7 +219,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix history candle failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${baseSymbol}&resolution=D&from=${from}&to=${to}&token=${apiKey}`);
+        const baseRes = await fetch(`${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.s === 'ok' && Array.isArray(baseData.c)) {
