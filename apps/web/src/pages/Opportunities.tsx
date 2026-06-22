@@ -17,6 +17,7 @@ import { GeminiService } from '../services/geminiService';
 import { PortfolioAnalyticsService } from '../services/portfolioAnalyticsService';
 import { marketDataService } from '../services/marketDataService';
 import type { AssetMetadata } from '../services/marketDataService';
+import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
 
 export const Opportunities: React.FC = () => {
   const { user, profile } = useAuth();
@@ -237,10 +238,11 @@ export const Opportunities: React.FC = () => {
             </p>
           </div>
           
-          <div className="opportunities-actions">
+          <div className="opportunities-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
               {formattedDate}
             </span>
+            <PlatformHealthWidget />
             <button 
               className="refresh-trigger-btn"
               onClick={() => fetchOpportunities(true)}

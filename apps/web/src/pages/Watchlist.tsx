@@ -13,6 +13,7 @@ import {
 import { WatchlistService } from '../services/watchlistService';
 import type { WatchlistAssetIntelligence } from '../services/watchlistService';
 import { marketDataService } from '../services/marketDataService';
+import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
 
 export const Watchlist: React.FC = () => {
   const { user } = useAuth();
@@ -200,15 +201,18 @@ export const Watchlist: React.FC = () => {
           </h1>
         </div>
         
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <Calendar size={14} />
-            <span>{formattedDate}</span>
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <Calendar size={14} />
+              <span>{formattedDate}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-success-text)' }}>
+              <Eye size={12} />
+              <span>WATCHLIST ONLINE {lastUpdated ? `(UPDATED ${lastUpdated})` : ''}</span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-success-text)' }}>
-            <Eye size={12} />
-            <span>WATCHLIST ONLINE {lastUpdated ? `(UPDATED ${lastUpdated})` : ''}</span>
-          </div>
+          <PlatformHealthWidget />
         </div>
       </div>
 

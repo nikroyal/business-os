@@ -8,8 +8,11 @@ import {
   Mail, 
   Sparkles, 
   Info,
-  Check
+  Check,
+  Calendar,
+  CheckCircle
 } from 'lucide-react';
+import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
 
 const AVAILABLE_INTERESTS = [
   'Artificial Intelligence',
@@ -111,6 +114,13 @@ export const Settings: React.FC = () => {
     ? (Intl as any).supportedValuesOf('timeZone') 
     : ['UTC', 'America/New_York', 'Europe/London', 'Asia/Tokyo', 'Asia/Kolkata'];
 
+  const formattedDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
     <div style={{ animation: 'fadeIn 0.25s ease-out', maxWidth: '850px', margin: '0 auto', textAlign: 'left' }}>
       
@@ -124,11 +134,36 @@ export const Settings: React.FC = () => {
         </div>
       )}
 
-      <div style={{ borderBottom: '1px solid #222222', paddingBottom: '1.5rem', marginBottom: '2.5rem' }}>
-        <span className="mono-tag" style={{ color: 'var(--color-accent)', marginBottom: '0.25rem', display: 'block' }}>
-          Platform Settings
-        </span>
-        <h1 style={{ border: 'none', padding: 0, margin: 0, fontSize: '2.5rem' }}>Preferences Configuration</h1>
+      <div style={{ 
+        borderBottom: '1px solid #222222', 
+        paddingBottom: '1.5rem', 
+        marginBottom: '2.5rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        <div>
+          <span className="mono-tag" style={{ color: 'var(--color-accent)', marginBottom: '0.25rem', display: 'block' }}>
+            Platform Settings
+          </span>
+          <h1 style={{ border: 'none', padding: 0, margin: 0, fontSize: '2.5rem' }}>Preferences Configuration</h1>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <Calendar size={14} />
+              <span>{formattedDate}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-success-text)' }}>
+              <CheckCircle size={12} style={{ color: 'var(--color-success-text)' }} />
+              <span>SETTINGS MODULE ACTIVE</span>
+            </div>
+          </div>
+          <PlatformHealthWidget />
+        </div>
       </div>
 
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

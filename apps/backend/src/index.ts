@@ -5,6 +5,7 @@ type Bindings = {
   FINNHUB_API_KEY: string;
   GEMINI_API_KEY: string;
   FIREBASE_PROJECT_ID?: string;
+  RESEND_API_KEY?: string;
 };
 
 type Variables = {
@@ -148,6 +149,79 @@ app.post('/api/auth-debug', async (c) => {
 // Protect all following routes
 app.use('/api/market-data/*', authenticateUser);
 app.use('/api/commentary/*', authenticateUser);
+app.use('/api/health/services', authenticateUser);
+
+// Services Health Check Endpoint
+app.get('/api/health/services', async (c) => {
+  const finnhubKey = c.env.FINNHUB_API_KEY;
+  const geminiKey = c.env.GEMINI_API_KEY;
+  const resendKey = c.env.RESEND_API_KEY;
+
+  const results = {
+    finnhub: { status: 'operational', description: 'Finnhub API is operational' },
+    gemini: { status: 'operational', description: 'Gemini API is operational' },
+    resend: { status: 'operational', description: 'Resend API is operational' }
+  };
+
+  // 1. Finnhub Check
+  if (!finnhubKey) {
+    results.finnhub = { status: 'not_configured', description: 'FINNHUB_API_KEY is not configured in backend secrets' };
+  } else {
+    try {
+      const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=AAPL&token=${finnhubKey}`);
+      if (!res.ok) {
+        results.finnhub = { status: 'failure', description: `Finnhub returned HTTP ${res.status}` };
+      }
+    } catch (err: any) {
+      results.finnhub = { status: 'failure', description: `Finnhub is unreachable: ${err.message || err}` };
+    }
+  }
+
+  // 2. Gemini Check
+  if (!geminiKey) {
+    results.gemini = { status: 'not_configured', description: 'GEMINI_API_KEY is not configured in backend secrets' };
+  } else {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'say ok' }] }]
+        })
+      });
+      if (!res.ok) {
+        results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}` };
+      }
+    } catch (err: any) {
+      results.gemini = { status: 'failure', description: `Gemini is unreachable: ${err.message || err}` };
+    }
+  }
+
+  // 3. Resend Check
+  if (!resendKey) {
+    results.resend = { status: 'not_configured', description: 'RESEND_API_KEY is not configured in backend secrets' };
+  } else {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        headers: {
+          'Authorization': `Bearer ${resendKey}`
+        }
+      });
+      if (res.status === 401) {
+        results.resend = { status: 'failure', description: 'Invalid Resend API Key' };
+      } else if (res.status >= 500) {
+        results.resend = { status: 'degraded', description: `Resend API returned HTTP ${res.status}` };
+      }
+    } catch (err: any) {
+      results.resend = { status: 'failure', description: `Resend is unreachable: ${err.message || err}` };
+    }
+  }
+
+  return c.json(results);
+});
 
 // Quote Endpoint
 app.get('/api/market-data/quote', async (c) => {
