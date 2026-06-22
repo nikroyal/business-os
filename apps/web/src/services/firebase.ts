@@ -32,6 +32,12 @@ export interface UserProfile {
   reportingCurrency?: 'USD' | 'INR';
   usdToInrRate?: number;
   createdAt?: string;
+  
+  // Gemini Configuration
+  geminiEnabled?: boolean;
+  geminiApiKey?: string;
+  geminiModel?: string;
+  geminiTone?: 'editorial' | 'analytical' | 'succinct';
 }
 
 export interface Holding {
@@ -127,6 +133,18 @@ export interface Opportunity {
   };
   generatedTimestamp: string;
   tags: ('momentum' | 'value' | 'diversification' | 'watchlist')[];
+}
+
+export interface AICommentary {
+  id: string;
+  userId: string;
+  executiveSummary: string;
+  portfolioCommentary: string;
+  riskCommentary: string;
+  opportunityCommentary: string;
+  marketContext: string;
+  generatedTimestamp: string;
+  inputHash: string;
 }
 
 
@@ -654,6 +672,36 @@ export const dbService = {
       }));
       localStorage.setItem(`opportunities_${userId}`, JSON.stringify(savedList));
       return savedList;
+    }
+  },
+
+  async getAICommentary(userId: string, id: string): Promise<AICommentary | null> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'aiCommentary', id);
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        return snapshot.data() as AICommentary;
+      }
+      return null;
+    } else {
+      const saved = localStorage.getItem(`ai_commentary_${userId}_${id}`);
+      return saved ? JSON.parse(saved) : null;
+    }
+  },
+
+  async saveAICommentary(userId: string, id: string, commentary: Omit<AICommentary, 'id' | 'userId'>): Promise<AICommentary> {
+    const data: AICommentary = {
+      id,
+      userId,
+      ...commentary
+    };
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'aiCommentary', id);
+      await setDoc(docRef, data);
+      return data;
+    } else {
+      localStorage.setItem(`ai_commentary_${userId}_${id}`, JSON.stringify(data));
+      return data;
     }
   }
 };

@@ -40,6 +40,12 @@ export const Settings: React.FC = () => {
   const [reportingCurrency, setReportingCurrency] = useState<'USD' | 'INR'>('INR');
   const [usdToInrRate, setUsdToInrRate] = useState('83.50');
 
+  // Gemini Settings
+  const [geminiEnabled, setGeminiEnabled] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('gemini-1.5-flash');
+  const [geminiTone, setGeminiTone] = useState<'editorial' | 'analytical' | 'succinct'>('editorial');
+
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -54,6 +60,10 @@ export const Settings: React.FC = () => {
       setAlerts(profile.emailPreferences?.alerts ?? true);
       setReportingCurrency(profile.reportingCurrency || 'INR');
       setUsdToInrRate((profile.usdToInrRate ?? 83.50).toString());
+      setGeminiEnabled(profile.geminiEnabled ?? false);
+      setGeminiApiKey(profile.geminiApiKey || '');
+      setGeminiModel(profile.geminiModel || 'gemini-1.5-flash');
+      setGeminiTone(profile.geminiTone || 'editorial');
     }
   }, [profile]);
 
@@ -85,7 +95,11 @@ export const Settings: React.FC = () => {
           alerts
         },
         reportingCurrency,
-        usdToInrRate: parseFloat(usdToInrRate) || 83.50
+        usdToInrRate: parseFloat(usdToInrRate) || 83.50,
+        geminiEnabled,
+        geminiApiKey,
+        geminiModel,
+        geminiTone
       });
       showToast('Settings saved successfully.');
     } catch (err: any) {
@@ -335,6 +349,77 @@ export const Settings: React.FC = () => {
               />
             </div>
           </div>
+        </section>
+
+        {/* Section 7: Gemini AI Editorial Integration */}
+        <section className="card">
+          <h2 style={{ fontSize: '1.35rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <Sparkles size={18} style={{ color: 'var(--color-accent)' }} />
+            Gemini Editorial Intelligence Layer
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Transform deterministic analytics into professional editorial commentary using Google Gemini.
+          </p>
+
+          <div className="toggle-switch" style={{ marginBottom: '1.5rem', borderBottom: '1px dashed #E2DACD', paddingBottom: '1.5rem' }}>
+            <div>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, display: 'block' }}>Enable Gemini AI Commentary</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Toggle the editorial commentary blocks on Reports and Opportunities.</span>
+            </div>
+            <label className="switch">
+              <input 
+                type="checkbox" 
+                checked={geminiEnabled}
+                onChange={(e) => setGeminiEnabled(e.target.checked)}
+              />
+              <span className="slider"></span>
+            </label>
+          </div>
+
+          {geminiEnabled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Gemini API Key</label>
+                <input 
+                  type="password" 
+                  className="form-input" 
+                  placeholder="Paste your Gemini API Key here (starts with AIzaSy...)" 
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  required={geminiEnabled}
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Model Selection</label>
+                  <select 
+                    className="form-input form-select"
+                    value={geminiModel}
+                    onChange={(e) => setGeminiModel(e.target.value)}
+                  >
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended)</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Editorial Tone</label>
+                  <select 
+                    className="form-input form-select"
+                    value={geminiTone}
+                    onChange={(e) => setGeminiTone(e.target.value as any)}
+                  >
+                    <option value="editorial">Editorial (Financial Times style)</option>
+                    <option value="analytical">Analytical (Wall Street Analyst style)</option>
+                    <option value="succinct">Succinct (Concise Executive summary)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Submit Actions */}

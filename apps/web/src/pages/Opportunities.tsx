@@ -6,14 +6,20 @@ import {
   Check, 
   Plus, 
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
 import { OpportunityService } from '../services/opportunityService';
 import { WatchlistService } from '../services/watchlistService';
-import type { Opportunity } from '../services/firebase';
+import { dbService } from '../services/firebase';
+import type { Opportunity, AICommentary } from '../services/firebase';
+import { GeminiService } from '../services/geminiService';
+import { PortfolioAnalyticsService } from '../services/portfolioAnalyticsService';
+import { marketDataService } from '../services/marketDataService';
+import type { AssetMetadata } from '../services/marketDataService';
 
 export const Opportunities: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +30,11 @@ export const Opportunities: React.FC = () => {
   // Filtering state
   // Supported filters: 'all', 'momentum', 'value', 'diversification', 'watchlist'
   const [activeFilter, setActiveFilter] = useState<'all' | 'momentum' | 'value' | 'diversification' | 'watchlist'>('all');
+
+  // Gemini & Detail states
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
+  const [aiCommentary, setAiCommentary] = useState<AICommentary | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
 
   const scanSteps = [
     "Establishing connection to market data servers...",
@@ -40,6 +51,83 @@ export const Opportunities: React.FC = () => {
     "Writing calculated intelligence records to Firestore...",
     "Scan complete. Redrawing intelligence board."
   ];
+
+  const fetchAICommentary = async (currentOpps: Opportunity[]) => {
+    if (!user || !profile?.geminiEnabled || !profile?.geminiApiKey) {
+      setAiCommentary(null);
+      return;
+    }
+    setLoadingAi(true);
+    try {
+      const listHoldings = await dbService.getHoldings(user.uid);
+      const prices: Record<string, number> = {};
+      const metadataMap: Record<string, AssetMetadata | null> = {};
+      
+      for (const h of listHoldings) {
+        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+        const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
+        metadataMap[h.ticker || h.symbol] = meta;
+      }
+
+      const reportingCurrency = profile?.reportingCurrency || 'USD';
+      const usdToInrRate = profile?.usdToInrRate || 83.50;
+
+      const analytics = PortfolioAnalyticsService.calculate(
+        listHoldings,
+        prices,
+        metadataMap,
+        reportingCurrency,
+        usdToInrRate,
+        profile?.riskProfile
+      );
+
+      const dummyReport = {
+        userId: user.uid,
+        date: new Date().toISOString().split('T')[0],
+        title: "Opportunities Intelligence Scan Summary",
+        summary: "Detailed scanning of watchlist and portfolio diversification gaps.",
+        sections: {
+          marketSnapshot: {
+            globalTrend: 'neutral' as const,
+            usMarket: '',
+            indianMarket: '',
+            cryptoMarket: ''
+          },
+          portfolioSummary: {
+            totalValue: analytics.totalValue,
+            totalGainLoss: analytics.totalGainLoss,
+            performanceLabel: '',
+            allocationHighlights: ''
+          },
+          watchlistMovers: [],
+          riskFlags: [],
+          learningItem: { term: '', definition: '', context: '' }
+        }
+      };
+
+      const commentary = await GeminiService.generateEditorialCommentary(
+        user.uid,
+        profile,
+        dummyReport,
+        analytics,
+        currentOpps,
+        'opportunities_latest'
+      );
+      setAiCommentary(commentary);
+    } catch (err) {
+      console.warn("Opportunities AI Commentary fetch failed:", err);
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
+  useEffect(() => {
+    if (opportunities.length > 0) {
+      fetchAICommentary(opportunities);
+    } else {
+      setAiCommentary(null);
+    }
+  }, [opportunities, profile]);
 
   const fetchOpportunities = async (forceRegen = false) => {
     if (!user) return;
@@ -141,7 +229,7 @@ export const Opportunities: React.FC = () => {
           <div className="opportunities-title-area">
             <span className="mono-tag" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Lightbulb size={12} />
-              Phase 7 Intelligence Feed
+              Phase 8 Intelligence Feed
             </span>
             <h1>Opportunity Intelligence</h1>
             <p style={{ marginTop: '0.25rem' }}>
@@ -338,30 +426,40 @@ export const Opportunities: React.FC = () => {
                           ))}
                         </div>
 
-                        <button 
-                          className="card-action-trigger"
-                          onClick={() => !isWatchlisted && handleTrackAsset(opp)}
-                          disabled={isWatchlisted}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            cursor: isWatchlisted ? 'default' : 'pointer',
-                            opacity: isWatchlisted ? 0.75 : 1
-                          }}
-                        >
-                          {isWatchlisted ? (
-                            <>
-                              <Check size={12} />
-                              <span>Tracked</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={12} />
-                              <span>Track</span>
-                            </>
-                          )}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button 
+                            className="card-action-trigger"
+                            onClick={() => setSelectedOpportunity(opp)}
+                            style={{ padding: '0.35rem 0.65rem' }}
+                          >
+                            Details
+                          </button>
+
+                          <button 
+                            className="card-action-trigger"
+                            onClick={() => !isWatchlisted && handleTrackAsset(opp)}
+                            disabled={isWatchlisted}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              cursor: isWatchlisted ? 'default' : 'pointer',
+                              opacity: isWatchlisted ? 0.75 : 1
+                            }}
+                          >
+                            {isWatchlisted ? (
+                              <>
+                                <Check size={12} />
+                                <span>Tracked</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={12} />
+                                <span>Track</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -372,6 +470,160 @@ export const Opportunities: React.FC = () => {
         )}
 
       </div>
+
+      {/* Opportunity Detail View Modal */}
+      {selectedOpportunity && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(34, 34, 34, 0.4)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'fadeInModal 0.2s ease-out'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '2px solid var(--text-primary)',
+            width: '90%',
+            maxWidth: '650px',
+            padding: '2.5rem',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+            position: 'relative',
+            animation: 'slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            textAlign: 'left'
+          }}>
+            {/* Close button */}
+            <button 
+              onClick={() => setSelectedOpportunity(null)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'transparent',
+                border: 'none',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                color: 'var(--text-muted)'
+              }}
+            >
+              &times;
+            </button>
+
+            {/* Header */}
+            <div style={{ borderBottom: '2px solid var(--text-primary)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+              <span className="mono-tag" style={{ color: 'var(--color-accent)' }}>Opportunity Detail View</span>
+              <h2 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-serif)', margin: '0.25rem 0 0.5rem 0' }}>
+                {selectedOpportunity.ticker} — {selectedOpportunity.title}
+              </h2>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                EXCHANGE: {selectedOpportunity.exchange.toUpperCase()} • GENERATED: {new Date(selectedOpportunity.generatedTimestamp).toLocaleString()}
+              </span>
+            </div>
+
+            {/* Content */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <h4 style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
+                  Quantitative Signal & Rationale
+                </h4>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  {selectedOpportunity.rationale}
+                </p>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: '1rem',
+                background: '#FAF8F5',
+                border: '1px solid #E2DACD',
+                padding: '0.75rem 1rem'
+              }}>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>Confidence Score</span>
+                  <strong style={{ fontSize: '1.15rem', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>
+                    {selectedOpportunity.confidenceScore}%
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>Scan Category</span>
+                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                    {selectedOpportunity.tags.find(t => t !== 'watchlist') || 'Value'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>Trigger Condition</span>
+                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                    {selectedOpportunity.supportingMetrics.metricValue}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Gemini Editorial commentary section */}
+              <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Sparkles size={14} />
+                  <span>AI Editorial Context Analysis</span>
+                </h4>
+                
+                {profile?.geminiEnabled ? (
+                  loadingAi ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <div className="spinner" style={{ width: 12, height: 12, border: '2px solid rgba(0,0,0,0.1)', borderTopColor: 'var(--color-accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                      <span>Contextualizing scanner data...</span>
+                    </div>
+                  ) : aiCommentary ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', lineHeight: 1.45 }}>
+                      <p style={{ margin: 0, color: 'var(--text-primary)' }}>
+                        <strong>Opportunity Analysis:</strong> {aiCommentary.opportunityCommentary}
+                      </p>
+                      <p style={{ margin: 0, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid #E2DACD', paddingLeft: '0.5rem' }}>
+                        <strong>Market Alignment:</strong> {aiCommentary.marketContext}
+                      </p>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                      Failed to load editorial context. Falls back to deterministic metrics.
+                    </p>
+                  )
+                ) : (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                    AI Commentary layer is disabled. Turn it on under "Settings" to translate stats into executive editorial contexts.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', borderTop: '1px solid #E2DACD', paddingTop: '1.25rem' }}>
+              <button 
+                onClick={() => setSelectedOpportunity(null)}
+                className="btn"
+                style={{ border: '1px solid var(--text-primary)', background: 'transparent', padding: '0.5rem 1.25rem', fontSize: '0.8rem', cursor: 'pointer' }}
+              >
+                Close Detail Dispatch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeInModal {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUpModal {
+          from { transform: translateY(10px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };

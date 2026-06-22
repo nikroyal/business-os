@@ -16,8 +16,12 @@ import {
   BookOpen,
   Info,
   ChevronRight,
-  FileText
+  FileText,
+  Sparkles
 } from 'lucide-react';
+import { GeminiService } from '../services/geminiService';
+import { OpportunityService } from '../services/opportunityService';
+import type { AICommentary } from '../services/firebase';
 
 export const Reports: React.FC = () => {
   const { user, profile } = useAuth();
@@ -27,6 +31,65 @@ export const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+
+  // Gemini state
+  const [aiCommentary, setAiCommentary] = useState<AICommentary | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const loadAICommentary = async (report: DailyReport) => {
+    if (!user) return;
+    setAiCommentary(null);
+    if (!profile?.geminiEnabled || !profile?.geminiApiKey) return;
+    
+    setLoadingAi(true);
+    try {
+      const listHoldings = await dbService.getHoldings(user.uid);
+      const prices: Record<string, number> = {};
+      const metadataMap: Record<string, AssetMetadata | null> = {};
+      
+      for (const h of listHoldings) {
+        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+        const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
+        metadataMap[h.ticker || h.symbol] = meta;
+      }
+
+      const reportingCurrency = profile?.reportingCurrency || 'INR';
+      const usdToInrRate = profile?.usdToInrRate || 83.50;
+
+      const analytics = PortfolioAnalyticsService.calculate(
+        listHoldings,
+        prices,
+        metadataMap,
+        reportingCurrency,
+        usdToInrRate,
+        profile?.riskProfile
+      );
+
+      const opportunities = await OpportunityService.getStoredOpportunities(user.uid);
+
+      const commentary = await GeminiService.generateEditorialCommentary(
+        user.uid,
+        profile,
+        report,
+        analytics,
+        opportunities,
+        `report_${report.id}`
+      );
+      setAiCommentary(commentary);
+    } catch (err: any) {
+      console.warn("AI Commentary fetching error:", err);
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedReport) {
+      loadAICommentary(selectedReport);
+    } else {
+      setAiCommentary(null);
+    }
+  }, [selectedReport, profile]);
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -306,6 +369,82 @@ export const Reports: React.FC = () => {
                 </p>
               </div>
 
+              {/* Gemini AI Editorial Summary Panel */}
+              {profile?.geminiEnabled && (
+                <div style={{ 
+                  marginBottom: '2.5rem', 
+                  background: '#FAF8F5', 
+                  border: '1px solid var(--text-primary)', 
+                  padding: '1.5rem 2rem',
+                  boxShadow: 'var(--shadow-subtle)'
+                }}>
+                  <h3 style={{ 
+                    fontSize: '0.85rem', 
+                    fontFamily: 'var(--font-mono)', 
+                    textTransform: 'uppercase', 
+                    color: 'var(--color-accent)', 
+                    marginBottom: '1rem', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '0.4rem',
+                    fontWeight: 600
+                  }}>
+                    <Sparkles size={14} />
+                    <span>Gemini AI Editorial Intelligence</span>
+                  </h3>
+                  
+                  {loadingAi ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      <div className="spinner" style={{ 
+                        width: 14, 
+                        height: 14, 
+                        border: '2px solid rgba(0,0,0,0.1)', 
+                        borderTopColor: 'var(--color-accent)', 
+                        borderRadius: '50%', 
+                        animation: 'spin 1s linear infinite' 
+                      }} />
+                      <span>Drafting editorial layer...</span>
+                    </div>
+                  ) : aiCommentary ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <p style={{ fontSize: '0.95rem', fontFamily: 'var(--font-serif)', lineHeight: 1.6, textIndent: '1rem', margin: 0, color: 'var(--text-primary)' }}>
+                        {aiCommentary.executiveSummary}
+                      </p>
+                      
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: '1fr 1fr', 
+                        gap: '1.5rem', 
+                        borderTop: '1px dashed #E2DACD', 
+                        paddingTop: '1rem',
+                        marginTop: '0.5rem'
+                      }}>
+                        <div>
+                          <h5 style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.4rem', fontWeight: 600 }}>
+                            AI Portfolio Commentary
+                          </h5>
+                          <p style={{ fontSize: '0.8rem', lineHeight: 1.4, margin: 0, color: 'var(--text-secondary)' }}>
+                            {aiCommentary.portfolioCommentary}
+                          </p>
+                        </div>
+                        <div>
+                          <h5 style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: '0.4rem', fontWeight: 600 }}>
+                            AI Market Context
+                          </h5>
+                          <p style={{ fontSize: '0.8rem', lineHeight: 1.4, margin: 0, color: 'var(--text-secondary)' }}>
+                            {aiCommentary.marketContext}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Gemini commentary temporarily unavailable. Verify API key credentials in Settings.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Sections Double Column Layout */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5rem', alignItems: 'start' }}>
                 
@@ -486,7 +625,7 @@ export const Reports: React.FC = () => {
                 textAlign: 'center',
                 fontStyle: 'italic'
               }}>
-                This daily briefing compilation is processed deterministically. Google Gemini LLM summary commentary integrations will trigger automatically in Phase 7.
+                This daily briefing compilation is processed deterministically. {profile?.geminiEnabled ? "Google Gemini editorial layers are active." : "Gemini Editorial Commentary is currently disabled in Settings."}
               </div>
 
             </div>
