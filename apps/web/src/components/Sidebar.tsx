@@ -8,7 +8,8 @@ import {
   BookOpen,
   Database,
   Eye,
-  FileText
+  FileText,
+  Lightbulb
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -56,6 +57,14 @@ export const Sidebar: React.FC = () => {
         >
           <Eye size={20} />
           <span>Watchlist</span>
+        </NavLink>
+
+        <NavLink 
+          to="/opportunities" 
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Lightbulb size={20} />
+          <span>Opportunities</span>
         </NavLink>
 
         <NavLink 

@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Settings } from './pages/Settings';
 import { Watchlist } from './pages/Watchlist';
 import { Reports } from './pages/Reports';
+import { Opportunities } from './pages/Opportunities';
 
 export const App: React.FC = () => {
   return (
@@ -20,11 +21,10 @@ export const App: React.FC = () => {
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/watchlist" element={<Watchlist />} />
+            <Route path="/opportunities" element={<Opportunities />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
-
-
           
           {/* Fallback routes */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

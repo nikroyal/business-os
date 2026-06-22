@@ -111,6 +111,24 @@ export interface DailyReport {
   createdAt: string;
 }
 
+export interface Opportunity {
+  id: string;
+  userId: string;
+  title: string;
+  ticker: string;
+  exchange: string;
+  rationale: string;
+  confidenceScore: number;
+  supportingMetrics: {
+    ruleMatched: string;
+    currentPrice: number;
+    metricValue: string;
+    [key: string]: any;
+  };
+  generatedTimestamp: string;
+  tags: ('momentum' | 'value' | 'diversification' | 'watchlist')[];
+}
+
 
 
 
@@ -584,6 +602,58 @@ export const dbService = {
       let list: DailyReport[] = saved ? JSON.parse(saved) : [];
       list = list.filter(r => r.id !== reportId);
       localStorage.setItem(`reports_${userId}`, JSON.stringify(list));
+    }
+  },
+
+  async getOpportunities(userId: string): Promise<Opportunity[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'opportunities');
+      const snapshot = await getDocs(colRef);
+      const list: Opportunity[] = [];
+      snapshot.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() } as Opportunity);
+      });
+      return list.sort((a, b) => b.generatedTimestamp.localeCompare(a.generatedTimestamp));
+    } else {
+      const saved = localStorage.getItem(`opportunities_${userId}`);
+      const list: Opportunity[] = saved ? JSON.parse(saved) : [];
+      return list.sort((a, b) => b.generatedTimestamp.localeCompare(a.generatedTimestamp));
+    }
+  },
+
+  async saveOpportunities(userId: string, opportunities: Omit<Opportunity, 'id'>[]): Promise<Opportunity[]> {
+    const timestamp = new Date().toISOString();
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'opportunities');
+      
+      // Clear old opportunities
+      const oldSnapshot = await getDocs(colRef);
+      const deletePromises: Promise<any>[] = [];
+      oldSnapshot.forEach(doc => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+      await Promise.all(deletePromises);
+
+      const savedList: Opportunity[] = [];
+      for (const opp of opportunities) {
+        const docRef = doc(colRef);
+        const newOpp: Opportunity = {
+          id: docRef.id,
+          ...opp,
+          generatedTimestamp: timestamp
+        };
+        await setDoc(docRef, newOpp);
+        savedList.push(newOpp);
+      }
+      return savedList;
+    } else {
+      const savedList: Opportunity[] = opportunities.map(opp => ({
+        id: 'opp_' + Math.random().toString(36).substr(2, 9),
+        ...opp,
+        generatedTimestamp: timestamp
+      }));
+      localStorage.setItem(`opportunities_${userId}`, JSON.stringify(savedList));
+      return savedList;
     }
   }
 };
