@@ -1,4 +1,4 @@
-import { dbService } from './firebase';
+import { dbService, authService } from './firebase';
 import type { UserProfile, DailyReport, Opportunity, AICommentary } from './firebase';
 import type { PortfolioAnalytics } from './portfolioAnalyticsService';
 
@@ -49,9 +49,9 @@ export class GeminiService {
     opportunities: Opportunity[],
     commentaryId: string
   ): Promise<AICommentary | null> {
-    // 1. Check if Gemini is enabled & has an API key configured
-    if (!profile?.geminiEnabled || !profile?.geminiApiKey) {
-      console.info("[GeminiService] Gemini integration is disabled or API key is not configured.");
+    // 1. Check if Gemini is enabled
+    if (!profile?.geminiEnabled) {
+      console.info("[GeminiService] Gemini integration is disabled.");
       return null;
     }
 
@@ -82,8 +82,7 @@ export class GeminiService {
     }
     this.lastCallTime = now;
 
-    // 5. Trigger Fetch request to Gemini REST endpoint
-    const apiKey = profile.geminiApiKey.trim();
+    // 5. Trigger Fetch request to Gemini REST endpoint via worker backend
     const model = profile.geminiModel || 'gemini-1.5-flash';
     const tone = profile.geminiTone || 'editorial';
 
@@ -116,30 +115,26 @@ Quantitative Dataset:
 Output JSON format exactly:`;
 
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+      const cleanApiBaseUrl = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
+      const endpoint = `${cleanApiBaseUrl}/api/commentary/generate`;
+      
+      const token = await authService.getIdToken();
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `${systemPrompt}\n\n${userPrompt}`
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
+          systemPrompt,
+          userPrompt,
+          model
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Gemini API returned status ${response.status}`);
+        throw new Error(`Gemini API via worker backend returned status ${response.status}`);
       }
 
       const responseData = await response.json();

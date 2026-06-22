@@ -53,7 +53,7 @@ export const Opportunities: React.FC = () => {
   ];
 
   const fetchAICommentary = async (currentOpps: Opportunity[]) => {
-    if (!user || !profile?.geminiEnabled || !profile?.geminiApiKey) {
+    if (!user || !profile?.geminiEnabled) {
       setAiCommentary(null);
       return;
     }

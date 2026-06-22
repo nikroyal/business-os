@@ -66,13 +66,15 @@ export class OpportunityService {
     const marketPrices: Record<string, number> = {};
     const metadataMap: Record<string, AssetMetadata | null> = {};
     
-    for (const h of holdings) {
+    await Promise.all(holdings.map(async (h) => {
       const tickerStr = h.ticker || h.symbol;
-      const quote = await marketDataService.getQuote(tickerStr, h.exchange);
-      const meta = await marketDataService.getMetadata(tickerStr, h.exchange);
+      const [quote, meta] = await Promise.all([
+        marketDataService.getQuote(tickerStr, h.exchange),
+        marketDataService.getMetadata(tickerStr, h.exchange)
+      ]);
       marketPrices[h.id] = quote.current;
       metadataMap[tickerStr] = meta;
-    }
+    }));
 
     const reportingCurrency = profile?.reportingCurrency || 'USD';
     const usdToInrRate = profile?.usdToInrRate || 83.0;
@@ -91,16 +93,19 @@ export class OpportunityService {
     const generatedTimestamp = new Date().toISOString();
 
     // 3. For each candidate asset, check rules and generate opportunities
-    for (const candidate of candidateList) {
+    // 3. For each candidate asset, check rules and generate opportunities in parallel
+    await Promise.all(candidateList.map(async (candidate) => {
       try {
         const { ticker, exchange, isWatchlist } = candidate;
         
-        const quote = await marketDataService.getQuote(ticker, exchange);
-        const meta = await marketDataService.getMetadata(ticker, exchange);
-        const history = await marketDataService.getHistoricalPrices(ticker, 365, exchange);
+        const [quote, meta, history] = await Promise.all([
+          marketDataService.getQuote(ticker, exchange),
+          marketDataService.getMetadata(ticker, exchange),
+          marketDataService.getHistoricalPrices(ticker, 365, exchange)
+        ]);
 
         const livePrice = quote.current;
-        if (livePrice <= 0) continue; // Skip assets with invalid prices
+        if (livePrice <= 0) return; // Skip assets with invalid prices
 
         // Basic classification
         const normalized = AssetClassificationService.normalize(
@@ -339,7 +344,7 @@ export class OpportunityService {
       } catch (error) {
         console.error(`Failed to generate opportunities for candidate ${candidate.ticker}:`, error);
       }
-    }
+    }));
 
     // 4. Persist generated opportunities to Firestore (or local storage fallback)
     const persisted = await dbService.saveOpportunities(userId, opportunities);

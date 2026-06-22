@@ -7,48 +7,57 @@ import {
 import { describe, it, expect } from "vitest";
 import worker from "../src";
 
-describe("Hello World user worker", () => {
-	describe("request for /message", () => {
-		it('/ responds with "Hello, World!" (unit style)', async () => {
-			const request = new Request<unknown, IncomingRequestCfProperties>(
-				"http://example.com/message"
-			);
-			// Create an empty context to pass to `worker.fetch()`.
+describe("BusinessOS Backend Worker API Tests", () => {
+	describe("GET /api/health", () => {
+		it('responds with status "ok" (unit style)', async () => {
+			const request = new Request("http://example.com/api/health");
 			const ctx = createExecutionContext();
 			const response = await worker.fetch(request, env, ctx);
-			// Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
 			await waitOnExecutionContext(ctx);
-			expect(await response.text()).toMatchInlineSnapshot(`"Hello, World!"`);
+			expect(response.status).toBe(200);
+			const body = await response.json() as any;
+			expect(body.status).toBe("ok");
 		});
 
-		it('responds with "Hello, World!" (integration style)', async () => {
-			const request = new Request("http://example.com/message");
-			const response = await SELF.fetch(request);
-			expect(await response.text()).toMatchInlineSnapshot(`"Hello, World!"`);
+		it('responds with status "ok" (integration style)', async () => {
+			const response = await SELF.fetch("http://example.com/api/health");
+			expect(response.status).toBe(200);
+			const body = await response.json() as any;
+			expect(body.status).toBe("ok");
 		});
 	});
 
-	describe("request for /random", () => {
-		it("/ responds with a random UUID (unit style)", async () => {
-			const request = new Request<unknown, IncomingRequestCfProperties>(
-				"http://example.com/random"
-			);
-			// Create an empty context to pass to `worker.fetch()`.
-			const ctx = createExecutionContext();
-			const response = await worker.fetch(request, env, ctx);
-			// Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
-			await waitOnExecutionContext(ctx);
-			expect(await response.text()).toMatch(
-				/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/
-			);
+	describe("Authentication protection", () => {
+		it("rejects unauthorized access with 401 for market-data endpoints", async () => {
+			const response = await SELF.fetch("http://example.com/api/market-data/quote?symbol=AAPL");
+			expect(response.status).toBe(401);
+			const body = await response.json() as any;
+			expect(body.error).toContain("Unauthorized");
 		});
 
-		it("responds with a random UUID (integration style)", async () => {
-			const request = new Request("http://example.com/random");
-			const response = await SELF.fetch(request);
-			expect(await response.text()).toMatch(
-				/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/
-			);
+		it("rejects unauthorized access with 401 for commentary endpoints", async () => {
+			const response = await SELF.fetch("http://example.com/api/commentary/generate", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({
+					systemPrompt: "test",
+					userPrompt: "test"
+				})
+			});
+			expect(response.status).toBe(401);
+		});
+
+		it("allows access with mock authentication token prefix", async () => {
+			// Using mock token which bypasses Google JWK verification
+			const response = await SELF.fetch("http://example.com/api/market-data/quote?symbol=AAPL", {
+				headers: {
+					"Authorization": "Bearer mock_user123"
+				}
+			});
+			// Since we don't have FINNHUB_API_KEY configured in vitest env, it will return 500 or fallback, but it won't be 401!
+			expect(response.status).not.toBe(401);
 		});
 	});
 });

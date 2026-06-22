@@ -1,3 +1,5 @@
+import { authService } from './firebase';
+
 export interface AssetMetadata {
   ticker: string;
   exchange: string;
@@ -62,6 +64,18 @@ export class FinnhubProvider implements MarketDataProvider {
     return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   }
 
+  private async fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+    const token = await authService.getIdToken();
+    const headers = {
+      ...(init?.headers || {}),
+      'Authorization': `Bearer ${token}`
+    };
+    return fetch(url, {
+      ...(init || {}),
+      headers
+    });
+  }
+
   /**
    * Formats ticker to canonical Finnhub symbol. Add .NS for NSE and .BO for BSE.
    */
@@ -105,7 +119,7 @@ export class FinnhubProvider implements MarketDataProvider {
     try {
       const apiBaseUrl = this.getApiBaseUrl();
       const url = `${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(symbol)}`;
-      const res = await fetch(url);
+      const res = await this.fetchWithAuth(url);
       
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -132,7 +146,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix quote failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await fetch(`${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
+        const baseRes = await this.fetchWithAuth(`${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && typeof baseData.c === 'number' && baseData.c > 0) {
@@ -177,7 +191,7 @@ export class FinnhubProvider implements MarketDataProvider {
     try {
       const apiBaseUrl = this.getApiBaseUrl();
       const url = `${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(symbol)}`;
-      const res = await fetch(url);
+      const res = await this.fetchWithAuth(url);
       
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -203,7 +217,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix metadata lookup failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await fetch(`${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
+        const baseRes = await this.fetchWithAuth(`${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.name) {
@@ -249,7 +263,7 @@ export class FinnhubProvider implements MarketDataProvider {
       const from = to - (days * 24 * 60 * 60);
       const apiBaseUrl = this.getApiBaseUrl();
       const url = `${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}`;
-      const res = await fetch(url);
+      const res = await this.fetchWithAuth(url);
 
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -265,7 +279,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix history candle failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await fetch(`${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
+        const baseRes = await this.fetchWithAuth(`${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.s === 'ok' && Array.isArray(baseData.c)) {

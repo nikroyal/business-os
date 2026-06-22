@@ -14,7 +14,8 @@ import {
   updateDoc,
   collection,
   getDocs,
-  deleteDoc
+  deleteDoc,
+  deleteField
 } from 'firebase/firestore';
 
 export interface UserProfile {
@@ -202,6 +203,13 @@ initMockUser();
 // Auth Service wrapper
 export const authService = {
   isMock: !realAuth,
+
+  async getIdToken(): Promise<string> {
+    if (realAuth && realAuth.currentUser) {
+      return await realAuth.currentUser.getIdToken();
+    }
+    return mockCurrentUser ? `mock_${mockCurrentUser.uid}` : 'mock_anonymous';
+  },
   
   async signup(email: string, password: string, displayName: string): Promise<any> {
     if (realAuth) {
@@ -310,11 +318,15 @@ export const authService = {
 // Database Service wrapper
 export const dbService = {
   async saveUserProfile(uid: string, profile: UserProfile): Promise<void> {
+    const cleanProfile = { ...profile };
+    if ('geminiApiKey' in cleanProfile) {
+      delete cleanProfile.geminiApiKey;
+    }
     if (realDb) {
       const docRef = doc(realDb, 'users', uid);
-      await setDoc(docRef, profile, { merge: true });
+      await setDoc(docRef, cleanProfile, { merge: true });
     } else {
-      localStorage.setItem(`profile_${uid}`, JSON.stringify(profile));
+      localStorage.setItem(`profile_${uid}`, JSON.stringify(cleanProfile));
     }
   },
 
@@ -323,23 +335,47 @@ export const dbService = {
       const docRef = doc(realDb, 'users', uid);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
-        return snapshot.data() as UserProfile;
+        const data = snapshot.data() as UserProfile;
+        if (data.geminiApiKey) {
+          delete data.geminiApiKey;
+          try {
+            await updateDoc(docRef, { geminiApiKey: deleteField() });
+          } catch (e) {
+            console.error('Failed to clean up geminiApiKey from firestore:', e);
+          }
+        }
+        return data;
       }
       return null;
     } else {
       const saved = localStorage.getItem(`profile_${uid}`);
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.geminiApiKey) {
+          delete data.geminiApiKey;
+          localStorage.setItem(`profile_${uid}`, JSON.stringify(data));
+        }
+        return data as UserProfile;
+      }
+      return null;
     }
   },
 
   async updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<void> {
+    const cleanUpdates = { ...updates };
+    if ('geminiApiKey' in cleanUpdates) {
+      delete cleanUpdates.geminiApiKey;
+    }
     if (realDb) {
       const docRef = doc(realDb, 'users', uid);
-      await updateDoc(docRef, updates as any);
+      await updateDoc(docRef, { ...cleanUpdates, geminiApiKey: deleteField() } as any);
     } else {
       const current = await this.getUserProfile(uid);
       if (current) {
-        const merged = { ...current, ...updates };
+        const merged = { ...current, ...cleanUpdates };
+        if ('geminiApiKey' in merged) {
+          delete merged.geminiApiKey;
+        }
         localStorage.setItem(`profile_${uid}`, JSON.stringify(merged));
       }
     }
@@ -625,13 +661,13 @@ export const dbService = {
 
   async getOpportunities(userId: string): Promise<Opportunity[]> {
     if (realDb) {
-      const colRef = collection(realDb, 'users', userId, 'opportunities');
-      const snapshot = await getDocs(colRef);
-      const list: Opportunity[] = [];
-      snapshot.forEach(doc => {
-        list.push({ id: doc.id, ...doc.data() } as Opportunity);
-      });
-      return list.sort((a, b) => b.generatedTimestamp.localeCompare(a.generatedTimestamp));
+      const docRef = doc(realDb, 'users', userId, 'opportunities', 'latest');
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        return (data.items || []) as Opportunity[];
+      }
+      return [];
     } else {
       const saved = localStorage.getItem(`opportunities_${userId}`);
       const list: Opportunity[] = saved ? JSON.parse(saved) : [];
@@ -641,35 +677,20 @@ export const dbService = {
 
   async saveOpportunities(userId: string, opportunities: Omit<Opportunity, 'id'>[]): Promise<Opportunity[]> {
     const timestamp = new Date().toISOString();
-    if (realDb) {
-      const colRef = collection(realDb, 'users', userId, 'opportunities');
-      
-      // Clear old opportunities
-      const oldSnapshot = await getDocs(colRef);
-      const deletePromises: Promise<any>[] = [];
-      oldSnapshot.forEach(doc => {
-        deletePromises.push(deleteDoc(doc.ref));
-      });
-      await Promise.all(deletePromises);
+    const savedList: Opportunity[] = opportunities.map(opp => ({
+      id: 'opp_' + Math.random().toString(36).substr(2, 9),
+      ...opp,
+      generatedTimestamp: timestamp
+    }));
 
-      const savedList: Opportunity[] = [];
-      for (const opp of opportunities) {
-        const docRef = doc(colRef);
-        const newOpp: Opportunity = {
-          id: docRef.id,
-          ...opp,
-          generatedTimestamp: timestamp
-        };
-        await setDoc(docRef, newOpp);
-        savedList.push(newOpp);
-      }
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'opportunities', 'latest');
+      await setDoc(docRef, {
+        generatedTimestamp: timestamp,
+        items: savedList
+      });
       return savedList;
     } else {
-      const savedList: Opportunity[] = opportunities.map(opp => ({
-        id: 'opp_' + Math.random().toString(36).substr(2, 9),
-        ...opp,
-        generatedTimestamp: timestamp
-      }));
       localStorage.setItem(`opportunities_${userId}`, JSON.stringify(savedList));
       return savedList;
     }

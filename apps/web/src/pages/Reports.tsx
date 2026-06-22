@@ -39,7 +39,7 @@ export const Reports: React.FC = () => {
   const loadAICommentary = async (report: DailyReport) => {
     if (!user) return;
     setAiCommentary(null);
-    if (!profile?.geminiEnabled || !profile?.geminiApiKey) return;
+    if (!profile?.geminiEnabled) return;
     
     setLoadingAi(true);
     try {
@@ -47,11 +47,15 @@ export const Reports: React.FC = () => {
       const prices: Record<string, number> = {};
       const metadataMap: Record<string, AssetMetadata | null> = {};
       
-      for (const h of listHoldings) {
-        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
-        const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
-        metadataMap[h.ticker || h.symbol] = meta;
-      }
+      await Promise.all(listHoldings.map(async (h) => {
+        const tickerStr = h.ticker || h.symbol;
+        const [price, meta] = await Promise.all([
+          marketDataService.getPrice(tickerStr, h.exchange, h.currentPrice || h.purchasePrice),
+          marketDataService.getMetadata(tickerStr, h.exchange)
+        ]);
+        prices[h.id] = price;
+        metadataMap[tickerStr] = meta;
+      }));
 
       const reportingCurrency = profile?.reportingCurrency || 'INR';
       const usdToInrRate = profile?.usdToInrRate || 83.50;
@@ -141,11 +145,15 @@ export const Reports: React.FC = () => {
       const prices: Record<string, number> = {};
       const metadataMap: Record<string, AssetMetadata | null> = {};
       
-      for (const h of listHoldings) {
-        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
-        const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
-        metadataMap[h.ticker || h.symbol] = meta;
-      }
+      await Promise.all(listHoldings.map(async (h) => {
+        const tickerStr = h.ticker || h.symbol;
+        const [price, meta] = await Promise.all([
+          marketDataService.getPrice(tickerStr, h.exchange, h.currentPrice || h.purchasePrice),
+          marketDataService.getMetadata(tickerStr, h.exchange)
+        ]);
+        prices[h.id] = price;
+        metadataMap[tickerStr] = meta;
+      }));
 
       // Converted exchange rate variables from user settings
       const reportingCurrency = profile?.reportingCurrency || 'INR';

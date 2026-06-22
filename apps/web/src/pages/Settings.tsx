@@ -42,7 +42,6 @@ export const Settings: React.FC = () => {
 
   // Gemini Settings
   const [geminiEnabled, setGeminiEnabled] = useState(false);
-  const [geminiApiKey, setGeminiApiKey] = useState('');
   const [geminiModel, setGeminiModel] = useState('gemini-1.5-flash');
   const [geminiTone, setGeminiTone] = useState<'editorial' | 'analytical' | 'succinct'>('editorial');
 
@@ -61,7 +60,6 @@ export const Settings: React.FC = () => {
       setReportingCurrency(profile.reportingCurrency || 'INR');
       setUsdToInrRate((profile.usdToInrRate ?? 83.50).toString());
       setGeminiEnabled(profile.geminiEnabled ?? false);
-      setGeminiApiKey(profile.geminiApiKey || '');
       setGeminiModel(profile.geminiModel || 'gemini-1.5-flash');
       setGeminiTone(profile.geminiTone || 'editorial');
     }
@@ -97,7 +95,6 @@ export const Settings: React.FC = () => {
         reportingCurrency,
         usdToInrRate: parseFloat(usdToInrRate) || 83.50,
         geminiEnabled,
-        geminiApiKey,
         geminiModel,
         geminiTone
       });
@@ -378,19 +375,6 @@ export const Settings: React.FC = () => {
 
           {geminiEnabled && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label className="form-label">Gemini API Key</label>
-                <input 
-                  type="password" 
-                  className="form-input" 
-                  placeholder="Paste your Gemini API Key here (starts with AIzaSy...)" 
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  required={geminiEnabled}
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                />
-              </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Model Selection</label>
