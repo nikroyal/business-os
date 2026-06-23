@@ -3,6 +3,7 @@ import { dbService } from '../services/firebase';
 import type { CompanyIntelligence, UserConviction, Holding } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import IntelligenceService from '../services/intelligenceService';
+import { ExportService } from '../services/exportService';
 
 export const IntelligenceHub: React.FC = () => {
   const { user } = useAuth();
@@ -296,6 +297,24 @@ export const IntelligenceHub: React.FC = () => {
                 </div>
               ) : (
                 <div className="flex flex-col gap-6">
+                  {/* Export Actions */}
+                  <div className="flex gap-2 justify-end -mb-4">
+                    <button 
+                      onClick={() => ExportService.exportIntelligenceReportToMarkdown(selectedAsset.intel!, selectedAsset.conviction)}
+                      className="text-stone-500 hover:text-stone-800 border border-[#E5E2D9] px-2 py-1 font-mono text-[10px] bg-[#FDFCF7] hover:bg-stone-50 transition-colors"
+                      aria-label="Export intelligence report as Markdown"
+                    >
+                      Export MD
+                    </button>
+                    <button 
+                      onClick={() => ExportService.exportIntelligenceReportToPDF(selectedAsset.intel!, selectedAsset.conviction)}
+                      className="text-stone-500 hover:text-stone-800 border border-[#E5E2D9] px-2 py-1 font-mono text-[10px] bg-[#FDFCF7] hover:bg-stone-50 transition-colors"
+                      aria-label="Export intelligence report as PDF"
+                    >
+                      Export PDF
+                    </button>
+                  </div>
+
                   <div>
                     <div className="font-mono text-xs text-stone-400 uppercase">[Active Selection]</div>
                     <div className="font-serif text-2xl font-normal">{selectedAsset.intel.name}</div>

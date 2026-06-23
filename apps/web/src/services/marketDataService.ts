@@ -28,32 +28,103 @@ export interface MarketDataProvider {
   getHistoricalPrices(ticker: string, days: number, exchange?: string): Promise<number[]>;
 }
 
+class RequestQueue {
+  private queue: (() => Promise<void>)[] = [];
+  private activeCount = 0;
+  private maxConcurrency = 3;
+  private rateLimitWindowMs = 60000;
+  private maxRequestsPerWindow = 35; // Safe limit
+  private requestTimestamps: number[] = [];
+
+  constructor(maxConcurrency = 3, maxRequestsPerWindow = 35) {
+    this.maxConcurrency = maxConcurrency;
+    this.maxRequestsPerWindow = maxRequestsPerWindow;
+  }
+
+  setConcurrency(limit: number) {
+    this.maxConcurrency = limit;
+  }
+
+  setRateLimit(maxRequests: number) {
+    this.maxRequestsPerWindow = maxRequests;
+  }
+
+  enqueue<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const execute = async () => {
+        this.activeCount++;
+        try {
+          const result = await task();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        } finally {
+          this.activeCount--;
+          this.processNext();
+        }
+      };
+
+      this.queue.push(execute);
+      this.processNext();
+    });
+  }
+
+  private async processNext() {
+    if (this.activeCount >= this.maxConcurrency || this.queue.length === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter(
+      ts => now - ts < this.rateLimitWindowMs
+    );
+
+    if (this.requestTimestamps.length >= this.maxRequestsPerWindow) {
+      const oldestTs = this.requestTimestamps[0];
+      const waitTime = this.rateLimitWindowMs - (now - oldestTs);
+      setTimeout(() => this.processNext(), waitTime + 50);
+      return;
+    }
+
+    const execute = this.queue.shift();
+    if (execute) {
+      this.requestTimestamps.push(now);
+      execute();
+    }
+  }
+}
+
 /**
  * Live Finnhub Provider with Caching, Rate-Limit Protection, and Suffix Mapping
  */
 export class FinnhubProvider implements MarketDataProvider {
   name = 'Finnhub';
 
-  // Cache store and time-to-live settings
+  // Cache store and time-to-live settings (configurable)
   private cache = new Map<string, { data: any; timestamp: number }>();
-  private readonly PRICE_TTL = 5 * 60 * 1000;         // 5 minutes
-  private readonly METADATA_TTL = 24 * 60 * 60 * 1000;  // 24 hours
+  private quoteTtl = 5 * 60 * 1000;         // 5 minutes default
+  private metadataTtl = 24 * 60 * 60 * 1000;  // 24 hours default
+  private candleTtl = 30 * 60 * 1000;       // 30 minutes default
 
-  // Throttling fields to enforce standard rate limiting
-  private lastCallTime = 0;
-  private readonly MIN_CALL_INTERVAL = 1100; // 1.1s intervals (~54 requests/min)
+  //Centralized Queue with configurable limits
+  private queue = new RequestQueue(3, 35);
 
-  /**
-   * Spacing out consecutive API requests to protect against the 60 calls/min rate limits
-   */
-  private async throttle(): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - this.lastCallTime;
-    if (elapsed < this.MIN_CALL_INTERVAL) {
-      const waitTime = this.MIN_CALL_INTERVAL - elapsed;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    this.lastCallTime = Date.now();
+  setConcurrencyLimit(limit: number) {
+    this.queue.setConcurrency(limit);
+  }
+
+  setQueueRateLimit(maxRequestsPerMin: number) {
+    this.queue.setRateLimit(maxRequestsPerMin);
+  }
+
+  setTtls(quoteMs: number, candleMs: number, metadataMs: number) {
+    this.quoteTtl = quoteMs;
+    this.candleTtl = candleMs;
+    this.metadataTtl = metadataMs;
+  }
+
+  clearCache() {
+    this.cache.clear();
   }
 
   /**
@@ -73,6 +144,31 @@ export class FinnhubProvider implements MarketDataProvider {
     return fetch(url, {
       ...(init || {}),
       headers
+    });
+  }
+
+  /**
+   * Centralized fetch method using the concurrency queue & robust 429 retry logic
+   */
+  private async fetchWithQueue(url: string, init?: RequestInit, retries = 3, delay = 1500): Promise<Response> {
+    return this.queue.enqueue(async () => {
+      let lastError: any = null;
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          const res = await this.fetchWithAuth(url, init);
+          if (res.status === 429) {
+            console.warn(`[FinnhubProvider] 429 Rate Limit hit for ${url}. Retrying in ${delay}ms... (Attempt ${attempt + 1}/${retries})`);
+            await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt)));
+            continue;
+          }
+          return res;
+        } catch (err) {
+          lastError = err;
+          console.warn(`[FinnhubProvider] Fetch failed for ${url}:`, err);
+          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt)));
+        }
+      }
+      throw lastError || new Error(`Failed to fetch ${url} after ${retries} attempts`);
     });
   }
 
@@ -110,16 +206,14 @@ export class FinnhubProvider implements MarketDataProvider {
     
     // Check Cache
     const cached = this.cache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < this.PRICE_TTL)) {
+    if (cached && (Date.now() - cached.timestamp < this.quoteTtl)) {
       return cached.data;
     }
-
-    await this.throttle();
 
     try {
       const apiBaseUrl = this.getApiBaseUrl();
       const url = `${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(symbol)}`;
-      const res = await this.fetchWithAuth(url);
+      const res = await this.fetchWithQueue(url);
       
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -146,7 +240,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix quote failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await this.fetchWithAuth(`${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
+        const baseRes = await this.fetchWithQueue(`${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && typeof baseData.c === 'number' && baseData.c > 0) {
@@ -182,16 +276,14 @@ export class FinnhubProvider implements MarketDataProvider {
 
     // Check Cache
     const cached = this.cache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < this.METADATA_TTL)) {
+    if (cached && (Date.now() - cached.timestamp < this.metadataTtl)) {
       return cached.data;
     }
-
-    await this.throttle();
 
     try {
       const apiBaseUrl = this.getApiBaseUrl();
       const url = `${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(symbol)}`;
-      const res = await this.fetchWithAuth(url);
+      const res = await this.fetchWithQueue(url);
       
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -217,7 +309,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix metadata lookup failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await this.fetchWithAuth(`${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
+        const baseRes = await this.fetchWithQueue(`${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.name) {
@@ -252,18 +344,16 @@ export class FinnhubProvider implements MarketDataProvider {
 
     // Check Cache
     const cached = this.cache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < this.PRICE_TTL)) {
+    if (cached && (Date.now() - cached.timestamp < this.candleTtl)) {
       return cached.data;
     }
-
-    await this.throttle();
 
     try {
       const to = Math.floor(Date.now() / 1000);
       const from = to - (days * 24 * 60 * 60);
       const apiBaseUrl = this.getApiBaseUrl();
       const url = `${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}`;
-      const res = await this.fetchWithAuth(url);
+      const res = await this.fetchWithQueue(url);
 
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -279,7 +369,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix history candle failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await this.fetchWithAuth(`${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
+        const baseRes = await this.fetchWithQueue(`${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.s === 'ok' && Array.isArray(baseData.c)) {
@@ -449,6 +539,12 @@ class MarketDataServiceImpl {
     } catch (err) {
       console.warn(`[MarketDataService] Error resolving historical candles for ${ticker}:`, err);
       return [];
+    }
+  }
+
+  clearCache() {
+    if (this.provider && typeof (this.provider as any).clearCache === 'function') {
+      (this.provider as any).clearCache();
     }
   }
 }

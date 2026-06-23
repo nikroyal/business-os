@@ -17,13 +17,15 @@ import {
   Info,
   ChevronRight,
   FileText,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { OpportunityService } from '../services/opportunityService';
 import type { AICommentary } from '../services/firebase';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
 import { SampleDataService } from '../services/sampleDataService';
+import { ExportService } from '../services/exportService';
 
 export const Reports: React.FC = () => {
   const { user, profile } = useAuth();
@@ -131,6 +133,14 @@ export const Reports: React.FC = () => {
 
   const handleLoadSampleReports = async () => {
     if (!user) return;
+    const confirmImport = window.confirm(
+      "Import Sample Portfolio?\n\n" +
+      "- Existing holdings and watchlist assets may be replaced or merged.\n" +
+      "- Sample data is strictly for demonstration and testing purposes.\n\n" +
+      "Click OK to proceed with 'Import Sample Data', or Cancel to abort."
+    );
+    if (!confirmImport) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -280,7 +290,7 @@ export const Reports: React.FC = () => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2.5rem', alignItems: 'start' }}>
+      <div className="reports-grid-layout" style={{ alignItems: 'start' }}>
         
         {/* Left Side: Report History Archive */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -388,6 +398,26 @@ export const Reports: React.FC = () => {
           ) : selectedReport ? (
             <div className="card" style={{ padding: '2.5rem 3rem', animation: 'fadeIn 0.2s ease-out' }}>
               
+              {/* Export Actions Toolbar */}
+              <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '1rem' }}>
+                <button 
+                  onClick={() => ExportService.exportDailyReportToMarkdown(selectedReport, aiCommentary, profile?.reportingCurrency || 'INR')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', height: '28px' }}
+                >
+                  <Download size={12} />
+                  <span>Export Markdown</span>
+                </button>
+                <button 
+                  onClick={() => ExportService.exportDailyReportToPDF(selectedReport, aiCommentary, profile?.reportingCurrency || 'INR')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', height: '28px' }}
+                >
+                  <FileText size={12} />
+                  <span>Export PDF</span>
+                </button>
+              </div>
+
               {/* Report Header */}
               <div style={{ textAlign: 'center', borderBottom: '2px solid var(--text-primary)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                 <span className="mono-tag" style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
@@ -452,10 +482,7 @@ export const Reports: React.FC = () => {
                         {aiCommentary.executiveSummary}
                       </p>
                       
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: '1fr 1fr', 
-                        gap: '1.5rem', 
+                      <div className="reports-commentary-layout" style={{ 
                         borderTop: '1px dashed #E2DACD', 
                         paddingTop: '1rem',
                         marginTop: '0.5rem'
@@ -487,7 +514,7 @@ export const Reports: React.FC = () => {
               )}
 
               {/* Sections Double Column Layout */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5rem', alignItems: 'start' }}>
+              <div className="reports-sections-layout" style={{ alignItems: 'start' }}>
                 
                 {/* Left Panel: Market Snapshot & Portfolio Metrics */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

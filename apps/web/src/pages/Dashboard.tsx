@@ -87,6 +87,48 @@ export const Dashboard: React.FC = () => {
   const reportingCurrency = profile?.reportingCurrency || 'INR';
   const usdToInrRate = profile?.usdToInrRate || 83.50;
 
+  // Focus trapping for modals (Part 3)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      
+      const activeModal = document.querySelector('.modal-content, .csv-import-modal-content');
+      if (!activeModal) return;
+      
+      const focusables = activeModal.querySelectorAll('button, input, select, textarea, [tabindex="0"]');
+      if (focusables.length === 0) return;
+      
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
+      
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    };
+    
+    if (isModalOpen || isCsvImportOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      // focus the first element in modal automatically
+      setTimeout(() => {
+        const activeModal = document.querySelector('.modal-content, .csv-import-modal-content');
+        const first = activeModal?.querySelector('button, input, select, textarea, [tabindex="0"]') as HTMLElement;
+        first?.focus();
+      }, 50);
+    }
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen, isCsvImportOpen]);
+
   const fetchHoldings = async () => {
     if (!user) return;
     setLoadingHoldings(true);
@@ -99,11 +141,12 @@ export const Dashboard: React.FC = () => {
       const prices: Record<string, number> = {};
       const metadataMap: Record<string, AssetMetadata | null> = {};
       
-      for (const h of list) {
-        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+      await Promise.all(list.map(async (h) => {
+        const price = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+        prices[h.id] = price;
         const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
         metadataMap[h.ticker || h.symbol] = meta;
-      }
+      }));
       setMarketPrices(prices);
 
       // Run analytics engine
@@ -157,12 +200,44 @@ export const Dashboard: React.FC = () => {
 
   const handleLoadSampleData = async () => {
     if (!user) return;
+    const confirmImport = window.confirm(
+      "Import Sample Portfolio?\n\n" +
+      "- Existing holdings and watchlist assets may be replaced or merged.\n" +
+      "- Sample data is strictly for demonstration and testing purposes.\n\n" +
+      "Click OK to proceed with 'Import Sample Data', or Cancel to abort."
+    );
+    if (!confirmImport) return;
+
+    setLoadingHoldings(true);
     try {
       await SampleDataService.loadSampleData(user.uid);
       await fetchHoldings();
     } catch (err) {
       console.error('Failed to load sample data:', err);
       alert('Failed to load sample portfolio data.');
+    } finally {
+      setLoadingHoldings(false);
+    }
+  };
+
+  const handleRemoveSampleData = async () => {
+    if (!user) return;
+    const confirmRemove = window.confirm(
+      "Remove Sample Data?\n\n" +
+      "This will remove all sample holdings and watchlisted assets loaded for demonstration.\n\n" +
+      "Click OK to proceed, or Cancel to abort."
+    );
+    if (!confirmRemove) return;
+
+    setLoadingHoldings(true);
+    try {
+      await SampleDataService.removeSampleData(user.uid);
+      await fetchHoldings();
+    } catch (err) {
+      console.error('Failed to remove sample data:', err);
+      alert('Failed to remove sample portfolio data.');
+    } finally {
+      setLoadingHoldings(false);
     }
   };
 
@@ -554,10 +629,22 @@ export const Dashboard: React.FC = () => {
               <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
                 Asset Ledger
               </h2>
-              <button onClick={openAddModal} className="btn btn-primary btn-sm">
-                <Plus size={16} />
-                <span>Add Asset</span>
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {holdings.some(h => ['AAPL', 'MSFT', 'GOOG', 'RELIANCE', 'TCS', 'BTC', 'ETH'].includes(h.ticker)) && (
+                  <button 
+                    onClick={handleRemoveSampleData} 
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', borderColor: 'var(--color-danger-text)', color: 'var(--color-danger-text)' }}
+                  >
+                    <Trash2 size={14} />
+                    <span>Clear Sample Data</span>
+                  </button>
+                )}
+                <button onClick={openAddModal} className="btn btn-primary btn-sm">
+                  <Plus size={16} />
+                  <span>Add Asset</span>
+                </button>
+              </div>
             </div>
 
             {loadingHoldings ? (
@@ -592,90 +679,136 @@ export const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="financial-table-wrapper">
-                <table className="financial-table">
-                  <thead>
-                    <tr>
-                      <th>Asset</th>
-                      <th>Class</th>
-                      <th>Exchange</th>
-                      <th className="num-val">Qty</th>
-                      <th className="num-val">Avg Cost</th>
-                      <th className="num-val">Current</th>
-                      <th className="num-val">Value</th>
-                      <th className="num-val">Gain/Loss</th>
-                      <th className="num-val">Conviction</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holdings.map((holding) => {
-                      const price = marketPrices[holding.id] !== undefined ? marketPrices[holding.id] : (holding.currentPrice || holding.purchasePrice);
-                      const value = holding.quantity * price;
-                      const cost = holding.quantity * holding.purchasePrice;
-                      const gain = value - cost;
-                      const gainPercent = cost > 0 ? (gain / cost) * 100 : 0;
-                      return (
-                        <tr key={holding.id}>
-                          <td style={{ fontWeight: 600 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{holding.ticker || holding.symbol}</span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{holding.name}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                              {holding.assetClass}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                              {holding.exchange}
-                            </span>
-                          </td>
-                          <td className="num-val">{holding.quantity.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })}</td>
-                          <td className="num-val">{formatCurrency(holding.purchasePrice, holding.currency)}</td>
-                          <td className="num-val">{formatCurrency(price, holding.currency)}</td>
-                          <td className="num-val" style={{ fontWeight: 600 }}>{formatCurrency(value, holding.currency)}</td>
-                          <td className="num-val" style={{ color: gain >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                              <span>{formatCurrency(gain, holding.currency)}</span>
-                              <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>{formatPercent(gainPercent)}</span>
-                            </div>
-                          </td>
-                          <td className="num-val">
-                            {(() => {
-                              const conviction = convictions.find(
-                                c => c.ticker.toUpperCase() === holding.ticker.toUpperCase() && c.exchange.toUpperCase() === holding.exchange.toUpperCase()
-                              );
-                              return conviction ? (
-                                <span 
-                                  onClick={() => navigate('/intelligence')}
-                                  style={{ 
-                                    fontFamily: 'var(--font-mono)', 
-                                    fontWeight: 'bold', 
-                                    cursor: 'pointer',
-                                    textDecoration: 'underline',
-                                    color: conviction.overallScore >= 75 ? 'var(--color-success-text)' : conviction.overallScore >= 50 ? 'var(--text-primary)' : 'var(--color-danger-text)'
-                                  }}
-                                  title={conviction.rationale}
-                                >
-                                  {conviction.overallScore}
-                                </span>
-                              ) : (
-                                <span 
-                                  onClick={() => navigate('/intelligence')} 
-                                  style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}
-                                >
-                                  —
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {/* Desktop View */}
+                <div className="financial-table-desktop">
+                  <table className="financial-table">
+                    <thead>
+                      <tr>
+                        <th>Asset</th>
+                        <th>Class</th>
+                        <th>Exchange</th>
+                        <th className="num-val">Qty</th>
+                        <th className="num-val">Avg Cost</th>
+                        <th className="num-val">Current</th>
+                        <th className="num-val">Value</th>
+                        <th className="num-val">Gain/Loss</th>
+                        <th className="num-val">Conviction</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holdings.map((holding) => {
+                        const price = marketPrices[holding.id] !== undefined ? marketPrices[holding.id] : (holding.currentPrice || holding.purchasePrice);
+                        const value = holding.quantity * price;
+                        const cost = holding.quantity * holding.purchasePrice;
+                        const gain = value - cost;
+                        const gainPercent = cost > 0 ? (gain / cost) * 100 : 0;
+                        return (
+                          <tr key={holding.id}>
+                            <td style={{ fontWeight: 600 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{holding.ticker || holding.symbol}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{holding.name}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                                {holding.assetClass}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                                {holding.exchange}
+                              </span>
+                            </td>
+                            <td className="num-val">{holding.quantity.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })}</td>
+                            <td className="num-val">{formatCurrency(holding.purchasePrice, holding.currency)}</td>
+                            <td className="num-val">{formatCurrency(price, holding.currency)}</td>
+                            <td className="num-val" style={{ fontWeight: 600 }}>{formatCurrency(value, holding.currency)}</td>
+                            <td className="num-val" style={{ color: gain >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                <span>{formatCurrency(gain, holding.currency)}</span>
+                                <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>{formatPercent(gainPercent)}</span>
+                              </div>
+                            </td>
+                            <td className="num-val">
+                              {(() => {
+                                const conviction = convictions.find(
+                                  c => c.ticker.toUpperCase() === holding.ticker.toUpperCase() && c.exchange.toUpperCase() === holding.exchange.toUpperCase()
+                                );
+                                return conviction ? (
+                                  <span 
+                                    onClick={() => navigate('/intelligence')}
+                                    style={{ 
+                                      fontFamily: 'var(--font-mono)', 
+                                      fontWeight: 'bold', 
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                      color: conviction.overallScore >= 75 ? 'var(--color-success-text)' : conviction.overallScore >= 50 ? 'var(--text-primary)' : 'var(--color-danger-text)'
+                                    }}
+                                    title={conviction.rationale}
+                                  >
+                                    {conviction.overallScore}
+                                  </span>
+                                ) : (
+                                  <span 
+                                    onClick={() => navigate('/intelligence')} 
+                                    style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}
+                                  >
+                                    —
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <button 
+                                onClick={() => openEditModal(holding)}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', marginRight: '0.75rem', padding: '0.25rem' }}
+                                title="Edit Asset"
+                                aria-label={`Edit ${holding.ticker || holding.symbol}`}
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteHolding(holding.id)}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger-text)', padding: '0.25rem' }}
+                                title="Remove Asset"
+                                aria-label={`Remove ${holding.ticker || holding.symbol}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="financial-cards-mobile" style={{ display: 'none' }}>
+                  {holdings.map((holding) => {
+                    const price = marketPrices[holding.id] !== undefined ? marketPrices[holding.id] : (holding.currentPrice || holding.purchasePrice);
+                    const value = holding.quantity * price;
+                    const cost = holding.quantity * holding.purchasePrice;
+                    const gain = value - cost;
+                    const gainPercent = cost > 0 ? (gain / cost) * 100 : 0;
+                    const conviction = convictions.find(
+                      c => c.ticker.toUpperCase() === holding.ticker.toUpperCase() && c.exchange.toUpperCase() === holding.exchange.toUpperCase()
+                    );
+                    return (
+                      <div key={holding.id} className="mobile-card">
+                        <div className="mobile-card-title">
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '1rem' }}>{holding.ticker || holding.symbol}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{holding.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button 
                               onClick={() => openEditModal(holding)}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', marginRight: '0.75rem', padding: '0.25rem' }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.25rem' }}
                               title="Edit Asset"
+                              aria-label={`Edit ${holding.ticker || holding.symbol}`}
                             >
                               <Edit2 size={14} />
                             </button>
@@ -683,15 +816,67 @@ export const Dashboard: React.FC = () => {
                               onClick={() => handleDeleteHolding(holding.id)}
                               style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger-text)', padding: '0.25rem' }}
                               title="Remove Asset"
+                              aria-label={`Remove ${holding.ticker || holding.symbol}`}
                             >
                               <Trash2 size={14} />
                             </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Class / Exchange</span>
+                          <span>
+                            {holding.assetClass} ({holding.exchange})
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Quantity</span>
+                          <span>{holding.quantity.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })}</span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Avg Cost / Current</span>
+                          <span>{formatCurrency(holding.purchasePrice, holding.currency)} / {formatCurrency(price, holding.currency)}</span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Total Value</span>
+                          <span style={{ fontWeight: 600 }}>{formatCurrency(value, holding.currency)}</span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Gain/Loss</span>
+                          <span style={{ color: gain >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontWeight: 'bold' }}>
+                            {formatCurrency(gain, holding.currency)} ({formatPercent(gainPercent)})
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Conviction Score</span>
+                          <span>
+                            {conviction ? (
+                              <span 
+                                onClick={() => navigate('/intelligence')}
+                                style={{ 
+                                  fontFamily: 'var(--font-mono)', 
+                                  fontWeight: 'bold', 
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  color: conviction.overallScore >= 75 ? 'var(--color-success-text)' : conviction.overallScore >= 50 ? 'var(--text-primary)' : 'var(--color-danger-text)'
+                                }}
+                                title={conviction.rationale}
+                              >
+                                {conviction.overallScore}
+                              </span>
+                            ) : (
+                              <span 
+                                onClick={() => navigate('/intelligence')} 
+                                style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}
+                              >
+                                —
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1086,10 +1271,11 @@ export const Dashboard: React.FC = () => {
             )}
             
             <form onSubmit={handleSaveHolding} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-grid">
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Ticker Symbol</label>
+                  <label htmlFor="holding-ticker" className="form-label">Ticker Symbol</label>
                   <input 
+                    id="holding-ticker"
                     type="text" 
                     className="form-input" 
                     placeholder="e.g. AAPL, BTC, TCS" 
@@ -1101,8 +1287,9 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Custom Display Tag</label>
+                  <label htmlFor="holding-symbol" className="form-label">Custom Display Tag</label>
                   <input 
+                    id="holding-symbol"
                     type="text" 
                     className="form-input" 
                     placeholder="e.g. AAPL" 
@@ -1114,8 +1301,9 @@ export const Dashboard: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Asset Name</label>
+                <label htmlFor="holding-name" className="form-label">Asset Name</label>
                 <input 
+                  id="holding-name"
                   type="text" 
                   className="form-input" 
                   placeholder="e.g. Apple Inc., US Dollar" 
@@ -1125,10 +1313,11 @@ export const Dashboard: React.FC = () => {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-grid">
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Exchange</label>
+                  <label htmlFor="holding-exchange" className="form-label">Exchange</label>
                   <select 
+                    id="holding-exchange"
                     className="form-input form-select"
                     value={exchange}
                     onChange={(e) => setExchange(e.target.value)}
@@ -1144,8 +1333,9 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Currency</label>
+                  <label htmlFor="holding-currency" className="form-label">Currency</label>
                   <select 
+                    id="holding-currency"
                     className="form-input form-select"
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
@@ -1157,8 +1347,9 @@ export const Dashboard: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Asset Class</label>
+                <label htmlFor="holding-assetClass" className="form-label">Asset Class</label>
                 <select 
+                  id="holding-assetClass"
                   className="form-input form-select"
                   value={assetClass}
                   onChange={(e) => setAssetClass(e.target.value)}
@@ -1172,10 +1363,11 @@ export const Dashboard: React.FC = () => {
                 </select>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-grid">
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Quantity</label>
+                  <label htmlFor="holding-quantity" className="form-label">Quantity</label>
                   <input 
+                    id="holding-quantity"
                     type="number" 
                     step="any"
                     className="form-input" 
@@ -1187,8 +1379,9 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Avg Buy Price</label>
+                  <label htmlFor="holding-purchasePrice" className="form-label">Avg Buy Price</label>
                   <input 
+                    id="holding-purchasePrice"
                     type="number" 
                     step="any"
                     className="form-input" 
@@ -1201,8 +1394,9 @@ export const Dashboard: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label className="form-label">Purchase Date</label>
+                <label htmlFor="holding-purchaseDate" className="form-label">Purchase Date</label>
                 <input 
+                  id="holding-purchaseDate"
                   type="date" 
                   className="form-input" 
                   value={purchaseDate}

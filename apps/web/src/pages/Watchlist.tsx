@@ -83,6 +83,14 @@ export const Watchlist: React.FC = () => {
   };
   const handleLoadSampleWatchlist = async () => {
     if (!user) return;
+    const confirmImport = window.confirm(
+      "Import Sample Portfolio?\n\n" +
+      "- Existing holdings and watchlist assets may be replaced or merged.\n" +
+      "- Sample data is strictly for demonstration and testing purposes.\n\n" +
+      "Click OK to proceed with 'Import Sample Data', or Cancel to abort."
+    );
+    if (!confirmImport) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -284,8 +292,9 @@ export const Watchlist: React.FC = () => {
             </h3>
             <form onSubmit={handleAddAsset} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '120px' }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>Exchange</label>
+                <label htmlFor="watchlist-exchange" className="form-label" style={{ marginBottom: 0 }}>Exchange</label>
                 <select 
+                  id="watchlist-exchange"
                   className="form-input form-select" 
                   value={exchange} 
                   onChange={(e) => setExchange(e.target.value)}
@@ -299,8 +308,9 @@ export const Watchlist: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: '1', minWidth: '150px' }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>Ticker Symbol</label>
+                <label htmlFor="watchlist-ticker" className="form-label" style={{ marginBottom: 0 }}>Ticker Symbol</label>
                 <input 
+                  id="watchlist-ticker"
                   type="text" 
                   className="form-input" 
                   placeholder="e.g. MSFT, RELIANCE, AAPL" 
@@ -313,8 +323,9 @@ export const Watchlist: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '120px' }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>Display Tag</label>
+                <label htmlFor="watchlist-display-tag" className="form-label" style={{ marginBottom: 0 }}>Display Tag</label>
                 <input 
+                  id="watchlist-display-tag"
                   type="text" 
                   className="form-input" 
                   placeholder="e.g. MSFT" 
@@ -324,7 +335,7 @@ export const Watchlist: React.FC = () => {
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '0.4rem' }} disabled={isAdding}>
+              <button type="submit" className="btn btn-primary" style={{ height: '38px', display: 'flex', alignItems: 'center', gap: '0.4rem' }} disabled={isAdding} aria-label="Track asset on watchlist">
                 <Plus size={16} />
                 <span>{isAdding ? 'Adding...' : 'Track'}</span>
               </button>
@@ -427,99 +438,191 @@ export const Watchlist: React.FC = () => {
               </div>
             ) : (
               <div className="financial-table-wrapper">
-                <table className="financial-table">
-                  <thead>
-                    <tr>
-                      <th>Ticker</th>
-                      <th>Sector / Industry</th>
-                      <th>Country</th>
-                      <th className="num-val">Market Cap</th>
-                      <th className="num-val">Live Price</th>
-                      <th className="num-val">Daily Change</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAndSortedWatchlist.map((entry) => {
-                      const isSelected = selectedAsset?.item.id === entry.item.id;
-                      const hasPrice = entry.quote.current > 0;
-                      const matchingOpps = opportunities.filter(
-                        opp => opp.ticker.toUpperCase() === entry.item.ticker.toUpperCase() && 
-                               opp.exchange.toUpperCase() === entry.item.exchange.toUpperCase()
-                      );
-                      return (
-                        <tr 
-                          key={entry.item.id}
-                          onClick={() => setSelectedAsset(entry)}
-                          style={{ 
-                            cursor: 'pointer',
-                            backgroundColor: isSelected ? '#F5EFE6' : 'transparent',
-                            borderLeft: isSelected ? '3px solid var(--color-accent)' : 'none'
-                          }}
-                        >
-                          <td style={{ fontWeight: 600 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{entry.item.symbol}</span>
-                                {matchingOpps.length > 0 && (
-                                  <span style={{
-                                    backgroundColor: 'var(--color-accent)',
-                                    color: '#FFFFFF',
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: '0.6rem',
-                                    padding: '0.1rem 0.3rem',
-                                    borderRadius: '2px',
-                                    fontWeight: 'bold',
-                                    letterSpacing: '0.5px'
-                                  }} title={`${matchingOpps.length} active opportunity signal(s) detected`}>
-                                    SIGNAL
-                                  </span>
-                                )}
+                {/* Desktop View */}
+                <div className="financial-table-desktop">
+                  <table className="financial-table">
+                    <thead>
+                      <tr>
+                        <th>Ticker</th>
+                        <th>Sector / Industry</th>
+                        <th>Country</th>
+                        <th className="num-val">Market Cap</th>
+                        <th className="num-val">Live Price</th>
+                        <th className="num-val">Daily Change</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAndSortedWatchlist.map((entry) => {
+                        const isSelected = selectedAsset?.item.id === entry.item.id;
+                        const hasPrice = entry.quote.current > 0;
+                        const matchingOpps = opportunities.filter(
+                          opp => opp.ticker.toUpperCase() === entry.item.ticker.toUpperCase() && 
+                                opp.exchange.toUpperCase() === entry.item.exchange.toUpperCase()
+                        );
+                        return (
+                          <tr 
+                            key={entry.item.id}
+                            onClick={() => setSelectedAsset(entry)}
+                            style={{ 
+                              cursor: 'pointer',
+                              backgroundColor: isSelected ? '#F5EFE6' : 'transparent',
+                              borderLeft: isSelected ? '3px solid var(--color-accent)' : 'none'
+                            }}
+                          >
+                            <td style={{ fontWeight: 600 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{entry.item.symbol}</span>
+                                  {matchingOpps.length > 0 && (
+                                    <span style={{
+                                      backgroundColor: 'var(--color-accent)',
+                                      color: '#FFFFFF',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontSize: '0.6rem',
+                                      padding: '0.1rem 0.3rem',
+                                      borderRadius: '2px',
+                                      fontWeight: 'bold',
+                                      letterSpacing: '0.5px'
+                                    }} title={`${matchingOpps.length} active opportunity signal(s) detected`}>
+                                      SIGNAL
+                                    </span>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{entry.metadata?.name || entry.item.name}</span>
                               </div>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{entry.metadata?.name || entry.item.name}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                              {entry.normalized.sector}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '0.75rem' }}>{entry.normalized.country}</span>
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{entry.normalized.region}</span>
-                            </div>
-                          </td>
-                          <td className="num-val">
-                            <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                              {formatMarketCap(entry.metadata?.marketCapitalization)}
-                            </span>
-                          </td>
-                          <td className="num-val" style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
-                            {hasPrice ? formatCurrency(entry.quote.current, entry.item.currency) : '—'}
-                          </td>
-                          <td className="num-val" style={{ color: entry.quote.percentChange >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                            {hasPrice ? (
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600 }}>
-                                {entry.quote.percentChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                <span>{formatPercent(entry.quote.percentChange)}</span>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                {entry.normalized.sector}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '0.75rem' }}>{entry.normalized.country}</span>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{entry.normalized.region}</span>
                               </div>
-                            ) : '—'}
-                          </td>
-                          <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                            </td>
+                            <td className="num-val">
+                              <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                                {formatMarketCap(entry.metadata?.marketCapitalization)}
+                              </span>
+                            </td>
+                            <td className="num-val" style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                              {hasPrice ? formatCurrency(entry.quote.current, entry.item.currency) : '—'}
+                            </td>
+                            <td className="num-val" style={{ color: entry.quote.percentChange >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
+                              {hasPrice ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600 }}>
+                                  {entry.quote.percentChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                  <span>{formatPercent(entry.quote.percentChange)}</span>
+                                </div>
+                              ) : '—'}
+                            </td>
+                            <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                              <button 
+                                onClick={() => handleRemoveAsset(entry.item.id, entry.item.symbol)}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger-text)', padding: '0.25rem' }}
+                                title="Stop Tracking"
+                                aria-label={`Stop tracking ${entry.item.symbol}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="financial-cards-mobile" style={{ display: 'none' }}>
+                  {filteredAndSortedWatchlist.map((entry) => {
+                    const isSelected = selectedAsset?.item.id === entry.item.id;
+                    const hasPrice = entry.quote.current > 0;
+                    const matchingOpps = opportunities.filter(
+                      opp => opp.ticker.toUpperCase() === entry.item.ticker.toUpperCase() && 
+                             opp.exchange.toUpperCase() === entry.item.exchange.toUpperCase()
+                    );
+                    return (
+                      <div 
+                        key={entry.item.id} 
+                        className="mobile-card"
+                        onClick={() => setSelectedAsset(entry)}
+                        style={{
+                          cursor: 'pointer',
+                          borderLeft: isSelected ? '4px solid var(--color-accent)' : '1px solid #E2DACD',
+                          backgroundColor: isSelected ? '#F5EFE6' : '#FCFAF6'
+                        }}
+                      >
+                        <div className="mobile-card-title">
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontSize: '1rem' }}>{entry.item.symbol}</span>
+                              {matchingOpps.length > 0 && (
+                                <span style={{
+                                  backgroundColor: 'var(--color-accent)',
+                                  color: '#FFFFFF',
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: '0.6rem',
+                                  padding: '0.1rem 0.3rem',
+                                  borderRadius: '2px',
+                                  fontWeight: 'bold',
+                                  letterSpacing: '0.5px'
+                                }}>
+                                  SIGNAL
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                              {entry.metadata?.name || entry.item.name}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => handleRemoveAsset(entry.item.id, entry.item.symbol)}
                               style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger-text)', padding: '0.25rem' }}
                               title="Stop Tracking"
+                              aria-label={`Stop tracking ${entry.item.symbol}`}
                             >
                               <Trash2 size={14} />
                             </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Sector / Industry</span>
+                          <span>{entry.normalized.sector}</span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Country / Region</span>
+                          <span>{entry.normalized.country} ({entry.normalized.region})</span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Market Cap</span>
+                          <span>{formatMarketCap(entry.metadata?.marketCapitalization)}</span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Live Price</span>
+                          <span style={{ fontWeight: 600 }}>
+                            {hasPrice ? formatCurrency(entry.quote.current, entry.item.currency) : '—'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-row">
+                          <span style={{ color: 'var(--text-muted)' }}>Daily Change</span>
+                          <span style={{ color: entry.quote.percentChange >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontWeight: 'bold' }}>
+                            {hasPrice ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-mono)' }}>
+                                {entry.quote.percentChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                <span>{formatPercent(entry.quote.percentChange)}</span>
+                              </div>
+                            ) : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

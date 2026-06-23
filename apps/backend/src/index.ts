@@ -37,6 +37,10 @@ function base64UrlDecode(str: string): Uint8Array {
   return bytes;
 }
 
+// Google JWT Public Key Caching (Part 7)
+let cachedGoogleCerts: any[] | null = null;
+let cachedGoogleCertsExpires = 0;
+
 // In-memory rate limiting map for Gemini calls
 const lastGeminiCallTimes = new Map<string, number>();
 
@@ -76,12 +80,40 @@ async function authenticateUser(c: any, next: any) {
       return c.json({ error: 'Unauthorized: Invalid token issuer or audience' }, 401);
     }
 
-    // Fetch Google public keys
-    const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken-system@system.gserviceaccount.com');
-    if (!certsRes.ok) {
-      throw new Error('Failed to fetch Google public certificates');
+    // Fetch Google public keys with caching (Part 7)
+    let keys: any[] = [];
+    const nowMs = Date.now();
+    if (cachedGoogleCerts && nowMs < cachedGoogleCertsExpires) {
+      keys = cachedGoogleCerts;
+    } else {
+      const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken-system@system.gserviceaccount.com');
+      if (!certsRes.ok) {
+        throw new Error('Failed to fetch Google public certificates');
+      }
+      
+      let ttlSeconds = 3600; // 1 hour default fallback
+      const cacheControl = certsRes.headers.get('cache-control');
+      if (cacheControl) {
+        const matches = cacheControl.match(/max-age=(\d+)/);
+        if (matches && matches[1]) {
+          ttlSeconds = parseInt(matches[1], 10);
+        }
+      } else {
+        const expires = certsRes.headers.get('expires');
+        if (expires) {
+          const parsedExpires = Date.parse(expires);
+          if (!isNaN(parsedExpires)) {
+            ttlSeconds = Math.max(0, Math.floor((parsedExpires - nowMs) / 1000));
+          }
+        }
+      }
+
+      const body = (await certsRes.json()) as any;
+      keys = body.keys || [];
+      cachedGoogleCerts = keys;
+      cachedGoogleCertsExpires = nowMs + (ttlSeconds * 1000);
     }
-    const { keys } = (await certsRes.json()) as any;
+
     const jwk = keys.find((k: any) => k.kid === header.kid);
     if (!jwk) {
       return c.json({ error: 'Unauthorized: Unknown key ID (kid)' }, 401);

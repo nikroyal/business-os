@@ -511,7 +511,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
                   Load diversified sample portfolio data
                 </label>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.3, display: 'block' }}>
-                  Injects 9 diversified assets (US equities, Indian NSE holdings, cash buffers, and crypto), 4 watchlisted symbols, 3 opportunities, and a sample report to explore features immediately.
+                  Injects 9 diversified assets (US equities, Indian NSE holdings, cash buffers, and crypto), 4 watchlisted symbols, 3 opportunities, and a sample report to explore features immediately. (Note: Injected sample data is for demonstration and might merge with/replace existing data).
                 </span>
               </div>
             </div>

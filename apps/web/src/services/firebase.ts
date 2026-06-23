@@ -417,6 +417,41 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    // 1. Clear in-memory caches dynamically to avoid circular dependencies
+    try {
+      import('./marketDataService').then((m) => {
+        if (m.marketDataService && m.marketDataService.clearCache) {
+          m.marketDataService.clearCache();
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to clear market data cache:', e);
+    }
+
+    // 2. Clear localStorage caches
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          if (
+            key.startsWith('company_intelligence_') ||
+            key.startsWith('user_conviction_') ||
+            key.startsWith('ai_commentary_') ||
+            key.startsWith('setup_wizard_draft_') ||
+            key.startsWith('onboarding_celebrated_') ||
+            key.startsWith('opportunities_') ||
+            key.startsWith('reports_')
+          ) {
+            keysToRemove.push(key);
+          }
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+      console.warn('Failed to sanitize localStorage:', e);
+    }
+
     if (realAuth) {
       await signOut(realAuth);
     } else {

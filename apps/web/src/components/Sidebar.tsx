@@ -43,7 +43,7 @@ export const Sidebar: React.FC = () => {
         <span className="logo-subtext">Financial Dispatch</span>
       </div>
 
-      <nav className="nav-menu">
+      <nav className="nav-menu" aria-label="Main Navigation">
         <NavLink 
           to="/dashboard" 
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}

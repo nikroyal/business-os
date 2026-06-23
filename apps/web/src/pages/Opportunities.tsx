@@ -54,6 +54,49 @@ export const Opportunities: React.FC = () => {
     "Scan complete. Redrawing intelligence board."
   ];
 
+  // Focus trapping for opportunity details modal (Part 3)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      
+      // Select the modal content container in Opportunities modal
+      const modalOverlay = document.querySelector('div[style*="zIndex: 1000"]');
+      if (!modalOverlay) return;
+      
+      const focusables = modalOverlay.querySelectorAll('button, input, select, textarea, [tabindex="0"]');
+      if (focusables.length === 0) return;
+      
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
+      
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    };
+    
+    if (selectedOpportunity) {
+      window.addEventListener('keydown', handleKeyDown);
+      // Auto-focus close button
+      setTimeout(() => {
+        const modalOverlay = document.querySelector('div[style*="zIndex: 1000"]');
+        const first = modalOverlay?.querySelector('button') as HTMLElement;
+        first?.focus();
+      }, 50);
+    }
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedOpportunity]);
+
   const fetchAICommentary = async (currentOpps: Opportunity[]) => {
     if (!user || !profile?.geminiEnabled) {
       setAiCommentary(null);
@@ -65,11 +108,12 @@ export const Opportunities: React.FC = () => {
       const prices: Record<string, number> = {};
       const metadataMap: Record<string, AssetMetadata | null> = {};
       
-      for (const h of listHoldings) {
-        prices[h.id] = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+      await Promise.all(listHoldings.map(async (h) => {
+        const price = await marketDataService.getPrice(h.ticker, h.exchange, h.currentPrice || h.purchasePrice);
+        prices[h.id] = price;
         const meta = await marketDataService.getMetadata(h.ticker, h.exchange);
         metadataMap[h.ticker || h.symbol] = meta;
-      }
+      }));
 
       const reportingCurrency = profile?.reportingCurrency || 'USD';
       const usdToInrRate = profile?.usdToInrRate || 83.50;
@@ -179,6 +223,14 @@ export const Opportunities: React.FC = () => {
 
   const handleLoadSampleOpportunities = async () => {
     if (!user) return;
+    const confirmImport = window.confirm(
+      "Import Sample Portfolio?\n\n" +
+      "- Existing holdings and watchlist assets may be replaced or merged.\n" +
+      "- Sample data is strictly for demonstration and testing purposes.\n\n" +
+      "Click OK to proceed with 'Import Sample Data', or Cancel to abort."
+    );
+    if (!confirmImport) return;
+
     setLoading(true);
     setError(null);
     try {

@@ -30,12 +30,14 @@ export class WatchlistService {
    */
   public static async getWatchlistIntelligence(userId: string): Promise<WatchlistAssetIntelligence[]> {
     const list = await dbService.getWatchlist(userId);
-    const results: WatchlistAssetIntelligence[] = [];
-
-    for (const item of list) {
+    
+    const results = await Promise.all(list.map(async (item) => {
       try {
-        const quote = await marketDataService.getQuote(item.ticker, item.exchange);
-        const metadata = await marketDataService.getMetadata(item.ticker, item.exchange);
+        const [quote, metadata, history] = await Promise.all([
+          marketDataService.getQuote(item.ticker, item.exchange),
+          marketDataService.getMetadata(item.ticker, item.exchange),
+          marketDataService.getHistoricalPrices(item.ticker, 365, item.exchange)
+        ]);
         
         // Normalize classification
         const normalized = AssetClassificationService.normalize(
@@ -46,9 +48,6 @@ export class WatchlistService {
           metadata
         );
 
-        // Fetch 365 days of history for opportunity metrics
-        const history = await marketDataService.getHistoricalPrices(item.ticker, 365, item.exchange);
-        
         const livePrice = quote.current;
 
         // Calculate 52 week high & low
@@ -64,9 +63,6 @@ export class WatchlistService {
           : 0;
 
         // Performance checks (using calendar days mapped roughly to trading sessions)
-        // Weekly: 7 days ago corresponds to index: len - 1 - 5 trading days
-        // 30-day: 30 days ago corresponds to index: len - 1 - 20 trading days
-        // 90-day: 90 days ago corresponds to index: len - 1 - 60 trading days
         const len = history.length;
         
         const getPerformanceForPeriod = (tradingDaysAgo: number): number => {
@@ -79,7 +75,7 @@ export class WatchlistService {
         const thirtyDayPerformance = getPerformanceForPeriod(20);
         const ninetyDayPerformance = getPerformanceForPeriod(60);
 
-        results.push({
+        return {
           item,
           quote,
           metadata,
@@ -92,13 +88,13 @@ export class WatchlistService {
           weeklyPerformance,
           thirtyDayPerformance,
           ninetyDayPerformance
-        });
+        };
       } catch (error) {
         console.error(`Failed to calculate intelligence for watchlist item ${item.ticker}:`, error);
-        // Add item with empty/fallback stats to avoid breaking the page
-        results.push(this.fallbackIntelligence(item));
+        // Return item with empty/fallback stats to avoid breaking the page
+        return this.fallbackIntelligence(item);
       }
-    }
+    }));
 
     return results;
   }
@@ -114,6 +110,13 @@ export class WatchlistService {
   ): Promise<WatchlistItem> {
     const cleanTicker = ticker.toUpperCase().trim();
     const cleanExchange = exchange.toUpperCase().trim();
+    
+    // Configurable Watchlist Cap (Part 1, Requirement 5)
+    const WATCHLIST_CAP = 15;
+    const currentList = await dbService.getWatchlist(userId);
+    if (currentList.length >= WATCHLIST_CAP) {
+      throw new Error(`Watchlist limit of ${WATCHLIST_CAP} assets reached. Please remove an asset before tracking another.`);
+    }
     
     // Resolve basic metadata to capture default currency
     let currency = 'USD';

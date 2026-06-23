@@ -61,20 +61,28 @@ export class OpportunityService {
     }
 
     const candidateList = Array.from(uniqueCandidatesMap.values());
+    
+    // Configurable Scan Limit (Part 1, Requirement 4)
+    const SCAN_LIMIT = 15;
+    const limitedCandidates = candidateList.slice(0, SCAN_LIMIT);
 
-    // 2. Fetch prices & metadata for portfolio analytics
+    // 2. Fetch prices & metadata for portfolio analytics in chunks
     const marketPrices: Record<string, number> = {};
     const metadataMap: Record<string, AssetMetadata | null> = {};
     
-    await Promise.all(holdings.map(async (h) => {
-      const tickerStr = h.ticker || h.symbol;
-      const [quote, meta] = await Promise.all([
-        marketDataService.getQuote(tickerStr, h.exchange),
-        marketDataService.getMetadata(tickerStr, h.exchange)
-      ]);
-      marketPrices[h.id] = quote.current;
-      metadataMap[tickerStr] = meta;
-    }));
+    const HOLDINGS_CHUNK_SIZE = 5;
+    for (let i = 0; i < holdings.length; i += HOLDINGS_CHUNK_SIZE) {
+      const chunk = holdings.slice(i, i + HOLDINGS_CHUNK_SIZE);
+      await Promise.all(chunk.map(async (h) => {
+        const tickerStr = h.ticker || h.symbol;
+        const [quote, meta] = await Promise.all([
+          marketDataService.getQuote(tickerStr, h.exchange),
+          marketDataService.getMetadata(tickerStr, h.exchange)
+        ]);
+        marketPrices[h.id] = quote.current;
+        metadataMap[tickerStr] = meta;
+      }));
+    }
 
     const reportingCurrency = profile?.reportingCurrency || 'USD';
     const usdToInrRate = profile?.usdToInrRate || 83.0;
@@ -92,9 +100,11 @@ export class OpportunityService {
     const opportunities: Omit<Opportunity, 'id'>[] = [];
     const generatedTimestamp = new Date().toISOString();
 
-    // 3. For each candidate asset, check rules and generate opportunities
-    // 3. For each candidate asset, check rules and generate opportunities in parallel
-    await Promise.all(candidateList.map(async (candidate) => {
+    // 3. For each candidate asset, check rules and generate opportunities in chunks (Part 1, Requirement 4)
+    const CANDIDATE_CHUNK_SIZE = 3;
+    for (let i = 0; i < limitedCandidates.length; i += CANDIDATE_CHUNK_SIZE) {
+      const chunk = limitedCandidates.slice(i, i + CANDIDATE_CHUNK_SIZE);
+      await Promise.all(chunk.map(async (candidate) => {
       try {
         const { ticker, exchange, isWatchlist } = candidate;
         
@@ -345,6 +355,7 @@ export class OpportunityService {
         console.error(`Failed to generate opportunities for candidate ${candidate.ticker}:`, error);
       }
     }));
+    }
 
     // 4. Persist generated opportunities to Firestore (or local storage fallback)
     const persisted = await dbService.saveOpportunities(userId, opportunities);

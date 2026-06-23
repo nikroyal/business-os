@@ -286,6 +286,46 @@ export class SampleDataService {
   }
 
   /**
+   * Removes only the sample data from Firestore/LocalStorage.
+   */
+  public static async removeSampleData(userId: string): Promise<void> {
+    // 1. Remove sample holdings
+    const holdings = await dbService.getHoldings(userId);
+    const sampleHoldingsTickers = ['AAPL', 'MSFT', 'GOOG', 'RELIANCE', 'TCS', 'BTC', 'ETH'];
+    for (const h of holdings) {
+      if (sampleHoldingsTickers.includes(h.ticker.toUpperCase())) {
+        await dbService.deleteHolding(userId, h.id);
+      }
+    }
+
+    // 2. Remove sample watchlist items
+    const watchlist = await dbService.getWatchlist(userId);
+    const sampleWatchlistTickers = ['NVDA', 'TSLA', 'INFY', 'SOL'];
+    for (const w of watchlist) {
+      if (sampleWatchlistTickers.includes(w.ticker.toUpperCase())) {
+        await dbService.deleteWatchlistItem(userId, w.id);
+      }
+    }
+
+    // 3. Remove sample opportunities
+    const opportunities = await dbService.getOpportunities(userId);
+    const sampleOppsTitles = ['Significant Pullback Discount', 'Potential 52-Week High Breakout', 'Portfolio Class Diversification'];
+    const remainingOpps = opportunities.filter(o => 
+      !sampleOppsTitles.includes(o.title) && 
+      !sampleHoldingsTickers.includes(o.ticker.toUpperCase()) && 
+      !sampleWatchlistTickers.includes(o.ticker.toUpperCase())
+    );
+    await dbService.saveOpportunities(userId, remainingOpps);
+
+    // 4. Remove sample reports
+    const reports = await dbService.getReports(userId);
+    const remainingReports = reports.filter(r => !r.title.includes('Sample') && !r.title.includes('Diversified Audit'));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`reports_${userId}`, JSON.stringify(remainingReports));
+    }
+  }
+
+  /**
    * Resets all user portfolio data back to empty so they can start clean.
    */
   public static async clearUserData(userId: string): Promise<void> {
