@@ -23,6 +23,7 @@ import { GeminiService } from '../services/geminiService';
 import { OpportunityService } from '../services/opportunityService';
 import type { AICommentary } from '../services/firebase';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
+import { SampleDataService } from '../services/sampleDataService';
 
 export const Reports: React.FC = () => {
   const { user, profile } = useAuth();
@@ -123,6 +124,21 @@ export const Reports: React.FC = () => {
     } catch (err) {
       console.error('Error fetching reports:', err);
       setError('Failed to load daily reports database.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadSampleReports = async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await SampleDataService.loadSampleData(user.uid);
+      await fetchReports(true);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load sample reports.');
     } finally {
       setLoading(false);
     }
@@ -289,11 +305,24 @@ export const Reports: React.FC = () => {
                 Syncing Archives...
               </div>
             ) : reports.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', border: '1px dashed #E2DACD', background: '#FCFAF6' }}>
-                <FileText size={28} style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }} />
-                <p style={{ fontSize: '0.8rem', fontStyle: 'italic', fontFamily: 'var(--font-serif)', margin: 0 }}>
-                  No briefings generated. Click above to print today's editorial.
-                </p>
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', border: '1px dashed #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                <FileText size={28} style={{ color: 'var(--text-secondary)' }} />
+                <div>
+                  <p style={{ fontSize: '0.85rem', fontStyle: 'italic', fontFamily: 'var(--font-serif)', margin: '0 0 0.25rem 0' }}>
+                    No market briefings generated.
+                  </p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', maxWidth: '280px', margin: '0 auto', lineHeight: 1.3 }}>
+                    Establish your portfolio first or load mock configurations to evaluate daily dispatches.
+                  </p>
+                </div>
+                <button 
+                  onClick={handleLoadSampleReports}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', fontSize: '0.7rem', height: '24px' }}
+                >
+                  <Sparkles size={12} />
+                  <span>Load Sample Report</span>
+                </button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '450px', overflowY: 'auto' }}>

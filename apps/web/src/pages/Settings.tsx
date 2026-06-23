@@ -89,6 +89,26 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const handleRestartOnboarding = async () => {
+    if (!profile) return;
+    if (window.confirm('Are you sure you want to clear your current preferences and restart the Guided System Setup & Tour?')) {
+      try {
+        await updateProfile({
+          setupCompleted: false,
+          onboardingCompleted: false
+        });
+        // Clear drafts
+        localStorage.removeItem(`setup_wizard_draft_${profile.uid}`);
+        showToast('Profile configuration reset. Initializing Setup Wizard...');
+        // Reload page to trigger ProtectedLayout modals interceptor
+        window.location.reload();
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to reset onboarding state.', 'error');
+      }
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -182,10 +202,22 @@ export const Settings: React.FC = () => {
         
         {/* Section 1: User Profile Settings */}
         <section className="card">
-          <h2 style={{ fontSize: '1.35rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-serif)' }}>
-            <User size={18} style={{ color: 'var(--color-accent)' }} />
-            Reader Profile
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.35rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+              <User size={18} style={{ color: 'var(--color-accent)' }} />
+              Reader Profile
+            </h2>
+            
+            <button 
+              type="button"
+              onClick={handleRestartOnboarding}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}
+            >
+              <Sparkles size={12} />
+              <span>Restart Guided Setup</span>
+            </button>
+          </div>
           
           <div className="form-group">
             <label className="form-label">Display Name</label>
@@ -456,7 +488,7 @@ export const Settings: React.FC = () => {
           </div>
 
           {geminiEnabled && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Model Selection</label>
@@ -484,8 +516,52 @@ export const Settings: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Gemini Capabilities Disclaimer */}
+              <div style={{ 
+                marginTop: '0.75rem',
+                border: '1px solid #E2DACD',
+                padding: '0.75rem 1rem',
+                background: '#FCFAF6',
+                display: 'flex',
+                gap: '0.5rem',
+                alignItems: 'flex-start'
+              }}>
+                <Info size={14} style={{ color: 'var(--color-accent)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                  <strong>AI Capabilities Disclaimer:</strong> Google Gemini operates purely as an analytical editorial translation layer in BusinessOS. It synthesizes structured metrics and scanned indicators into narrative briefings. Gemini **does NOT** write independent financial suggestions, invent asset values, or make discretionary portfolio choices. All insights should be verified against cold ledger records.
+                </div>
+              </div>
             </div>
           )}
+        </section>
+
+        {/* Section 8: Platform Transparency & Analytics Guide */}
+        <section className="card">
+          <h2 style={{ fontSize: '1.35rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <Info size={18} style={{ color: 'var(--color-accent)' }} />
+            System Transparency & Methodology
+          </h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+            Learn where platform metrics originate and how overall health ratings are calculated.
+          </p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+            <div style={{ borderBottom: '1px dashed #E2DACD', paddingBottom: '0.75rem' }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>1. Where does market price data come from?</strong>
+              <span>Prices represent daily close valuations. If live API feeds are disabled or rate-limited, the system falls back to simulated offline candle logs matching the asset's currency profile.</span>
+            </div>
+            
+            <div style={{ borderBottom: '1px dashed #E2DACD', paddingBottom: '0.75rem' }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>2. How are opportunities generated?</strong>
+              <span>Opportunities are generated by testing candidate securities (ledger holdings and watched items) against deterministic trading rules: near 52-week high breakouts, near 52-week low tests, significant pullbacks, and sector underexposures.</span>
+            </div>
+
+            <div>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>3. How is the Portfolio Health Score calculated?</strong>
+              <span>The score is a weighted value out of 100 points: up to 25 pts for asset concentration (HHI), 25 pts for multi-sector distribution, 25 pts for risk tolerance limit checks, and 25 pts for cash buffer/FX exposure coverage.</span>
+            </div>
+          </div>
         </section>
 
         {/* Submit Actions */}

@@ -24,6 +24,8 @@ export interface UserProfile {
   preferredTimezone?: string;
   emailDeliveryAddress?: string;
   aiCommentaryIncluded?: boolean;
+  setupCompleted?: boolean;
+  onboardingCompleted?: boolean;
 }
 
 export interface Holding {

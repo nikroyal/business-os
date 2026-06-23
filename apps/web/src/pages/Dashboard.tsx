@@ -21,9 +21,14 @@ import {
   AlertCircle,
   X,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  FileSpreadsheet,
+  Sparkles
 } from 'lucide-react';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
+import { OnboardingChecklist } from '../components/OnboardingChecklist';
+import { PortfolioCSVImporter } from '../components/PortfolioCSVImporter';
+import { SampleDataService } from '../services/sampleDataService';
 
 
 // Map sectors/industries to consistent editorial colors
@@ -48,6 +53,9 @@ export const Dashboard: React.FC = () => {
   const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
   const [watchlistSummary, setWatchlistSummary] = useState<WatchlistAssetIntelligence[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(true);
+  const [reportsCount, setReportsCount] = useState(0);
+  const [opportunitiesCount, setOpportunitiesCount] = useState(0);
+  const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
@@ -121,6 +129,13 @@ export const Dashboard: React.FC = () => {
       const watchListIntell = await WatchlistService.getWatchlistIntelligence(user.uid);
       setWatchlistSummary(watchListIntell.slice(0, 5)); // display top 5 on dashboard
 
+      // Fetch counts for onboarding checklist
+      const [reports, opps] = await Promise.all([
+        dbService.getReports(user.uid).catch(() => []),
+        dbService.getOpportunities(user.uid).catch(() => [])
+      ]);
+      setReportsCount(reports.length);
+      setOpportunitiesCount(opps.length);
 
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
@@ -128,6 +143,17 @@ export const Dashboard: React.FC = () => {
       setError('Failed to resolve portfolio stats and compile analytics reports.');
     } finally {
       setLoadingHoldings(false);
+    }
+  };
+
+  const handleLoadSampleData = async () => {
+    if (!user) return;
+    try {
+      await SampleDataService.loadSampleData(user.uid);
+      await fetchHoldings();
+    } catch (err) {
+      console.error('Failed to load sample data:', err);
+      alert('Failed to load sample portfolio data.');
     }
   };
 
@@ -310,6 +336,14 @@ export const Dashboard: React.FC = () => {
           <PlatformHealthWidget />
         </div>
       </div>
+
+      <OnboardingChecklist 
+        holdingsCount={holdings.length}
+        watchlistCount={watchlistSummary.length}
+        reportsCount={reportsCount}
+        opportunitiesCount={opportunitiesCount}
+        onLoadSample={handleLoadSampleData}
+      />
 
       {error && (
         <div style={{ 
@@ -522,12 +556,30 @@ export const Dashboard: React.FC = () => {
                 <span className="mono-tag">Loading Ledger...</span>
               </div>
             ) : holdings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '4rem 1rem', border: '1px dashed #E2DACD', background: '#FCFAF6' }}>
-                <Briefcase size={36} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-                <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', marginBottom: '1rem' }}>No assets configured in this portfolio.</p>
-                <button onClick={openAddModal} className="btn btn-secondary btn-sm">
-                  Add your first asset
-                </button>
+              <div style={{ textAlign: 'center', padding: '4rem 1.5rem', border: '1px dashed #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                <Briefcase size={36} style={{ color: 'var(--text-muted)' }} />
+                <div>
+                  <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.05rem', margin: '0 0 0.4rem 0' }}>
+                    No assets configured in this portfolio ledger.
+                  </p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '420px', margin: 0, lineHeight: 1.4 }}>
+                    To begin generating risk indexes, sector allocations, and currency exposure diagnostics, you must establish your asset positions.
+                  </p>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '0.5rem' }}>
+                  <button onClick={openAddModal} className="btn btn-primary btn-sm">
+                    Add Position Manually
+                  </button>
+                  <button onClick={() => setIsCsvImportOpen(true)} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <FileSpreadsheet size={14} />
+                    <span>Import Ledger from CSV</span>
+                  </button>
+                  <button onClick={handleLoadSampleData} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Sparkles size={14} />
+                    <span>Load Diversified Sample Data</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="financial-table-wrapper">
@@ -1140,6 +1192,13 @@ export const Dashboard: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {isCsvImportOpen && (
+        <PortfolioCSVImporter 
+          onClose={() => setIsCsvImportOpen(false)} 
+          onImportComplete={fetchHoldings} 
+        />
       )}
       
       <style>{`

@@ -45,6 +45,10 @@ export interface UserProfile {
   preferredTimezone?: string;
   emailDeliveryAddress?: string;
   aiCommentaryIncluded?: boolean;
+
+  // Onboarding & Setup Progress
+  setupCompleted?: boolean;
+  onboardingCompleted?: boolean;
 }
 
 export interface Holding {

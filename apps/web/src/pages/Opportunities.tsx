@@ -18,6 +18,7 @@ import { PortfolioAnalyticsService } from '../services/portfolioAnalyticsService
 import { marketDataService } from '../services/marketDataService';
 import type { AssetMetadata } from '../services/marketDataService';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
+import { SampleDataService } from '../services/sampleDataService';
 
 export const Opportunities: React.FC = () => {
   const { user, profile } = useAuth();
@@ -173,6 +174,22 @@ export const Opportunities: React.FC = () => {
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleLoadSampleOpportunities = async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await SampleDataService.loadSampleData(user.uid);
+      const data = await OpportunityService.getStoredOpportunities(user.uid);
+      setOpportunities(data);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load sample opportunities.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -355,7 +372,7 @@ export const Opportunities: React.FC = () => {
               <div style={{
                 background: 'var(--bg-card)',
                 border: '1px dashed #E2DACD',
-                padding: '4rem 2rem',
+                padding: '4rem 1.5rem',
                 textAlign: 'center',
                 display: 'flex',
                 flexDirection: 'column',
@@ -364,10 +381,28 @@ export const Opportunities: React.FC = () => {
               }}>
                 <HelpCircle size={32} style={{ color: 'var(--text-muted)' }} />
                 <div>
-                  <h3 style={{ fontStyle: 'italic', marginBottom: '0.25rem' }}>No Opportunities Found</h3>
-                  <p style={{ fontSize: '0.85rem', maxWidth: '350px' }}>
-                    Try clicking the "Scan & Refresh" button above to pull active market candles and run scan rule triggers.
+                  <h3 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.1rem', marginBottom: '0.4rem' }}>
+                    No Scanned Opportunities Found
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '420px', margin: '0 auto 1rem auto', lineHeight: 1.4 }}>
+                    The opportunity board displays assets trading near annual support lows, momentum breakout targets, or sector-level diversification deficits.
                   </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => fetchOpportunities(true)}
+                  >
+                    Run Fresh Market Scan
+                  </button>
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleLoadSampleOpportunities}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                  >
+                    <Sparkles size={12} />
+                    <span>Load Sample Signals</span>
+                  </button>
                 </div>
               </div>
             ) : (

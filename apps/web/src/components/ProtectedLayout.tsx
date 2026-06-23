@@ -2,9 +2,11 @@ import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Sidebar } from './Sidebar';
+import { SetupWizard } from './SetupWizard';
+import { OnboardingTour } from './OnboardingTour';
 
 export const ProtectedLayout: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading, refreshProfile } = useAuth();
 
   if (loading) {
     return (
@@ -41,12 +43,19 @@ export const ProtectedLayout: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
+  const showSetup = profile && !profile.setupCompleted;
+  const showTour = profile && profile.setupCompleted && !profile.onboardingCompleted;
+
   return (
     <div className="dashboard-layout">
       <Sidebar />
       <main className="main-content">
         <Outlet />
       </main>
+
+      {/* Onboarding Modals Interceptors */}
+      {showSetup && <SetupWizard onComplete={refreshProfile} />}
+      {showTour && <OnboardingTour onClose={refreshProfile} />}
     </div>
   );
 };

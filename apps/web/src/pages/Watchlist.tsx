@@ -8,7 +8,8 @@ import {
   AlertCircle, 
   Calendar,
   Eye,
-  Info
+  Info,
+  Sparkles
 } from 'lucide-react';
 import { WatchlistService } from '../services/watchlistService';
 import type { WatchlistAssetIntelligence } from '../services/watchlistService';
@@ -16,6 +17,7 @@ import { marketDataService } from '../services/marketDataService';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
 import { OpportunityService } from '../services/opportunityService';
 import type { Opportunity } from '../services/firebase';
+import { SampleDataService } from '../services/sampleDataService';
 
 export const Watchlist: React.FC = () => {
   const { user } = useAuth();
@@ -75,6 +77,20 @@ export const Watchlist: React.FC = () => {
     } catch (err) {
       console.error('Error loading watchlist:', err);
       setError('Failed to resolve watchlist data and intelligence metrics.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleLoadSampleWatchlist = async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await SampleDataService.loadSampleData(user.uid);
+      await fetchWatchlist(true);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load sample watchlist data.');
     } finally {
       setLoading(false);
     }
@@ -390,10 +406,24 @@ export const Watchlist: React.FC = () => {
                 <button onClick={() => fetchWatchlist()} className="btn btn-secondary btn-sm">Retry</button>
               </div>
             ) : watchlist.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '4rem 1rem', border: '1px dashed #E2DACD', background: '#FCFAF6' }}>
-                <Eye size={36} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-                <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', marginBottom: '1rem' }}>No assets are currently being watched.</p>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Use the form above to track equities without buying them.</span>
+              <div style={{ textAlign: 'center', padding: '4rem 1.5rem', border: '1px dashed #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                <Eye size={36} style={{ color: 'var(--text-muted)' }} />
+                <div>
+                  <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.05rem', margin: '0 0 0.25rem 0' }}>
+                    No assets are currently being watched.
+                  </p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '400px', margin: '0 auto', lineHeight: 1.4 }}>
+                    Use the form above to track stocks or crypto without adding them to your holdings ledger.
+                  </p>
+                </div>
+                <button 
+                  onClick={handleLoadSampleWatchlist} 
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.5rem' }}
+                >
+                  <Sparkles size={12} />
+                  <span>Load Sample Watchlist Data</span>
+                </button>
               </div>
             ) : (
               <div className="financial-table-wrapper">
