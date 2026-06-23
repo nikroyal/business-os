@@ -14,6 +14,8 @@ import { WatchlistService } from '../services/watchlistService';
 import type { WatchlistAssetIntelligence } from '../services/watchlistService';
 import { marketDataService } from '../services/marketDataService';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
+import { OpportunityService } from '../services/opportunityService';
+import type { Opportunity } from '../services/firebase';
 
 export const Watchlist: React.FC = () => {
   const { user } = useAuth();
@@ -23,6 +25,9 @@ export const Watchlist: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<WatchlistAssetIntelligence | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [exchangeFilter, setExchangeFilter] = useState<'all' | 'us' | 'india'>('all');
+  const [sortBy, setSortBy] = useState<'ticker' | 'changeDesc' | 'changeAsc' | 'priceDesc'>('ticker');
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
 
   // Form state
   const [ticker, setTicker] = useState('');
@@ -44,8 +49,16 @@ export const Watchlist: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await WatchlistService.getWatchlistIntelligence(user.uid);
+      const [data, opps] = await Promise.all([
+        WatchlistService.getWatchlistIntelligence(user.uid),
+        OpportunityService.getStoredOpportunities(user.uid).catch(oppErr => {
+          console.warn('Failed to load opportunities for watchlist badges:', oppErr);
+          return [] as Opportunity[];
+        })
+      ]);
+      
       setWatchlist(data);
+      setOpportunities(opps);
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       
       // Auto-select the first asset if requested or preserve existing selection
@@ -177,6 +190,33 @@ export const Watchlist: React.FC = () => {
     }
     return `${val.toFixed(2)}M`;
   };
+  const filteredAndSortedWatchlist = watchlist
+    .filter(entry => {
+      if (exchangeFilter === 'all') return true;
+      const ex = entry.item.exchange.toUpperCase();
+      if (exchangeFilter === 'us') {
+        return ex === 'NASDAQ' || ex === 'NYSE';
+      }
+      if (exchangeFilter === 'india') {
+        return ex === 'NSE' || ex === 'BSE';
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'ticker') {
+        return a.item.symbol.localeCompare(b.item.symbol);
+      }
+      if (sortBy === 'changeDesc') {
+        return b.quote.percentChange - a.quote.percentChange;
+      }
+      if (sortBy === 'changeAsc') {
+        return a.quote.percentChange - b.quote.percentChange;
+      }
+      if (sortBy === 'priceDesc') {
+        return b.quote.current - a.quote.current;
+      }
+      return 0;
+    });
 
   return (
     <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
@@ -301,9 +341,42 @@ export const Watchlist: React.FC = () => {
           {/* Watchlist Ledger */}
           <div className="card" style={{ padding: '2rem 2.5rem' }}>
             <div style={{ borderBottom: '1px solid #222222', paddingBottom: '0.75rem', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
-                Watched Assets Ledger
-              </h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                  Watched Assets Ledger
+                </h2>
+                
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Market:</span>
+                    <select
+                      className="form-input form-select"
+                      value={exchangeFilter}
+                      onChange={(e) => setExchangeFilter(e.target.value as any)}
+                      style={{ height: '30px', padding: '0 0.5rem', fontSize: '0.75rem', minWidth: '110px', background: '#FCFAF6', border: '1px solid #E2DACD', fontFamily: 'var(--font-mono)' }}
+                    >
+                      <option value="all">All Markets</option>
+                      <option value="us">US Markets</option>
+                      <option value="india">India Markets</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Sort:</span>
+                    <select
+                      className="form-input form-select"
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      style={{ height: '30px', padding: '0 0.5rem', fontSize: '0.75rem', minWidth: '150px', background: '#FCFAF6', border: '1px solid #E2DACD', fontFamily: 'var(--font-mono)' }}
+                    >
+                      <option value="ticker">Ticker (A-Z)</option>
+                      <option value="changeDesc">Change (High to Low)</option>
+                      <option value="changeAsc">Change (Low to High)</option>
+                      <option value="priceDesc">Price (High to Low)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {loading && watchlist.length === 0 ? (
@@ -337,9 +410,13 @@ export const Watchlist: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {watchlist.map((entry) => {
+                    {filteredAndSortedWatchlist.map((entry) => {
                       const isSelected = selectedAsset?.item.id === entry.item.id;
                       const hasPrice = entry.quote.current > 0;
+                      const matchingOpps = opportunities.filter(
+                        opp => opp.ticker.toUpperCase() === entry.item.ticker.toUpperCase() && 
+                               opp.exchange.toUpperCase() === entry.item.exchange.toUpperCase()
+                      );
                       return (
                         <tr 
                           key={entry.item.id}
@@ -352,7 +429,23 @@ export const Watchlist: React.FC = () => {
                         >
                           <td style={{ fontWeight: 600 }}>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{entry.item.symbol}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{entry.item.symbol}</span>
+                                {matchingOpps.length > 0 && (
+                                  <span style={{
+                                    backgroundColor: 'var(--color-accent)',
+                                    color: '#FFFFFF',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: '0.6rem',
+                                    padding: '0.1rem 0.3rem',
+                                    borderRadius: '2px',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '0.5px'
+                                  }} title={`${matchingOpps.length} active opportunity signal(s) detected`}>
+                                    SIGNAL
+                                  </span>
+                                )}
+                              </div>
                               <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{entry.metadata?.name || entry.item.name}</span>
                             </div>
                           </td>
@@ -450,6 +543,49 @@ export const Watchlist: React.FC = () => {
                 Opportunity Signals
               </h4>
               
+              {/* Active Opportunity Signals */}
+              {(() => {
+                const itemOpps = opportunities.filter(
+                  opp => opp.ticker.toUpperCase() === selectedAsset.item.ticker.toUpperCase() && 
+                         opp.exchange.toUpperCase() === selectedAsset.item.exchange.toUpperCase()
+                );
+                if (itemOpps.length === 0) return null;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                    {itemOpps.map((opp) => (
+                      <div key={opp.id} style={{
+                        backgroundColor: '#FCFAF6',
+                        border: '1px solid var(--color-accent)',
+                        padding: '0.75rem',
+                        animation: 'fadeIn 0.25s ease-out'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-accent)', fontWeight: 'bold' }}>
+                            ⚡ ACTIVE SYSTEM SIGNAL
+                          </span>
+                          <span style={{ 
+                            fontFamily: 'var(--font-mono)', 
+                            fontSize: '0.6rem', 
+                            background: 'var(--color-accent)', 
+                            color: '#FFFFFF', 
+                            padding: '0.1rem 0.3rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {opp.confidenceScore}% CONFIDENCE
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-serif)', display: 'block', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                          {opp.title}
+                        </span>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                          {opp.rationale}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
                 
                 {/* 52w High */}

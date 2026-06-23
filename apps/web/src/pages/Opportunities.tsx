@@ -209,10 +209,12 @@ export const Opportunities: React.FC = () => {
   };
 
   // Filter logic
-  const filteredOpportunities = opportunities.filter(opp => {
-    if (activeFilter === 'all') return true;
-    return opp.tags.includes(activeFilter);
-  });
+  const filteredOpportunities = opportunities
+    .filter(opp => {
+      if (activeFilter === 'all') return true;
+      return opp.tags.includes(activeFilter);
+    })
+    .sort((a, b) => b.confidenceScore - a.confidenceScore);
 
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',

@@ -401,6 +401,19 @@ export const Dashboard: React.FC = () => {
                   {analytics.health.summary}
                 </p>
 
+                {/* Score Breakdown List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px dashed #E2DACD', paddingBottom: '1rem' }}>
+                  {analytics.health.breakdown?.map((cat, idx) => (
+                    <div key={idx} style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 'bold' }}>{cat.name}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{cat.score} / {cat.maxScore}</span>
+                      </div>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{cat.explanation}</span>
+                    </div>
+                  ))}
+                </div>
+
                 {analytics.health.flags.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '180px', overflowY: 'auto', paddingRight: '0.25rem' }}>
                     {analytics.health.flags.map((flag, idx) => (
@@ -458,6 +471,19 @@ export const Dashboard: React.FC = () => {
                       {analytics.diversification.description}
                     </p>
                   </div>
+                </div>
+
+                {/* Score Breakdown List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px dashed #E2DACD', paddingBottom: '1rem' }}>
+                  {analytics.diversification.breakdown?.map((cat, idx) => (
+                    <div key={idx} style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontWeight: 'bold' }}>{cat.name}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>{cat.score} / {cat.maxScore}</span>
+                      </div>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{cat.explanation}</span>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Score Progress Bar */}
