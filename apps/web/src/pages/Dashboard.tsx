@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { dbService } from '../services/firebase';
-import type { Holding } from '../services/firebase';
+import type { Holding, CompanyIntelligence } from '../services/firebase';
 import { marketDataService } from '../services/marketDataService';
 import type { AssetMetadata } from '../services/marketDataService';
 import { PortfolioAnalyticsService } from '../services/portfolioAnalyticsService';
@@ -24,12 +24,24 @@ import {
   ChevronRight,
   ShieldAlert,
   FileSpreadsheet,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  History,
+  Bell,
+  Activity
 } from 'lucide-react';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
 import { OnboardingChecklist } from '../components/OnboardingChecklist';
 import { PortfolioCSVImporter } from '../components/PortfolioCSVImporter';
 import { SampleDataService } from '../services/sampleDataService';
+import { DecisionEngineService } from '../services/decisionEngineService';
+import type { 
+  HistoricalSnapshotRecord, 
+  IntelligenceAlert, 
+  PortfolioDeltaReport, 
+  SimulationAction, 
+  SimulationResult 
+} from '../services/decisionEngineService';
 
 
 // Map sectors/industries to consistent editorial colors
@@ -60,6 +72,19 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [convictions, setConvictions] = useState<any[]>([]);
+
+  // Decision Engine State
+  const [alerts, setAlerts] = useState<IntelligenceAlert[]>([]);
+  const [deltaReport, setDeltaReport] = useState<PortfolioDeltaReport | null>(null);
+  const [historyRecords, setHistoryRecords] = useState<HistoricalSnapshotRecord[]>([]);
+  const [selectedTimelineTicker, setSelectedTimelineTicker] = useState<string>('');
+  const [simulationActions, setSimulationActions] = useState<SimulationAction[]>([]);
+  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
+  const [simAction, setSimAction] = useState<'buy' | 'sell' | 'adjust_cash' | 'add_new'>('buy');
+  const [simTicker, setSimTicker] = useState<string>('');
+  const [simExchange] = useState<string>('NASDAQ');
+  const [simAmount, setSimAmount] = useState<string>('50000');
+  const [simPercentage, setSimPercentage] = useState<string>('');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -185,6 +210,47 @@ export const Dashboard: React.FC = () => {
       try {
         const userConvictions = await IntelligenceService.fetchAllConvictions();
         setConvictions(userConvictions);
+
+        // Fetch company intelligence for all assets
+        const intelList: CompanyIntelligence[] = [];
+        await Promise.all(list.filter(h => h.ticker !== 'CASH').map(async (h) => {
+          try {
+            const intel = await IntelligenceService.fetchCompanyIntelligence(h.ticker, h.exchange);
+            if (intel) intelList.push(intel);
+          } catch (e) {
+            console.warn(`Failed to fetch company intelligence for ${h.ticker}`, e);
+          }
+        }));
+
+        // Seed mock historical snapshots if database is empty
+        await DecisionEngineService.seedMockHistoryIfEmpty(user.uid, list, userConvictions, intelList, calcResult);
+
+        // Save daily snapshot and trigger alerts
+        await DecisionEngineService.saveDailySnapshotIfNew(user.uid, list, userConvictions, intelList, calcResult);
+
+        // Fetch history and alerts
+        const history = await dbService.getAllPortfolioHistoryRecords(user.uid);
+        setHistoryRecords(history);
+
+        const activeAlerts = await dbService.getAlerts(user.uid);
+        setAlerts(activeAlerts.filter((a: any) => !a.read));
+
+        // Generate daily portfolio delta
+        const todayStr = new Date().toISOString().split('T')[0];
+        const currentRec = history.find((hr: any) => hr.date === todayStr);
+        const yesterdayRec = history.find((hr: any) => hr.date !== todayStr);
+        const currentOpps = await dbService.getOpportunities(user.uid).catch(() => []);
+
+        if (currentRec) {
+          const delta = DecisionEngineService.generateDailyPortfolioDelta(currentRec, yesterdayRec || null, currentOpps);
+          setDeltaReport(delta);
+        }
+
+        // Set default timeline target
+        const firstAsset = list.find(h => h.ticker !== 'CASH');
+        if (firstAsset) {
+          setSelectedTimelineTicker(firstAsset.ticker);
+        }
       } catch (e) {
         console.warn('Failed to load user convictions on dashboard', e);
       }
@@ -238,6 +304,129 @@ export const Dashboard: React.FC = () => {
       alert('Failed to remove sample portfolio data.');
     } finally {
       setLoadingHoldings(false);
+    }
+  };
+
+  const handleDismissAlert = async (alertId: string) => {
+    if (!user) return;
+    try {
+      await dbService.dismissAlert(user.uid, alertId);
+      setAlerts(prev => prev.filter(a => a.id !== alertId));
+    } catch (e) {
+      console.error('Failed to dismiss alert:', e);
+    }
+  };
+
+  const handleAddSimulationAction = () => {
+    if (!simTicker && simAction !== 'adjust_cash') return;
+    const amountNum = parseFloat(simAmount);
+    if (isNaN(amountNum) || amountNum <= 0) return;
+
+    const action: SimulationAction = {
+      type: simAction,
+      ticker: simTicker.toUpperCase() || 'CASH',
+      exchange: simExchange.toUpperCase() || 'NASDAQ',
+      amount: amountNum,
+      percentage: simPercentage ? parseFloat(simPercentage) : undefined
+    };
+
+    setSimulationActions(prev => [...prev, action]);
+    // Reset inputs
+    setSimTicker('');
+    setSimAmount('50000');
+    setSimPercentage('');
+  };
+
+  const handleRemoveSimulationAction = (idx: number) => {
+    setSimulationActions(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleClearSimulation = () => {
+    setSimulationActions([]);
+    setSimulationResult(null);
+  };
+
+  const handleRunSimulation = () => {
+    if (holdings.length === 0) return;
+    try {
+      const prices: Record<string, number> = { ...marketPrices };
+      simulationActions.forEach(act => {
+        const key = act.ticker;
+        if (prices[key] === undefined) {
+          prices[key] = 150; // default simulation fallback price
+        }
+      });
+
+      const metadataMap: Record<string, AssetMetadata | null> = {};
+      holdings.forEach(h => {
+        metadataMap[h.ticker] = {
+          ticker: h.ticker,
+          exchange: h.exchange,
+          name: h.name,
+          currency: h.currency,
+          country: h.currency === 'INR' ? 'India' : 'United States',
+          industry: h.assetClass === 'Cash' ? 'Cash & Cash Equivalents' : 'Technology'
+        };
+      });
+
+      const res = DecisionEngineService.runSimulation(
+        holdings,
+        simulationActions,
+        prices,
+        metadataMap,
+        reportingCurrency,
+        usdToInrRate,
+        profile?.riskProfile
+      );
+      setSimulationResult(res);
+    } catch (e) {
+      console.error('Failed to run simulation:', e);
+    }
+  };
+
+  const handleLoadScenario = (scenarioType: 'invest_capital' | 'intl_diversify' | 'trim_concentration' | 'cash_buffer') => {
+    setSimulationActions([]);
+    setSimulationResult(null);
+
+    const firstAsset = holdings.find(h => h.ticker !== 'CASH');
+
+    if (scenarioType === 'invest_capital') {
+      setSimulationActions([
+        {
+          type: 'add_new',
+          ticker: 'NVDA',
+          exchange: 'NASDAQ',
+          amount: 100000
+        }
+      ]);
+    } else if (scenarioType === 'intl_diversify') {
+      setSimulationActions([
+        {
+          type: 'add_new',
+          ticker: 'ASML',
+          exchange: 'NASDAQ',
+          amount: 150000
+        }
+      ]);
+    } else if (scenarioType === 'trim_concentration' && firstAsset) {
+      setSimulationActions([
+        {
+          type: 'sell',
+          ticker: firstAsset.ticker,
+          exchange: firstAsset.exchange,
+          amount: 0,
+          percentage: 20
+        }
+      ]);
+    } else if (scenarioType === 'cash_buffer') {
+      setSimulationActions([
+        {
+          type: 'adjust_cash',
+          ticker: 'CASH',
+          exchange: 'CASH',
+          amount: 200000
+        }
+      ]);
     }
   };
 
@@ -442,6 +631,154 @@ export const Dashboard: React.FC = () => {
         }}>
           <AlertCircle size={20} />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* SECTION 2 — ATTENTION REQUIRED (HIGH PRIORITY ALERTS) */}
+      {alerts.length > 0 && (
+        <div className="card" style={{ padding: '1.5rem 2rem', borderTop: '4px solid var(--color-danger-border)', marginBottom: '2.5rem', background: '#FFFDFB' }}>
+          <h3 style={{ fontSize: '1.15rem', fontFamily: 'var(--font-serif)', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-danger-text)' }}>
+            <Bell size={18} /> Attention Required — Critical Alerts
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {alerts.map((alert) => (
+              <div key={alert.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '0.75rem', borderBottom: '1px dashed #E2DACD', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.65rem' }}>
+                  <ShieldAlert size={16} style={{ color: alert.priority === 'high' ? 'var(--color-danger-text)' : '#B45309', flexShrink: 0, marginTop: '0.2rem' }} />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: '0.85rem' }}>{alert.title}</strong>
+                      <span className="mono-tag" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', textTransform: 'uppercase', background: alert.priority === 'high' ? 'var(--color-danger-bg)' : '#FFFBEB', color: alert.priority === 'high' ? 'var(--color-danger-text)' : '#B45309' }}>
+                        {alert.priority} Priority
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
+                      {alert.message}
+                    </p>
+                    <div style={{ fontSize: '0.75rem', background: '#FCFAF6', border: '1px solid #E2DACD', padding: '0.5rem', marginTop: '0.4rem' }}>
+                      <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.1rem' }}>Why It Matters</strong>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: '#333' }}>"{alert.whyItMatters}"</span>
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handleDismissAlert(alert.id)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ flexShrink: 0, fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: 'transparent' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 1 — DAILY PORTFOLIO DELTA */}
+      {deltaReport && (
+        <div className="card" style={{ padding: '1.5rem 2rem', marginBottom: '2.5rem' }}>
+          <div style={{ borderBottom: '1px solid #222222', paddingBottom: '0.5rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1.3rem', fontFamily: 'var(--font-serif)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Activity size={18} style={{ color: 'var(--color-accent)' }} /> Today's Portfolio Delta
+            </h2>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>COMPARED TO YESTERDAY</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
+            {/* Conviction changes */}
+            <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem' }}>
+              <span className="mono-tag" style={{ fontSize: '0.65rem', background: '#F0EBE1', display: 'block', marginBottom: '0.75rem' }}>Conviction Changes</span>
+              {deltaReport.upgrades.length === 0 && deltaReport.downgrades.length === 0 ? (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No conviction rating changes.</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
+                  {deltaReport.upgrades.map((u, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <strong>{u.ticker}</strong>
+                      <span style={{ color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>{u.prev} → {u.curr} (+{u.curr - u.prev})</span>
+                    </div>
+                  ))}
+                  {deltaReport.downgrades.map((d, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <strong>{d.ticker}</strong>
+                      <span style={{ color: 'var(--color-danger-text)', fontFamily: 'var(--font-mono)' }}>{d.prev} → {d.curr} ({d.curr - d.prev})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dip Candidates */}
+            <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem' }}>
+              <span className="mono-tag" style={{ fontSize: '0.65rem', background: '#F0EBE1', display: 'block', marginBottom: '0.75rem' }}>Active Dip Changes</span>
+              {deltaReport.newDips.length === 0 && deltaReport.resolvedDips.length === 0 ? (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No active pullbacks detected.</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
+                  {deltaReport.newDips.map((nd, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <strong>{nd.ticker}</strong>
+                      <span style={{ color: '#B45309', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 'bold' }}>{nd.classification} DIP</span>
+                    </div>
+                  ))}
+                  {deltaReport.resolvedDips.map((rd, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <strong>{rd.ticker}</strong>
+                      <span style={{ color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontSize: '0.7rem' }}>Resolved ({rd.prevClassification})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Smart Money Inflows */}
+            <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem' }}>
+              <span className="mono-tag" style={{ fontSize: '0.65rem', background: '#F0EBE1', display: 'block', marginBottom: '0.75rem' }}>Smart Money Changes</span>
+              {deltaReport.smartMoneyChanges.length === 0 ? (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Institutional flows stable.</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
+                  {deltaReport.smartMoneyChanges.map((sm, i) => (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <strong>{sm.ticker}</strong>
+                        <span style={{ fontFamily: 'var(--font-mono)', textTransform: 'capitalize', color: sm.currFlow === 'accumulation' ? 'var(--color-success-text)' : 'var(--text-primary)' }}>{sm.currFlow}</span>
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Was: {sm.prevFlow}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Portfolio Health Changes */}
+            <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem' }}>
+              <span className="mono-tag" style={{ fontSize: '0.65rem', background: '#F0EBE1', display: 'block', marginBottom: '0.75rem' }}>Portfolio Health Delta</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Health Index:</span>
+                  <span style={{ 
+                    fontFamily: 'var(--font-mono)', 
+                    fontWeight: 'bold',
+                    color: (deltaReport.portfolioHealthChange.currScore - deltaReport.portfolioHealthChange.prevScore) >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' 
+                  }}>
+                    {deltaReport.portfolioHealthChange.prevScore} → {deltaReport.portfolioHealthChange.currScore} ({formatPercent(deltaReport.portfolioHealthChange.currScore - deltaReport.portfolioHealthChange.prevScore).replace('+', '+').replace('%', '')})
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Diversification Index:</span>
+                  <span style={{ 
+                    fontFamily: 'var(--font-mono)', 
+                    fontWeight: 'bold',
+                    color: (deltaReport.diversificationChange.currScore - deltaReport.diversificationChange.prevScore) >= 0 ? 'var(--color-success-text)' : 'var(--color-danger-text)' 
+                  }}>
+                    {deltaReport.diversificationChange.prevScore} → {deltaReport.diversificationChange.currScore} ({formatPercent(deltaReport.diversificationChange.currScore - deltaReport.diversificationChange.prevScore).replace('+', '+').replace('%', '')})
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -977,6 +1314,175 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* SECTION 3 — PORTFOLIO REBALANCING WORKBENCH & SCENARIO ENGINE */}
+              <div className="card" style={{ padding: '2rem 2.5rem' }}>
+                <div style={{ borderBottom: '1px solid #222222', paddingBottom: '0.5rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ fontSize: '1.5rem', fontFamily: 'var(--font-serif)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <RefreshCw size={18} /> Rebalancing Simulator & Scenarios
+                  </h2>
+                  <span className="mono-tag" style={{ fontSize: '0.65rem' }}>Simulation Engine (No Recommendations)</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                  {/* Simulator Actions Column */}
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontFamily: 'var(--font-serif)', margin: '0 0 1rem 0', fontWeight: 'bold' }}>Simulate Transactions</h3>
+                    
+                    {/* Form to add action */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem', marginBottom: '1rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Action</label>
+                          <select 
+                            value={simAction}
+                            onChange={(e) => setSimAction(e.target.value as any)}
+                            style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem', background: 'white', border: '1px solid #C4B9A7' }}
+                          >
+                            <option value="buy">Buy (Add Position)</option>
+                            <option value="sell">Sell (Reduce Position)</option>
+                            <option value="adjust_cash">Adjust Cash Buffer</option>
+                            <option value="add_new">Add New Security</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Ticker</label>
+                          <input 
+                            type="text"
+                            placeholder="e.g. NVDA"
+                            value={simTicker}
+                            onChange={(e) => setSimTicker(e.target.value)}
+                            disabled={simAction === 'adjust_cash'}
+                            style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem', border: '1px solid #C4B9A7', textTransform: 'uppercase' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Capital Amount ({reportingCurrency})</label>
+                          <input 
+                            type="number"
+                            value={simAmount}
+                            onChange={(e) => setSimAmount(e.target.value)}
+                            style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem', border: '1px solid #C4B9A7' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Percentage Trim (%)</label>
+                          <input 
+                            type="number"
+                            placeholder="Optional (Sells only)"
+                            value={simPercentage}
+                            onChange={(e) => setSimPercentage(e.target.value)}
+                            disabled={simAction !== 'sell'}
+                            style={{ width: '100%', fontSize: '0.75rem', padding: '0.35rem', border: '1px solid #C4B9A7' }}
+                          />
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={handleAddSimulationAction}
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '0.5rem', width: '100%', background: 'white' }}
+                      >
+                        Add Simulation Event
+                      </button>
+                    </div>
+
+                    {/* Predefined Scenarios (Phase 11.5) */}
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontFamily: 'var(--font-serif)', margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>Interactive Scenarios</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <button onClick={() => handleLoadScenario('invest_capital')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.4rem', background: 'white' }}>"Invest ₹100k Capital"</button>
+                        <button onClick={() => handleLoadScenario('intl_diversify')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.4rem', background: 'white' }}>"Diversify Internationally"</button>
+                        <button onClick={() => handleLoadScenario('trim_concentration')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.4rem', background: 'white' }}>"Reduce Concentration"</button>
+                        <button onClick={() => handleLoadScenario('cash_buffer')} className="btn btn-secondary btn-sm" style={{ fontSize: '0.7rem', padding: '0.4rem', background: 'white' }}>"Build Cash Buffer"</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Simulation Results Column */}
+                  <div style={{ borderLeft: '1px solid #E2DACD', paddingLeft: '2rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontFamily: 'var(--font-serif)', margin: '0 0 1rem 0', fontWeight: 'bold' }}>Simulation Log & Projections</h3>
+                    
+                    {simulationActions.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '2rem 1rem', border: '1px dashed #E2DACD', background: '#FCFAF6', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Add actions or click an interactive scenario to run calculations.
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1.25rem', maxHeight: '120px', overflowY: 'auto' }}>
+                          {simulationActions.map((act, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', border: '1px solid #E2DACD', padding: '0.35rem 0.5rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                              <span>
+                                <strong style={{ textTransform: 'uppercase', color: 'var(--color-accent)' }}>{act.type}</strong>{' '}
+                                {act.ticker !== 'CASH' && `${act.ticker}`} ({act.percentage ? `${act.percentage}%` : `${formatCurrency(act.amount, reportingCurrency)}`})
+                              </span>
+                              <button onClick={() => handleRemoveSimulationAction(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--color-danger-text)', cursor: 'pointer', padding: 0 }}>
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                          <button onClick={handleRunSimulation} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
+                            Run Simulation Calculations
+                          </button>
+                          <button onClick={handleClearSimulation} className="btn btn-secondary btn-sm" style={{ background: 'white' }}>
+                            Clear
+                          </button>
+                        </div>
+
+                        {simulationResult && (
+                          <div style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
+                              <span style={{ fontWeight: 'bold' }}>Calculated Delta:</span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--color-accent)' }}>Simulated Projection</span>
+                            </div>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Portfolio Health Score:</span>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                                {simulationResult.current.healthScore} → <strong>{simulationResult.simulated.healthScore}</strong> ({simulationResult.deltas.healthScoreDiff >= 0 ? '+' : ''}{simulationResult.deltas.healthScoreDiff})
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Diversification Score:</span>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                                {simulationResult.current.diversificationScore} → <strong>{simulationResult.simulated.diversificationScore}</strong> ({simulationResult.deltas.diversificationScoreDiff >= 0 ? '+' : ''}{simulationResult.deltas.diversificationScoreDiff})
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Concentration HHI Index:</span>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                                {simulationResult.current.hhi.toFixed(0)} ({simulationResult.current.hhiStatus}) → <strong>{simulationResult.simulated.hhi.toFixed(0)} ({simulationResult.simulated.hhiStatus})</strong>
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Conviction Profile (Avg):</span>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                                {simulationResult.current.averageConviction} → <strong>{simulationResult.simulated.averageConviction}</strong> ({simulationResult.deltas.averageConvictionDiff >= 0 ? '+' : ''}{simulationResult.deltas.averageConvictionDiff})
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>Top Position Weight:</span>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                                {simulationResult.current.topAssetWeight.toFixed(1)}% → <strong>{simulationResult.simulated.topAssetWeight.toFixed(1)}%</strong>
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -1232,6 +1738,87 @@ export const Dashboard: React.FC = () => {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* SECTION 4 — INTELLIGENCE TIMELINE */}
+          <div className="card" style={{ padding: '1.5rem 2rem' }}>
+            <div style={{ borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.15rem', fontFamily: 'var(--font-serif)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <History size={16} /> Asset Timeline
+              </h3>
+              <select 
+                value={selectedTimelineTicker}
+                onChange={(e) => setSelectedTimelineTicker(e.target.value)}
+                style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'white', border: '1px solid #C4B9A7', fontFamily: 'var(--font-mono)' }}
+              >
+                {holdings.filter(h => h.ticker !== 'CASH').map(h => (
+                  <option key={h.id} value={h.ticker}>{h.ticker}</option>
+                ))}
+              </select>
+            </div>
+
+            {(() => {
+              const assetHistory = historyRecords
+                .map(hr => {
+                  const conv = hr.convictions.find(c => c.ticker.toUpperCase() === selectedTimelineTicker.toUpperCase());
+                  return {
+                    date: hr.date,
+                    conviction: conv ? conv.overallScore : null,
+                    quality: conv ? conv.qualityScore : null,
+                    smartMoneyFlow: conv ? conv.netInstitutionalFlow : null,
+                    dipClass: conv ? conv.dipClassification : null
+                  };
+                })
+                .filter(item => item.conviction !== null)
+                .sort((a, b) => a.date.localeCompare(b.date));
+
+              if (assetHistory.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-muted)', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                    No historical logs compiled for {selectedTimelineTicker} yet.
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+                  <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: '#555' }}>
+                    <div style={{ borderBottom: '1px solid #DDD', paddingBottom: '0.4rem', marginBottom: '0.5rem', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Conviction Score Trend</span>
+                      <span style={{ color: 'var(--color-accent)' }}>7-Day History</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      {assetHistory.map((h, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ width: '50px', flexShrink: 0 }}>{h.date.slice(5)}:</span>
+                          <div style={{ background: '#E2DACD', height: '10px', flex: 1, borderRadius: 0, position: 'relative' }}>
+                            <div style={{ height: '100%', width: `${h.conviction}%`, backgroundColor: '#8c2a2a' }} />
+                          </div>
+                          <span style={{ width: '40px', textAlign: 'right', fontWeight: 'bold' }}>{h.conviction}/100</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.75rem' }}>
+                    <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '0.75rem' }}>
+                      <strong style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '0.25rem' }}>Diagnostics</strong>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <div>Quality: <strong>{assetHistory[assetHistory.length - 1].quality || '—'}/100</strong></div>
+                        <div>Dip: <strong style={{ color: '#B45309', textTransform: 'uppercase' }}>{assetHistory[assetHistory.length - 1].dipClass || 'No Dip'}</strong></div>
+                      </div>
+                    </div>
+                    <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '0.75rem' }}>
+                      <strong style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '0.25rem' }}>Flow Registry</strong>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <div>Flow: <strong style={{ textTransform: 'capitalize' }}>{assetHistory[assetHistory.length - 1].smartMoneyFlow || 'neutral'}</strong></div>
+                        <div>As Of: <strong>{assetHistory[assetHistory.length - 1].date}</strong></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
         </div>

@@ -123,6 +123,13 @@ export interface DailyReport {
       definition: string;
       context: string;
     };
+    portfolioDelta?: {
+      upgrades: { ticker: string; prev: number; curr: number }[];
+      downgrades: { ticker: string; prev: number; curr: number }[];
+      newDips: { ticker: string; classification: string }[];
+      smartMoneyChanges: { ticker: string; prevFlow: string; currFlow: string }[];
+      healthChange: { prevScore: number; currScore: number };
+    };
   };
   rawContent?: string;
   createdAt: string;
@@ -975,6 +982,97 @@ export const dbService = {
         }
       }
       return list;
+    }
+  },
+
+  async savePortfolioHistoryRecord(userId: string, record: any): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'portfolioHistory', record.date);
+      await setDoc(docRef, record);
+    } else {
+      localStorage.setItem(`portfolio_history_${userId}_${record.date}`, JSON.stringify(record));
+    }
+  },
+
+  async getPortfolioHistoryRecord(userId: string, date: string): Promise<any | null> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'portfolioHistory', date);
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        return snapshot.data();
+      }
+      return null;
+    } else {
+      const saved = localStorage.getItem(`portfolio_history_${userId}_${date}`);
+      return saved ? JSON.parse(saved) : null;
+    }
+  },
+
+  async getAllPortfolioHistoryRecords(userId: string): Promise<any[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'portfolioHistory');
+      const snapshot = await getDocs(colRef);
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        list.push(doc.data());
+      });
+      return list.sort((a, b) => b.date.localeCompare(a.date));
+    } else {
+      const list: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`portfolio_history_${userId}_`)) {
+          const item = localStorage.getItem(key);
+          if (item) list.push(JSON.parse(item));
+        }
+      }
+      return list.sort((a, b) => b.date.localeCompare(a.date));
+    }
+  },
+
+  async saveAlert(userId: string, alert: any): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'alerts', alert.id);
+      await setDoc(docRef, alert);
+    } else {
+      localStorage.setItem(`alert_${userId}_${alert.id}`, JSON.stringify(alert));
+    }
+  },
+
+  async getAlerts(userId: string): Promise<any[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'alerts');
+      const snapshot = await getDocs(colRef);
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        list.push(doc.data());
+      });
+      return list.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    } else {
+      const list: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`alert_${userId}_`)) {
+          const item = localStorage.getItem(key);
+          if (item) list.push(JSON.parse(item));
+        }
+      }
+      return list.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    }
+  },
+
+  async dismissAlert(userId: string, alertId: string): Promise<void> {
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'alerts', alertId);
+      await setDoc(docRef, { read: true }, { merge: true });
+    } else {
+      const key = `alert_${userId}_${alertId}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const alert = JSON.parse(saved);
+        alert.read = true;
+        localStorage.setItem(key, JSON.stringify(alert));
+      }
     }
   }
 };

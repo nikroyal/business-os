@@ -92,6 +92,13 @@ export interface DailyReport {
       definition: string;
       context: string;
     };
+    portfolioDelta?: {
+      upgrades: { ticker: string; prev: number; curr: number }[];
+      downgrades: { ticker: string; prev: number; curr: number }[];
+      newDips: { ticker: string; classification: string }[];
+      smartMoneyChanges: { ticker: string; prevFlow: string; currFlow: string }[];
+      healthChange: { prevScore: number; currScore: number };
+    };
   };
   createdAt: string;
 }
@@ -1302,7 +1309,8 @@ Evaluate if this dip is structural or transient.`;
     profile: UserProfile | null,
     holdings: Holding[],
     analytics: PortfolioAnalytics,
-    watchlist: any[]
+    watchlist: any[],
+    firestore?: any
   ): Promise<Omit<DailyReport, 'id' | 'createdAt'>> {
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
@@ -1332,6 +1340,55 @@ Evaluate if this dip is structural or transient.`;
 
     const summary = this.generateEditorialSummary(analytics, marketSnapshot.globalTrend, profile);
 
+    // Dynamic daily changes delta compilation
+    let portfolioDelta: any = undefined;
+    if (firestore) {
+      try {
+        const historyList = await firestore.getPortfolioHistory(userId);
+        const todayStr = dateStr;
+        const currentRec = historyList.find((hr: any) => hr.date === todayStr);
+        const yesterdayRec = historyList.find((hr: any) => hr.date !== todayStr);
+        
+        if (currentRec) {
+          const upgrades: any[] = [];
+          const downgrades: any[] = [];
+          const newDips: any[] = [];
+          const smartMoneyChanges: any[] = [];
+
+          if (yesterdayRec) {
+            currentRec.convictions?.forEach((currConv: any) => {
+              const prevConv = yesterdayRec.convictions?.find((c: any) => c.ticker === currConv.ticker);
+              if (prevConv) {
+                if (currConv.overallScore > prevConv.overallScore) {
+                  upgrades.push({ ticker: currConv.ticker, prev: prevConv.overallScore, curr: currConv.overallScore });
+                } else if (currConv.overallScore < prevConv.overallScore) {
+                  downgrades.push({ ticker: currConv.ticker, prev: prevConv.overallScore, curr: currConv.overallScore });
+                }
+                if (currConv.netInstitutionalFlow !== prevConv.netInstitutionalFlow) {
+                  smartMoneyChanges.push({ ticker: currConv.ticker, prevFlow: prevConv.netInstitutionalFlow, currFlow: currConv.netInstitutionalFlow });
+                }
+                if (currConv.dipClassification !== prevConv.dipClassification && currConv.dipClassification !== 'No Dip') {
+                  newDips.push({ ticker: currConv.ticker, classification: currConv.dipClassification });
+                }
+              }
+            });
+          }
+
+          portfolioDelta = {
+            upgrades,
+            downgrades,
+            newDips,
+            smartMoneyChanges,
+            healthChange: {
+              prevScore: yesterdayRec ? yesterdayRec.healthScore : currentRec.healthScore,
+              currScore: currentRec.healthScore
+            }
+          };
+        }
+      } catch (err) {
+        console.warn('[Scheduler] Failed to calculate daily email delta:', err);
+      }
+    }
 
     return {
       userId,
@@ -1343,7 +1400,8 @@ Evaluate if this dip is structural or transient.`;
         portfolioSummary,
         watchlistMovers,
         riskFlags,
-        learningItem
+        learningItem,
+        portfolioDelta
       }
     };
   }
@@ -1603,6 +1661,23 @@ export class FirestoreClient {
       return data.documents.map((d: any) => fromFirestoreDoc(d)).filter(Boolean);
     } catch (err) {
       console.error(`Error getting holdings for ${userId}:`, err);
+      return [];
+    }
+  }
+
+  async getPortfolioHistory(userId: string): Promise<any[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/users/${userId}/portfolioHistory`);
+      if (!res.ok) {
+        if (res.status === 404) return [];
+        console.error(`Failed to get portfolioHistory for ${userId}: HTTP ${res.status}`);
+        return [];
+      }
+      const data = await res.json() as any;
+      if (!data.documents) return [];
+      return data.documents.map((d: any) => fromFirestoreDoc(d)).filter(Boolean);
+    } catch (err) {
+      console.error(`Error getting portfolio history:`, err);
       return [];
     }
   }
@@ -2703,7 +2778,6 @@ export function renderDailyFTEmail(
       <div>${list}</div>
     `;
   }
-
   const learn = report.sections.learningItem;
   const learningSection = `
     <div class="section-title">Educational Focus of the Day</div>
@@ -2711,9 +2785,31 @@ export function renderDailyFTEmail(
     <p style="font-size: 13px; color: #555; font-style: italic;">Context: ${learn.context}</p>
   `;
 
+  let deltaSection = '';
+  if (report.sections.portfolioDelta) {
+    const d = report.sections.portfolioDelta;
+    const upgradeLines = d.upgrades?.map((u: any) => `<li><strong>${u.ticker}</strong>: ${u.prev} → ${u.curr}</li>`).join('') || '';
+    const downgradeLines = d.downgrades?.map((dw: any) => `<li><strong>${dw.ticker}</strong>: ${dw.prev} → ${dw.curr}</li>`).join('') || '';
+    const newDipLines = d.newDips?.map((nd: any) => `<li><strong>${nd.ticker}</strong>: ${nd.classification} Pullback</li>`).join('') || '';
+    const flowLines = d.smartMoneyChanges?.map((sm: any) => `<li><strong>${sm.ticker}</strong>: ${sm.prevFlow} → ${sm.currFlow}</li>`).join('') || '';
+    
+    deltaSection = `
+      <div class="section-title">Yesterday to Today — Portfolio Changes</div>
+      <div style="font-size: 13px; line-height: 1.4; color: #333; margin-bottom: 20px;">
+        ${d.healthChange ? `<p><strong>Health Index Shift:</strong> ${d.healthChange.prevScore} → ${d.healthChange.currScore}</p>` : ''}
+        ${upgradeLines ? `<p><strong>Conviction Upgrades:</strong></p><ul>${upgradeLines}</ul>` : ''}
+        ${downgradeLines ? `<p><strong>Conviction Downgrades:</strong></p><ul>${downgradeLines}</ul>` : ''}
+        ${newDipLines ? `<p><strong>Active Dips:</strong></p><ul>${newDipLines}</ul>` : ''}
+        ${flowLines ? `<p><strong>Institutional Flow Changes:</strong></p><ul>${flowLines}</ul>` : ''}
+        ${!upgradeLines && !downgradeLines && !newDipLines && !flowLines ? '<p>No changes detected in ratings or allocations.</p>' : ''}
+      </div>
+    `;
+  }
+
   const totalContent = `
     ${editorialSection}
     ${portfolioSection}
+    ${deltaSection}
     ${marketSnapshotSection}
     ${watchlistMoversSection}
     ${riskFlagsSection}
@@ -3064,7 +3160,8 @@ async function executeDailyDispatch(
       user,
       holdings,
       analytics,
-      watchlistIntelligenceList
+      watchlistIntelligenceList,
+      firestore
     );
 
     const savedReport = await firestore.saveReport(user.uid, reportData);
