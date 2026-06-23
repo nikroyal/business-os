@@ -900,13 +900,16 @@ export const IntelligenceHub: React.FC = () => {
                             Capital structure health presents a Debt-to-Equity solvency leverage of ${(selectedAsset.intel.research.fundamentals?.debtToEquity || 0).toFixed(2)}. Technical catalyst warning is classified under: "{selectedAsset.intel.dip.catalyst || 'No immediate structural triggers identified'}".
                           </p>
                         </div>
-
-                        {/* Management Quality & Industry Position */}
+                              {/* Management Quality & Industry Position */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-stone-200 pt-3 font-sans">
                           <div>
                             <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">6. Management Quality</strong>
                             <p className="text-stone-700 text-xs leading-normal">
-                              Evaluated via Form 4 insider buying flows. MSPR sentiment index is currently {(selectedAsset.intel.smartMoney.insiderSentiment?.value?.mspr || 0).toFixed(2)} with insider transactions counts showing {selectedAsset.intel.smartMoney.insiderTransactions?.value?.totalTransactionsCount || 0} active filings.
+                              {selectedAsset.intel.smartMoney.insiderTransactions?.value && selectedAsset.intel.smartMoney.insiderSentiment?.value ? (
+                                `Evaluated via Form 4 insider buying flows. MSPR sentiment index is currently ${selectedAsset.intel.smartMoney.insiderSentiment.value.mspr.toFixed(2)} with insider transactions counts showing ${selectedAsset.intel.smartMoney.insiderTransactions.value.totalTransactionsCount} active filings.`
+                              ) : (
+                                "Insider transaction activity and officer sentiment metrics are currently unavailable for this asset."
+                              )}
                             </p>
                           </div>
                           <div>
@@ -975,13 +978,15 @@ export const IntelligenceHub: React.FC = () => {
                               <td className="py-1.5 font-bold">
                                 {selectedAsset.intel.smartMoney.insiderTransactions?.value 
                                   ? selectedAsset.intel.smartMoney.insiderTransactions.value.netSharesBought.toLocaleString() 
-                                  : '0'}
+                                  : 'Unavailable'}
                               </td>
-                              <td className="py-1.5 text-[#8c2a2a] font-bold">Regulatory Filing</td>
+                              <td className="py-1.5 font-bold" style={{ color: selectedAsset.intel.smartMoney.insiderTransactions?.value ? 'var(--ft-red, #8c2a2a)' : 'var(--text-muted, #888)' }}>
+                                {selectedAsset.intel.smartMoney.insiderTransactions?.value ? 'Regulatory Filing' : 'Unavailable'}
+                              </td>
                               <td className="py-1.5">SEC Form 4</td>
-                              <td className="py-1.5">{selectedAsset.intel.smartMoney.insiderTransactions?.timestamp ? new Date(selectedAsset.intel.smartMoney.insiderTransactions.timestamp).toLocaleDateString() : 'Baseline'}</td>
+                              <td className="py-1.5">{selectedAsset.intel.smartMoney.insiderTransactions?.value ? new Date(selectedAsset.intel.smartMoney.insiderTransactions.timestamp).toLocaleDateString() : '—'}</td>
                             </tr>
-                            {/* Options sentiment */}
+                            {/* Options volume */}
                             <tr className="border-b border-stone-100">
                               <td className="py-1.5">Options Volume</td>
                               <td className="py-1.5 font-bold">

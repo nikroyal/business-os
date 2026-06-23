@@ -486,20 +486,7 @@ export class IntelligenceService {
       }
     }
 
-    const instOwnership = cleanTicker === 'AAPL' ? 62 : 45;
-    const optionsVolRatio = 0.95;
-    
-    let netInstFlow: 'accumulation' | 'distribution' | 'neutral' | 'unavailable' = 'neutral';
-    let optionSent: 'bullish' | 'bearish' | 'neutral' | 'unavailable' = 'neutral';
-    let accumulationScore = 12;
-
-    if (instOwnership > 50) {
-      netInstFlow = 'accumulation';
-      accumulationScore += 8;
-    }
-
     const timestamp = new Date().toISOString();
-    const freshness = 'Heuristic (Fallback)';
 
     return {
       ticker: cleanTicker,
@@ -545,24 +532,24 @@ export class IntelligenceService {
         updatedAt: timestamp
       },
       smartMoney: {
-        institutionalOwnershipPercent: instOwnership,
-        netInstitutionalFlow: netInstFlow,
-        accumulationScore,
-        optionsVolumeRatio: optionsVolRatio,
-        optionSentiment: optionSent,
+        institutionalOwnershipPercent: null,
+        netInstitutionalFlow: 'unavailable',
+        accumulationScore: 12,
+        optionsVolumeRatio: null,
+        optionSentiment: 'unavailable',
         insiderTransactions: {
-          value: { netSharesBought: cleanTicker === 'AAPL' ? 250000 : 0, totalTransactionsCount: 15, buyCount: 12, sellCount: 3 },
-          source: 'Finnhub Insider Transactions API (Demo Fallback)',
+          value: null,
+          source: 'Finnhub Insider Transactions API',
           timestamp,
-          freshness,
-          confidence: 'high'
+          freshness: 'Data unavailable',
+          confidence: 'none'
         },
         insiderSentiment: {
-          value: { mspr: 0.12, change: 15 },
-          source: 'Finnhub Insider Sentiment API (Demo Fallback)',
+          value: null,
+          source: 'Finnhub Insider Sentiment API',
           timestamp,
-          freshness,
-          confidence: 'high'
+          freshness: 'Data unavailable',
+          confidence: 'none'
         },
         optionsVolume: {
           value: null,
