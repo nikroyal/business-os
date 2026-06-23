@@ -544,7 +544,9 @@ export const IntelligenceHub: React.FC = () => {
                         </div>
                       </div>
                     )}
-                                  {/* Institutional-Grade Smart Money Registry (Part 1) */}
+                  </div>
+
+                  {/* Institutional-Grade Smart Money Registry (Part 1) */}
                   <div className="flex flex-col gap-3">
                     <h3 className="font-mono text-xs uppercase tracking-wider text-stone-500 border-b border-[#E5E2D9] pb-1">
                       Institutional & Insider Flows

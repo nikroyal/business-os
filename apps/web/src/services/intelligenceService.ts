@@ -275,12 +275,12 @@ export class IntelligenceService {
     let risks = ['Market volatility', 'Intense industry competition'];
     
     // Fundamental variables
-    let revGrowth = 8.5;
-    let epsGrowth = 12.1;
-    let roic = 16.4;
-    let grossMargin = 42.5;
-    let operatingMargin = 22.1;
-    let debtToEquity = 0.45;
+    let revGrowth: number | null = 8.5;
+    let epsGrowth: number | null = 12.1;
+    let roic: number | null = 16.4;
+    let grossMargin: number | null = 42.5;
+    let operatingMargin: number | null = 22.1;
+    let debtToEquity: number | null = 0.45;
     let marketCap = 850000;
     let industry = 'Technology Hardware';
 
