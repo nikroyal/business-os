@@ -9,7 +9,8 @@ import {
   Database,
   Eye,
   FileText,
-  Lightbulb
+  Lightbulb,
+  Brain
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -73,6 +74,14 @@ export const Sidebar: React.FC = () => {
         >
           <FileText size={20} />
           <span>Reports</span>
+        </NavLink>
+
+        <NavLink 
+          to="/intelligence" 
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Brain size={20} />
+          <span>Intelligence Hub</span>
         </NavLink>
         
         <NavLink 

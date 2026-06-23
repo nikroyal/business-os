@@ -1,6 +1,9 @@
 import type { UserProfile, Holding, DailyReport } from './firebase';
 import type { PortfolioAnalytics } from './portfolioAnalyticsService';
 import type { WatchlistAssetIntelligence } from './watchlistService';
+import { authService } from './firebase';
+import type { CompanyIntelligence, UserConviction } from './firebase';
+
 
 export class IntelligenceService {
   // Rotating learning terms dictionary for the "Learning Item of the Day"
@@ -240,6 +243,84 @@ export class IntelligenceService {
 
     return `Dear ${name}, your portfolio registered a ${changeLabel} of ${percentStr}% today, closing with a valuation of ${analytics.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Global market indexes exhibited a ${globalTrend} posture. ${advice}`;
   }
+
+  private static getApiBaseUrl(): string {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+    return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  }
+
+  private static async fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+    const token = await authService.getIdToken();
+    const headers = {
+      ...(init?.headers || {}),
+      'Authorization': `Bearer ${token}`
+    };
+    return fetch(url, {
+      ...(init || {}),
+      headers
+    });
+  }
+
+  public static async fetchCompanyIntelligence(ticker: string, exchange = 'NASDAQ'): Promise<CompanyIntelligence | null> {
+    try {
+      const baseUrl = this.getApiBaseUrl();
+      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/company?symbol=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.error(`Error fetching company intelligence for ${ticker}:`, err);
+      return null;
+    }
+  }
+
+  public static async recalculateConviction(ticker: string, exchange = 'NASDAQ'): Promise<UserConviction | null> {
+    try {
+      const baseUrl = this.getApiBaseUrl();
+      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/recalculate-conviction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, exchange })
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.error(`Error recalculating conviction for ${ticker}:`, err);
+      return null;
+    }
+  }
+
+  public static async fetchAllConvictions(): Promise<UserConviction[]> {
+    try {
+      const baseUrl = this.getApiBaseUrl();
+      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/convictions`);
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.error('Error fetching all user convictions:', err);
+      return [];
+    }
+  }
+
+  public static async fetchBusinessSchoolCase(conceptId: string, symbol: string, exchange = 'NASDAQ'): Promise<any> {
+    try {
+      const baseUrl = this.getApiBaseUrl();
+      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/business-school/case?conceptId=${encodeURIComponent(conceptId)}&symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}`);
+      if (!res.ok) {
+        throw new Error(`HTTP Error ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.error(`Error fetching business school case for ${conceptId} / ${symbol}:`, err);
+      return null;
+    }
+  }
 }
 
 export default IntelligenceService;
+

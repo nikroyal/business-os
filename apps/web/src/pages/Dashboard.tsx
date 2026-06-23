@@ -9,6 +9,7 @@ import type { PortfolioAnalytics } from '../services/portfolioAnalyticsService';
 import { WatchlistService } from '../services/watchlistService';
 import type { WatchlistAssetIntelligence } from '../services/watchlistService';
 import { useNavigate } from 'react-router-dom';
+import IntelligenceService from '../services/intelligenceService';
 import { 
   CheckCircle, 
   Calendar, 
@@ -58,6 +59,7 @@ export const Dashboard: React.FC = () => {
   const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [convictions, setConvictions] = useState<any[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -136,6 +138,13 @@ export const Dashboard: React.FC = () => {
       ]);
       setReportsCount(reports.length);
       setOpportunitiesCount(opps.length);
+
+      try {
+        const userConvictions = await IntelligenceService.fetchAllConvictions();
+        setConvictions(userConvictions);
+      } catch (e) {
+        console.warn('Failed to load user convictions on dashboard', e);
+      }
 
       setLastUpdated(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err: any) {
@@ -594,6 +603,7 @@ export const Dashboard: React.FC = () => {
                       <th className="num-val">Current</th>
                       <th className="num-val">Value</th>
                       <th className="num-val">Gain/Loss</th>
+                      <th className="num-val">Conviction</th>
                       <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
@@ -631,6 +641,35 @@ export const Dashboard: React.FC = () => {
                               <span>{formatCurrency(gain, holding.currency)}</span>
                               <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>{formatPercent(gainPercent)}</span>
                             </div>
+                          </td>
+                          <td className="num-val">
+                            {(() => {
+                              const conviction = convictions.find(
+                                c => c.ticker.toUpperCase() === holding.ticker.toUpperCase() && c.exchange.toUpperCase() === holding.exchange.toUpperCase()
+                              );
+                              return conviction ? (
+                                <span 
+                                  onClick={() => navigate('/intelligence')}
+                                  style={{ 
+                                    fontFamily: 'var(--font-mono)', 
+                                    fontWeight: 'bold', 
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    color: conviction.overallScore >= 75 ? 'var(--color-success-text)' : conviction.overallScore >= 50 ? 'var(--text-primary)' : 'var(--color-danger-text)'
+                                  }}
+                                  title={conviction.rationale}
+                                >
+                                  {conviction.overallScore}
+                                </span>
+                              ) : (
+                                <span 
+                                  onClick={() => navigate('/intelligence')} 
+                                  style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}
+                                >
+                                  —
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <button 

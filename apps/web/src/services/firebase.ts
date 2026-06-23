@@ -158,6 +158,63 @@ export interface AICommentary {
   inputHash: string;
 }
 
+export interface CompanyIntelligence {
+  ticker: string;
+  exchange: string;
+  name: string;
+  sector: string;
+  qualityScore: number;
+  qualityRationale: string;
+  research: {
+    moatRating: 'wide' | 'narrow' | 'none';
+    moatRationale: string;
+    fundamentalHealthScore: number;
+    leverageRatio: number;
+    freeCashFlowMargin: number;
+    majorRisks: string[];
+    updatedAt: string;
+  };
+  dip: {
+    dipDetected: boolean;
+    severityPercent: number;
+    zScore: number;
+    catalyst: string;
+    isStructural: boolean;
+    updatedAt: string;
+  };
+  smartMoney: {
+    institutionalOwnershipPercent: number;
+    netInstitutionalFlow: 'accumulation' | 'distribution' | 'neutral';
+    accumulationScore: number;
+    optionsVolumeRatio: number;
+    optionSentiment: 'bullish' | 'bearish' | 'neutral';
+    updatedAt: string;
+  };
+  updatedAt: string;
+}
+
+export interface FactorBreakdown {
+  score: number;
+  max: number;
+  explanation: string;
+}
+
+export interface UserConviction {
+  id?: string;
+  userId: string;
+  ticker: string;
+  exchange: string;
+  overallScore: number;
+  breakdown: {
+    allocationFactor: FactorBreakdown;
+    fundamentalFactor: FactorBreakdown;
+    dipFactor: FactorBreakdown;
+    institutionalFactor: FactorBreakdown;
+  };
+  rationale: string;
+  updatedAt: string;
+}
+
 
 
 
@@ -749,6 +806,82 @@ export const dbService = {
       const saved = localStorage.getItem(`dispatchHistory_${userId}`);
       const list = saved ? JSON.parse(saved) : [];
       return list.sort((a: any, b: any) => b.generatedAt.localeCompare(a.generatedAt));
+    }
+  },
+
+  async getCompanyIntelligence(ticker: string, exchange: string): Promise<CompanyIntelligence | null> {
+    const key = `${ticker}:${exchange}`;
+    if (realDb) {
+      const docRef = doc(realDb, 'companyIntelligence', key);
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        return snapshot.data() as CompanyIntelligence;
+      }
+      return null;
+    } else {
+      const saved = localStorage.getItem(`company_intelligence_${key}`);
+      return saved ? JSON.parse(saved) : null;
+    }
+  },
+
+  async saveCompanyIntelligence(intel: CompanyIntelligence): Promise<CompanyIntelligence> {
+    const key = `${intel.ticker}:${intel.exchange}`;
+    if (realDb) {
+      const docRef = doc(realDb, 'companyIntelligence', key);
+      await setDoc(docRef, intel);
+      return intel;
+    } else {
+      localStorage.setItem(`company_intelligence_${key}`, JSON.stringify(intel));
+      return intel;
+    }
+  },
+
+  async getUserConviction(userId: string, ticker: string, exchange: string): Promise<UserConviction | null> {
+    const key = `${ticker}:${exchange}`;
+    if (realDb) {
+      const docRef = doc(realDb, 'users', userId, 'convictions', key);
+      const snapshot = await getDoc(docRef);
+      if (snapshot.exists()) {
+        return snapshot.data() as UserConviction;
+      }
+      return null;
+    } else {
+      const saved = localStorage.getItem(`user_conviction_${userId}_${key}`);
+      return saved ? JSON.parse(saved) : null;
+    }
+  },
+
+  async saveUserConviction(conviction: UserConviction): Promise<UserConviction> {
+    const key = `${conviction.ticker}:${conviction.exchange}`;
+    if (realDb) {
+      const docRef = doc(realDb, 'users', conviction.userId, 'convictions', key);
+      await setDoc(docRef, conviction);
+      return conviction;
+    } else {
+      localStorage.setItem(`user_conviction_${conviction.userId}_${key}`, JSON.stringify(conviction));
+      return conviction;
+    }
+  },
+
+  async getAllUserConvictions(userId: string): Promise<UserConviction[]> {
+    if (realDb) {
+      const colRef = collection(realDb, 'users', userId, 'convictions');
+      const snapshot = await getDocs(colRef);
+      const list: UserConviction[] = [];
+      snapshot.forEach(doc => {
+        list.push(doc.data() as UserConviction);
+      });
+      return list;
+    } else {
+      const list: UserConviction[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`user_conviction_${userId}_`)) {
+          const item = localStorage.getItem(key);
+          if (item) list.push(JSON.parse(item));
+        }
+      }
+      return list;
     }
   }
 };

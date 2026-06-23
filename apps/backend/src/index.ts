@@ -367,7 +367,206 @@ app.post('/api/commentary/generate', async (c) => {
   }
 });
 
+app.use('/api/intelligence/*', authenticateUser);
+
+import { 
+  FirestoreClient, 
+  FinnhubClient, 
+  GeminiClient, 
+  IntelligenceService 
+} from './dispatch';
+
+// 1. Get Canonical Company Intelligence
+app.get('/api/intelligence/company', async (c) => {
+  const symbol = c.req.query('symbol');
+  const exchange = c.req.query('exchange') || 'NASDAQ';
+  if (!symbol) {
+    return c.json({ error: 'Symbol parameter is required' }, 400);
+  }
+
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const finnhubKey = c.env.FINNHUB_API_KEY;
+  const geminiKey = c.env.GEMINI_API_KEY;
+
+  if (!finnhubKey) {
+    return c.json({ error: 'Finnhub API key not configured on backend' }, 500);
+  }
+
+  const firestore = new FirestoreClient(projectId);
+  const finnhub = new FinnhubClient(finnhubKey);
+  const gemini = new GeminiClient(geminiKey || '');
+
+  try {
+    const key = `${symbol.toUpperCase()}:${exchange.toUpperCase()}`;
+    let intel = await firestore.getCompanyIntelligence(symbol, exchange);
+    
+    // If not found or stale (> 7 days), regenerate
+    const isStale = intel ? (Date.now() - new Date(intel.updatedAt).getTime() > 7 * 24 * 60 * 60 * 1000) : true;
+    if (isStale) {
+      console.log(`[Intelligence API] Company record for ${key} is missing or stale. Generating...`);
+      intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
+      await firestore.saveCompanyIntelligence(intel);
+    }
+
+    return c.json(intel);
+  } catch (err: any) {
+    console.error(`[Intelligence API] Error fetching company intelligence:`, err);
+    return c.json({ error: 'Failed to retrieve company intelligence', details: err.message }, 500);
+  }
+});
+
+// 2. Recalculate Conviction Score for a Ticker
+app.post('/api/intelligence/recalculate-conviction', async (c) => {
+  const userId = c.get('userId');
+  const { ticker, exchange } = await c.req.json();
+  if (!ticker) {
+    return c.json({ error: 'Ticker is required' }, 400);
+  }
+  const ex = exchange || 'NASDAQ';
+
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const firestore = new FirestoreClient(projectId);
+
+  try {
+    // 1. Get canonical company intelligence
+    let intel = await firestore.getCompanyIntelligence(ticker, ex);
+    if (!intel) {
+      const finnhubKey = c.env.FINNHUB_API_KEY;
+      const geminiKey = c.env.GEMINI_API_KEY;
+      if (!finnhubKey) throw new Error('Finnhub API key not configured');
+      const finnhub = new FinnhubClient(finnhubKey);
+      const gemini = new GeminiClient(geminiKey || '');
+      intel = await IntelligenceService.generateCompanyIntelligence(ticker, ex, finnhub, gemini);
+      await firestore.saveCompanyIntelligence(intel);
+    }
+
+    // 2. Fetch User Profile for Risk posture
+    let riskProfile: 'conservative' | 'moderate' | 'aggressive' = 'moderate';
+    try {
+      const userProfileRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${userId}`);
+      if (userProfileRes.ok) {
+        const userDoc = await userProfileRes.json() as any;
+        const profile = userDoc.fields?.riskProfile?.stringValue;
+        if (profile === 'conservative' || profile === 'moderate' || profile === 'aggressive') {
+          riskProfile = profile;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read user risk profile, defaulting to moderate', e);
+    }
+
+    // 3. Fetch holdings to get concentration weight
+    const holdings = await firestore.getHoldings(userId);
+    const targetHolding = holdings.find(h => h.ticker.toUpperCase() === ticker.toUpperCase());
+
+    // Compute Conviction
+    const conviction = IntelligenceService.calculateConviction(userId, intel, targetHolding || null, riskProfile);
+    await firestore.saveUserConviction(conviction);
+
+    return c.json(conviction);
+  } catch (err: any) {
+    console.error(`[Conviction API] Recalculation failed:`, err);
+    return c.json({ error: 'Recalculation failed', details: err.message }, 500);
+  }
+});
+
+// 3. Get all User Conviction Scores
+app.get('/api/intelligence/convictions', async (c) => {
+  const userId = c.get('userId');
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const firestore = new FirestoreClient(projectId);
+
+  try {
+    const list = await firestore.getAllUserConvictions(userId);
+    return c.json(list);
+  } catch (err: any) {
+    console.error(`[Conviction API] Error listing convictions:`, err);
+    return c.json({ error: 'Failed to retrieve convictions', details: err.message }, 500);
+  }
+});
+
+// 4. Get Business School Concept Case Study
+app.get('/api/intelligence/business-school/case', async (c) => {
+  const conceptId = c.req.query('conceptId');
+  const symbol = c.req.query('symbol');
+  const exchange = c.req.query('exchange') || 'NASDAQ';
+
+  if (!conceptId || !symbol) {
+    return c.json({ error: 'conceptId and symbol parameters are required' }, 400);
+  }
+
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const firestore = new FirestoreClient(projectId);
+
+  const CONCEPTS: Record<string, { name: string; definition: string; equation: string }> = {
+    operating_leverage: {
+      name: 'Operating Leverage',
+      definition: 'A measure of how revenue growth translates into growth in operating income based on the ratio of fixed vs variable costs.',
+      equation: 'Operating Leverage = % Change in EBIT / % Change in Revenue'
+    },
+    economic_moats: {
+      name: 'Economic Moats',
+      definition: 'A business\'s ability to maintain a competitive advantage over its competitors to protect its long-term profits and market share.',
+      equation: 'Moat Strength = High Return on Invested Capital (ROIC) vs Cost of Capital (WACC)'
+    },
+    free_cash_flow_margin: {
+      name: 'Free Cash Flow Margin',
+      definition: 'The percentage of revenue that a company converts into free cash flow, representing true deployable cash profits.',
+      equation: 'FCF Margin = Free Cash Flow / Revenue'
+    },
+    financial_solvency: {
+      name: 'Leverage & Financial Solvency',
+      definition: 'Evaluating a company\'s debt burden relative to its equity capitalization to measure structural insolvency risk.',
+      equation: 'Leverage Ratio = Total Debt / Total Equity'
+    }
+  };
+
+  const concept = CONCEPTS[conceptId];
+  if (!concept) {
+    return c.json({ error: 'Unknown concept ID' }, 400);
+  }
+
+  try {
+    let intel = await firestore.getCompanyIntelligence(symbol, exchange);
+    if (!intel) {
+      const finnhubKey = c.env.FINNHUB_API_KEY;
+      const geminiKey = c.env.GEMINI_API_KEY;
+      if (!finnhubKey) throw new Error('Finnhub API key not configured');
+      const finnhub = new FinnhubClient(finnhubKey);
+      const gemini = new GeminiClient(geminiKey || '');
+      intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
+      await firestore.saveCompanyIntelligence(intel);
+    }
+
+    let dynamicNarrative = '';
+    if (conceptId === 'operating_leverage') {
+      dynamicNarrative = `Apple Inc. (or target company ${intel.name}) showcases the power of operating leverage when revenue expands. The company runs highly profitable Software/Services divisions alongside its hardware divisions. While hardware manufacturing involves high marginal unit costs, Software Services have an estimated 70%+ gross margin. Therefore, as Services revenue scales up, fixed development costs remain flat, causing operating income to grow faster than top-line revenue.`;
+    } else if (conceptId === 'economic_moats') {
+      dynamicNarrative = `${intel.name} has a evaluated competitive moat of "${intel.research.moatRating.toUpperCase()}". Qualitative assessment shows: ${intel.research.moatRationale}. High moat profiles allow companies to defend their profit margins against competitive duplication, leading to sustained high returns on capital.`;
+    } else if (conceptId === 'free_cash_flow_margin') {
+      dynamicNarrative = `${intel.name} converts revenue to real cash profits with a Free Cash Flow (FCF) margin of ${intel.research.freeCashFlowMargin.toFixed(1)}%. Companies with FCF margins > 20% are considered cash-rich. This gives ${intel.name} the flexibility to buy back shares, clear debt, pay dividends, or fund research without reliance on bank loans.`;
+    } else if (conceptId === 'financial_solvency') {
+      dynamicNarrative = `Evaluating ${intel.name}'s leverage ratio of ${intel.research.leverageRatio.toFixed(2)}. In general, leverage ratios below 0.5 indicate conservative leverage and structural safety, whereas leverage ratios above 1.5 indicate high dependency on credit debt markets, raising insolvency risk during rate-hiking macro cycles.`;
+    }
+
+    return c.json({
+      conceptId,
+      conceptName: concept.name,
+      definition: concept.definition,
+      equation: concept.equation,
+      companyExample: symbol.toUpperCase(),
+      companyName: intel.name,
+      caseStudyNarrative: dynamicNarrative,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error(`[Business School API] Error:`, err);
+    return c.json({ error: 'Failed to compile case study', details: err.message }, 500);
+  }
+});
+
 // Fallback route
+
 app.all('*', (c) => {
   return c.json({ error: 'Endpoint not found' }, 404);
 });

@@ -8,6 +8,7 @@ import { Settings } from './pages/Settings';
 import { Watchlist } from './pages/Watchlist';
 import { Reports } from './pages/Reports';
 import { Opportunities } from './pages/Opportunities';
+import { IntelligenceHub } from './pages/IntelligenceHub';
 
 export const App: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ export const App: React.FC = () => {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/opportunities" element={<Opportunities />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/intelligence" element={<IntelligenceHub />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           
