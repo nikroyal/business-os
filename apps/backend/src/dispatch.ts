@@ -237,6 +237,14 @@ export interface DispatchHistory {
   errorMessage?: string;
 }
 
+export interface SmartMoneyMetric<T> {
+  value: T | null;
+  source: string;
+  timestamp: string;
+  freshness: string;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+}
+
 export interface CompanyIntelligence {
   ticker: string;
   exchange: string;
@@ -244,6 +252,11 @@ export interface CompanyIntelligence {
   sector: string;
   qualityScore: number;
   qualityRationale: string;
+  qualityBreakdown?: {
+    moat: { score: number; max: number; weight: number; contribution: number; value: string; rationale: string };
+    leverage: { score: number; max: number; weight: number; contribution: number; value: number; rationale: string };
+    fcfMargin: { score: number; max: number; weight: number; contribution: number; value: number; rationale: string };
+  };
   research: {
     moatRating: 'wide' | 'narrow' | 'none';
     moatRationale: string;
@@ -252,6 +265,16 @@ export interface CompanyIntelligence {
     freeCashFlowMargin: number;
     majorRisks: string[];
     updatedAt: string;
+    fundamentals?: {
+      revenueGrowthYoy: number | null;
+      earningsGrowthYoy: number | null;
+      roic: number | null;
+      grossMargin: number | null;
+      operatingMargin: number | null;
+      debtToEquity: number | null;
+      marketCapMillions: number | null;
+      industry: string | null;
+    };
   };
   dip: {
     dipDetected: boolean;
@@ -259,14 +282,40 @@ export interface CompanyIntelligence {
     zScore: number;
     catalyst: string;
     isStructural: boolean;
+    currentPrice?: number;
+    fiftyTwoWeekHigh?: number;
+    fiftyTwoWeekLow?: number;
+    ema50?: number;
+    volatility?: number;
+    qualityScore?: number;
+    classification?: 'Healthy' | 'Uncertain' | 'Dangerous';
+    classificationRationale?: string;
     updatedAt: string;
   };
   smartMoney: {
-    institutionalOwnershipPercent: number;
-    netInstitutionalFlow: 'accumulation' | 'distribution' | 'neutral';
+    institutionalOwnershipPercent: number | null;
+    netInstitutionalFlow: 'accumulation' | 'distribution' | 'neutral' | 'unavailable';
     accumulationScore: number;
-    optionsVolumeRatio: number;
-    optionSentiment: 'bullish' | 'bearish' | 'neutral';
+    optionsVolumeRatio: number | null;
+    optionSentiment: 'bullish' | 'bearish' | 'neutral' | 'unavailable';
+    insiderTransactions?: SmartMoneyMetric<{
+      netSharesBought: number;
+      totalTransactionsCount: number;
+      buyCount: number;
+      sellCount: number;
+    }>;
+    insiderSentiment?: SmartMoneyMetric<{
+      mspr: number;
+      change: number;
+    }>;
+    optionsVolume?: SmartMoneyMetric<{
+      putCallRatio: number;
+      sentiment: 'bullish' | 'bearish' | 'neutral';
+    }>;
+    institutionalOwnership?: SmartMoneyMetric<{
+      ownershipPercent: number;
+      netFlow: 'accumulation' | 'distribution' | 'neutral';
+    }>;
     updatedAt: string;
   };
   updatedAt: string;
@@ -275,6 +324,8 @@ export interface CompanyIntelligence {
 export interface FactorBreakdown {
   score: number;
   max: number;
+  weight: number;
+  contribution: number;
   explanation: string;
 }
 
@@ -847,6 +898,49 @@ export class IntelligenceService {
     const history = await finnhub.getHistoricalPrices(ticker, 60, exchange);
     const financials = await finnhub.getFinancials(ticker, exchange);
     
+    // Part 1: Smart Money - Fetch real Insider Transactions & Sentiment
+    const insiderTxRaw = await finnhub.getInsiderTransactions(ticker, exchange);
+    const insiderSentRaw = await finnhub.getInsiderSentiment(ticker, exchange);
+    
+    let netSharesBought = 0;
+    let txCount = 0;
+    let buyCount = 0;
+    let sellCount = 0;
+    let txSource = 'Finnhub Insider Transactions API';
+    let txConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
+    let txValue = null;
+
+    if (insiderTxRaw && Array.isArray(insiderTxRaw.data)) {
+      txCount = insiderTxRaw.data.length;
+      txConfidence = txCount > 0 ? 'high' : 'medium';
+      insiderTxRaw.data.forEach((tx: any) => {
+        const change = tx.change || 0;
+        netSharesBought += change;
+        if (change > 0) buyCount++;
+        if (change < 0) sellCount++;
+      });
+      txValue = {
+        netSharesBought,
+        totalTransactionsCount: txCount,
+        buyCount,
+        sellCount
+      };
+    }
+
+    let mspr = 0;
+    let changePct = 0;
+    let sentSource = 'Finnhub Insider Sentiment API';
+    let sentConfidence: 'high' | 'medium' | 'low' | 'none' = 'none';
+    let sentValue = null;
+
+    if (insiderSentRaw && Array.isArray(insiderSentRaw.data) && insiderSentRaw.data.length > 0) {
+      const latest = insiderSentRaw.data[insiderSentRaw.data.length - 1];
+      mspr = latest.mspr || 0;
+      changePct = latest.change || 0;
+      sentConfidence = 'high';
+      sentValue = { mspr, change: changePct };
+    }
+
     const name = meta?.name || ticker;
     const sector = meta?.industry || 'General Equities';
     const leverage = financials?.leverageRatio ?? 0.45;
@@ -883,7 +977,7 @@ Leverage Ratio (Debt/Equity): ${leverage}`;
       console.warn(`Gemini research generation failed for ${ticker}, using fallback:`, e);
     }
 
-    // Foundational Quality Score (Requirement 4)
+    // Standardized Quality Score Framework
     let moatPts = 10;
     if (researchQual.moatRating === 'wide') moatPts = 40;
     else if (researchQual.moatRating === 'narrow') moatPts = 25;
@@ -901,24 +995,43 @@ Leverage Ratio (Debt/Equity): ${leverage}`;
     const qualityScore = moatPts + leveragePts + fcfPts;
     const qualityRationale = `${name} has a Quality Score of ${qualityScore}/100. Breakdown - Moat: ${researchQual.moatRating.toUpperCase()} (${moatPts}/40), Leverage: ${leverage.toFixed(2)} (${leveragePts}/30), FCF Margin: ${fcfMargin.toFixed(1)}% (${fcfPts}/30).`;
 
-    // 2. Dip Detection
+    const qualityBreakdown = {
+      moat: { score: moatPts, max: 40, weight: 0.4, contribution: moatPts, value: researchQual.moatRating.toUpperCase(), rationale: researchQual.moatRationale },
+      leverage: { score: leveragePts, max: 30, weight: 0.3, contribution: leveragePts, value: leverage, rationale: `Leverage ratio is ${leverage.toFixed(2)}.` },
+      fcfMargin: { score: fcfPts, max: 30, weight: 0.3, contribution: fcfPts, value: fcfMargin, rationale: `Free Cash Flow Margin is ${fcfMargin.toFixed(1)}%.` }
+    };
+
+    // Dip Detection Validation & Classification
     let dipDetected = false;
     let severityPercent = 0;
     let zScore = 0;
     let dipCatalyst = 'No unusual price decline detected.';
     let isStructural = false;
 
+    let currentPrice = quote.current || 0;
+    let fiftyTwoWeekHigh = quote.current || 0;
+    let fiftyTwoWeekLow = quote.current || 0;
+    let ema50 = quote.current || 0;
+    let volatility = 0;
+    let classification: 'Healthy' | 'Uncertain' | 'Dangerous' = 'Healthy';
+    let classificationRationale = 'Asset is trading within standard volatility ranges.';
+
     if (history && history.length > 5) {
-      const currentPrice = quote.current || history[history.length - 1];
+      currentPrice = quote.current || history[history.length - 1];
+      fiftyTwoWeekHigh = Math.max(...history, currentPrice);
+      fiftyTwoWeekLow = Math.min(...history, currentPrice);
+      
       let ema = history[0];
       const alpha = 2 / (50 + 1);
       for (let i = 1; i < history.length; i++) {
         ema = (history[i] * alpha) + (ema * (1 - alpha));
       }
+      ema50 = ema;
       
       const avgPrice = history.reduce((sum, val) => sum + val, 0) / history.length;
       const variance = history.reduce((sum, val) => sum + Math.pow(val - avgPrice, 2), 0) / history.length;
       const stdDev = Math.sqrt(variance) || 1;
+      volatility = stdDev;
       
       zScore = (currentPrice - ema) / stdDev;
       severityPercent = ((currentPrice - ema) / ema) * 100;
@@ -950,31 +1063,37 @@ Evaluate if this dip is structural or transient.`;
       }
     }
 
-    // 3. Smart Money
-    const instOwnership = ticker.charCodeAt(0) % 2 === 0 ? 55 + (ticker.length % 25) : 35 + (ticker.length % 35);
-    const optionsVolRatio = ticker.charCodeAt(0) % 3 === 0 ? 1.45 : 0.95;
+    // Dip classification explainability
+    if (dipDetected) {
+      if (qualityScore >= 70 && !isStructural) {
+        classification = 'Healthy';
+        classificationRationale = `Transient dip detected on high quality business (Quality Score ${qualityScore}/100) with a safe Z-score of ${zScore.toFixed(2)}. Indicates an institutional buy-the-dip window.`;
+      } else if (qualityScore < 40 || isStructural) {
+        classification = 'Dangerous';
+        classificationRationale = isStructural 
+          ? `Structural dip detected (catalyst alters competitive moat permanently). Risk of structural value trap.` 
+          : `Decline detected on low-grade asset (Quality Score ${qualityScore}/100). Elevated risk of capital impairment.`;
+      } else {
+        classification = 'Uncertain';
+        classificationRationale = `Decline detected on mid-grade asset (Quality Score ${qualityScore}/100). Catalysts are mixed, warranting standard allocation limits.`;
+      }
+    } else {
+      classification = 'Healthy';
+      classificationRationale = 'No unusual dip detected. Traded asset is priced within standard deviations.';
+    }
+
+    // Smart Money metrics formatting with source and confidence details
+    const timestamp = new Date().toISOString();
+    const freshness = 'Fresh (Cached)';
     
-    let netInstFlow: 'accumulation' | 'distribution' | 'neutral' = 'neutral';
-    let optionSent: 'bullish' | 'bearish' | 'neutral' = 'neutral';
-    let accumulationScore = 12;
+    // Backwards compatibility logic (set to null/unavailable to avoid fabrication)
+    const institutionalOwnershipPercent = null;
+    const netInstitutionalFlow = 'unavailable' as const;
+    const optionsVolumeRatio = null;
+    const optionSentiment = 'unavailable' as const;
 
-    if (optionsVolRatio > 1.2) {
-      optionSent = 'bullish';
-      accumulationScore += 6;
-    } else if (optionsVolRatio < 0.8) {
-      optionSent = 'bearish';
-      accumulationScore -= 6;
-    }
+    let accumulationScore = 12; // Baseline neutral heuristic
 
-    if (instOwnership > 50) {
-      netInstFlow = 'accumulation';
-      accumulationScore += 7;
-    } else if (instOwnership < 30) {
-      netInstFlow = 'distribution';
-      accumulationScore -= 4;
-    }
-
-    accumulationScore = Math.max(0, Math.min(25, accumulationScore));
     const updatedAt = new Date().toISOString();
 
     return {
@@ -984,6 +1103,7 @@ Evaluate if this dip is structural or transient.`;
       sector,
       qualityScore,
       qualityRationale,
+      qualityBreakdown,
       research: {
         moatRating: researchQual.moatRating,
         moatRationale: researchQual.moatRationale,
@@ -991,6 +1111,16 @@ Evaluate if this dip is structural or transient.`;
         leverageRatio: leverage,
         freeCashFlowMargin: fcfMargin,
         majorRisks: researchQual.majorRisks,
+        fundamentals: {
+          revenueGrowthYoy: financials?.revenueGrowthYoy ?? null,
+          earningsGrowthYoy: financials?.earningsGrowthYoy ?? null,
+          roic: financials?.roic ?? null,
+          grossMargin: financials?.grossMargin ?? null,
+          operatingMargin: financials?.operatingMargin ?? null,
+          debtToEquity: financials?.debtToEquity ?? null,
+          marketCapMillions: meta?.marketCapitalization ?? null,
+          industry: meta?.industry ?? null
+        },
         updatedAt
       },
       dip: {
@@ -999,14 +1129,50 @@ Evaluate if this dip is structural or transient.`;
         zScore,
         catalyst: dipCatalyst,
         isStructural,
+        currentPrice,
+        fiftyTwoWeekHigh,
+        fiftyTwoWeekLow,
+        ema50,
+        volatility,
+        qualityScore,
+        classification,
+        classificationRationale,
         updatedAt
       },
       smartMoney: {
-        institutionalOwnershipPercent: instOwnership,
-        netInstitutionalFlow: netInstFlow,
+        institutionalOwnershipPercent,
+        netInstitutionalFlow,
         accumulationScore,
-        optionsVolumeRatio: optionsVolRatio,
-        optionSentiment: optionSent,
+        optionsVolumeRatio,
+        optionSentiment,
+        insiderTransactions: {
+          value: txValue,
+          source: txSource,
+          timestamp,
+          freshness,
+          confidence: txConfidence
+        },
+        insiderSentiment: {
+          value: sentValue,
+          source: sentSource,
+          timestamp,
+          freshness,
+          confidence: sentConfidence
+        },
+        optionsVolume: {
+          value: null,
+          source: 'Finnhub Options Volume API',
+          timestamp,
+          freshness: 'Data unavailable',
+          confidence: 'none'
+        },
+        institutionalOwnership: {
+          value: null,
+          source: 'SEC Form 13F database',
+          timestamp,
+          freshness: 'Data unavailable',
+          confidence: 'none'
+        },
         updatedAt
       },
       updatedAt
@@ -1020,44 +1186,63 @@ Evaluate if this dip is structural or transient.`;
     riskProfile: 'conservative' | 'moderate' | 'aggressive'
   ): UserConviction {
     const weight = holding ? 10 : 0;
-    let allocationScore = 25;
-    let allocationExplanation = '';
     
+    // 1. Allocation Factor
+    let rawAllocationScore = 100;
+    let allocationExplanation = '';
     if (riskProfile === 'conservative') {
-      const penalty = Math.max(0, Math.min(25, (weight - 10) * 2.5));
-      allocationScore = Math.round(25 - penalty);
-      allocationExplanation = `Holding weight is ${weight}%. Conservative weight ceiling is 10%. Penalized ${penalty.toFixed(0)} pts.`;
+      const penalty = Math.max(0, Math.min(100, (weight - 10) * 10));
+      rawAllocationScore = Math.round(100 - penalty);
+      allocationExplanation = `Holding weight is ${weight}%. Conservative weight ceiling is 10%. Raw Allocation Score: ${rawAllocationScore}/100. Weight: 25%. Contribution: ${Math.round(rawAllocationScore * 0.25)}/25.`;
     } else {
       const diff = Math.abs(weight - 15);
-      const penalty = Math.max(0, Math.min(25, diff * 1.66));
-      allocationScore = Math.round(25 - penalty);
-      allocationExplanation = `Holding weight is ${weight}%. Target optimal weight is 15%. Penalized ${penalty.toFixed(0)} pts.`;
+      const penalty = Math.max(0, Math.min(100, diff * 6.67));
+      rawAllocationScore = Math.round(100 - penalty);
+      allocationExplanation = `Holding weight is ${weight}%. Target optimal weight is 15%. Raw Allocation Score: ${rawAllocationScore}/100. Weight: 25%. Contribution: ${Math.round(rawAllocationScore * 0.25)}/25.`;
     }
+    const allocationContribution = Math.round(rawAllocationScore * 0.25);
 
-    const fundamentalScore = Math.round(intel.qualityScore / 4);
-    const fundamentalExplanation = `Fundamental Quality Score is ${intel.qualityScore}/100. Contributes ${fundamentalScore}/25 to conviction. ${intel.qualityRationale}`;
+    // 2. Fundamental Factor
+    const rawFundamentalScore = intel.qualityScore;
+    const fundamentalContribution = Math.round(rawFundamentalScore * 0.25);
+    const fundamentalExplanation = `Fundamental Quality Score is ${intel.qualityScore}/100. Raw Score: ${rawFundamentalScore}/100. Weight: 25%. Contribution: ${fundamentalContribution}/25. Details: ${intel.qualityRationale}`;
 
-    let dipScore = 10;
-    let dipExplanation = 'No unusual dip detected. Traded assets scored at baseline fair value.';
+    // 3. Dip Factor
+    let rawDipScore = 40; // baseline
+    let dipExplanation = 'No unusual dip detected. Traded asset is priced within standard deviations. Raw Score: 40/100 (baseline). Weight: 25%. Contribution: 10/25.';
     if (intel.dip.dipDetected) {
       if (intel.dip.isStructural) {
-        dipScore = 3;
-        dipExplanation = `Unusual dip detected (${intel.dip.severityPercent.toFixed(1)}%), but catalyst is STRUCTURAL (risk of value trap). Penalized to 3 pts.`;
+        rawDipScore = 12;
+        dipExplanation = `Unusual dip detected (${intel.dip.severityPercent.toFixed(1)}%), but catalyst is STRUCTURAL (risk of structural value trap). Raw Score: 12/100. Weight: 25%. Contribution: 3/25.`;
       } else {
         if (intel.dip.zScore <= -2.0) {
-          dipScore = 25;
-          dipExplanation = `Significant transient dip deviation (Z-score ${intel.dip.zScore.toFixed(2)}, severity ${intel.dip.severityPercent.toFixed(1)}%). Optimal buying discount.`;
+          rawDipScore = 100;
+          dipExplanation = `Significant transient dip deviation (Z-score ${intel.dip.zScore.toFixed(2)}, severity ${intel.dip.severityPercent.toFixed(1)}%). Optimal buying discount. Raw Score: 100/100. Weight: 25%. Contribution: 25/25.`;
         } else {
-          dipScore = 18;
-          dipExplanation = `Moderate transient dip deviation (Z-score ${intel.dip.zScore.toFixed(2)}, severity ${intel.dip.severityPercent.toFixed(1)}%).`;
+          rawDipScore = 72;
+          dipExplanation = `Moderate transient dip deviation (Z-score ${intel.dip.zScore.toFixed(2)}, severity ${intel.dip.severityPercent.toFixed(1)}%). Raw Score: 72/100. Weight: 25%. Contribution: 18/25.`;
         }
       }
     }
+    const dipContribution = Math.round(rawDipScore * 0.25);
 
-    const instScore = Math.round(intel.smartMoney.accumulationScore);
-    const instExplanation = `Institutional holdings at ${intel.smartMoney.institutionalOwnershipPercent}%. Net Flow: ${intel.smartMoney.netInstitutionalFlow.toUpperCase()}. Options Volatility Sentiment: ${intel.smartMoney.optionSentiment.toUpperCase()}.`;
+    // 4. Institutional Factor
+    // Convert 0-25 accumulationScore to 0-100 raw score
+    const rawInstScore = Math.round(intel.smartMoney.accumulationScore * 4);
+    const instContribution = Math.round(rawInstScore * 0.25);
+    
+    const instPercentText = intel.smartMoney.institutionalOwnershipPercent !== null 
+      ? `${intel.smartMoney.institutionalOwnershipPercent}%` 
+      : 'Data unavailable';
+    const netFlowText = intel.smartMoney.netInstitutionalFlow !== 'unavailable'
+      ? intel.smartMoney.netInstitutionalFlow.toUpperCase()
+      : 'UNAVAILABLE';
+    const optionSentimentText = intel.smartMoney.optionSentiment !== 'unavailable'
+      ? intel.smartMoney.optionSentiment.toUpperCase()
+      : 'UNAVAILABLE';
+    const instExplanation = `Institutional holdings: ${instPercentText}. Net Flow: ${netFlowText}. Options Sentiment: ${optionSentimentText}. Raw Score: ${rawInstScore}/100. Weight: 25%. Contribution: ${instContribution}/25.`;
 
-    const overallScore = allocationScore + fundamentalScore + dipScore + instScore;
+    const overallScore = allocationContribution + fundamentalContribution + dipContribution + instContribution;
 
     let rationale = `${intel.name} displays an overall Conviction Score of ${overallScore}/100 based on your ${riskProfile} risk posture. `;
     if (overallScore >= 80) {
@@ -1074,10 +1259,10 @@ Evaluate if this dip is structural or transient.`;
       exchange: intel.exchange,
       overallScore,
       breakdown: {
-        allocationFactor: { score: allocationScore, max: 25, explanation: allocationExplanation },
-        fundamentalFactor: { score: fundamentalScore, max: 25, explanation: fundamentalExplanation },
-        dipFactor: { score: dipScore, max: 25, explanation: dipExplanation },
-        institutionalFactor: { score: instScore, max: 25, explanation: instExplanation }
+        allocationFactor: { score: rawAllocationScore, max: 100, weight: 0.25, contribution: allocationContribution, explanation: allocationExplanation },
+        fundamentalFactor: { score: rawFundamentalScore, max: 100, weight: 0.25, contribution: fundamentalContribution, explanation: fundamentalExplanation },
+        dipFactor: { score: rawDipScore, max: 100, weight: 0.25, contribution: dipContribution, explanation: dipExplanation },
+        institutionalFactor: { score: rawInstScore, max: 100, weight: 0.25, contribution: instContribution, explanation: instExplanation }
       },
       rationale,
       updatedAt: new Date().toISOString()
@@ -1740,7 +1925,16 @@ export class FinnhubClient {
     }
   }
 
-  async getFinancials(ticker: string, exchange?: string): Promise<{ leverageRatio: number; freeCashFlowMargin: number } | null> {
+  async getFinancials(ticker: string, exchange?: string): Promise<{
+    leverageRatio: number;
+    freeCashFlowMargin: number;
+    revenueGrowthYoy: number | null;
+    earningsGrowthYoy: number | null;
+    roic: number | null;
+    grossMargin: number | null;
+    operatingMargin: number | null;
+    debtToEquity: number | null;
+  } | null> {
     const symbol = this.formatSymbol(ticker, exchange);
     await this.throttle();
     try {
@@ -1750,14 +1944,54 @@ export class FinnhubClient {
       if (data && data.metric) {
         const debtToEquity = data.metric['totalDebt/totalEquity'] || data.metric['totalDebt/commonEquity'] || 0.45;
         const fcfMargin = data.metric['freeCashFlowMarginDaily'] || data.metric['freeCashFlowMarginTTM'] || 20.0;
+        const revGrowth = data.metric['revenueGrowthQuarterlyYoy'] || data.metric['revenueGrowthTTMYoy'] || null;
+        const epsGrowth = data.metric['epsGrowthQuarterlyYoy'] || data.metric['epsGrowthTTMYoy'] || null;
+        const roic = data.metric['roicTTM'] || data.metric['roicAnnual'] || null;
+        const grossMargin = data.metric['grossMarginTTM'] || data.metric['grossMarginAnnual'] || null;
+        const operatingMargin = data.metric['operatingMarginTTM'] || data.metric['operatingMarginAnnual'] || null;
+        
         return {
           leverageRatio: typeof debtToEquity === 'number' ? debtToEquity / 100 : 0.45,
-          freeCashFlowMargin: typeof fcfMargin === 'number' ? fcfMargin : 20.0
+          freeCashFlowMargin: typeof fcfMargin === 'number' ? fcfMargin : 20.0,
+          revenueGrowthYoy: revGrowth,
+          earningsGrowthYoy: epsGrowth,
+          roic,
+          grossMargin,
+          operatingMargin,
+          debtToEquity: typeof debtToEquity === 'number' ? debtToEquity : null
         };
       }
       return null;
     } catch (err) {
       console.warn(`Error getting financials for ${symbol}:`, err);
+      return null;
+    }
+  }
+
+  async getInsiderTransactions(ticker: string, exchange?: string): Promise<any | null> {
+    const symbol = this.formatSymbol(ticker, exchange);
+    if (exchange?.toUpperCase() === 'CRYPTO' || exchange?.toUpperCase() === 'CASH') return null;
+    await this.throttle();
+    try {
+      const res = await fetch(`https://finnhub.io/api/v1/stock/insider-transactions?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`);
+      if (!res.ok) throw new Error(`Finnhub insider transactions returned HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.warn(`Error getting insider transactions for ${symbol}:`, err);
+      return null;
+    }
+  }
+
+  async getInsiderSentiment(ticker: string, exchange?: string): Promise<any | null> {
+    const symbol = this.formatSymbol(ticker, exchange);
+    if (exchange?.toUpperCase() === 'CRYPTO' || exchange?.toUpperCase() === 'CASH') return null;
+    await this.throttle();
+    try {
+      const res = await fetch(`https://finnhub.io/api/v1/stock/insider-sentiment?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`);
+      if (!res.ok) throw new Error(`Finnhub insider sentiment returned HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      console.warn(`Error getting insider sentiment for ${symbol}:`, err);
       return null;
     }
   }

@@ -1,5 +1,6 @@
 import { dbService } from './firebase';
 import type { Holding, WatchlistItem, DailyReport, Opportunity } from './firebase';
+import IntelligenceService from './intelligenceService';
 
 export class SampleDataService {
   /**
@@ -123,6 +124,9 @@ export class SampleDataService {
     if (existingHoldings.length === 0) {
       for (const h of sampleHoldings) {
         await dbService.addHolding(userId, h);
+        if (h.ticker !== 'CASH') {
+          await IntelligenceService.recalculateConviction(h.ticker, h.exchange);
+        }
       }
     }
 

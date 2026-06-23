@@ -540,13 +540,26 @@ app.get('/api/intelligence/business-school/case', async (c) => {
 
     let dynamicNarrative = '';
     if (conceptId === 'operating_leverage') {
-      dynamicNarrative = `Apple Inc. (or target company ${intel.name}) showcases the power of operating leverage when revenue expands. The company runs highly profitable Software/Services divisions alongside its hardware divisions. While hardware manufacturing involves high marginal unit costs, Software Services have an estimated 70%+ gross margin. Therefore, as Services revenue scales up, fixed development costs remain flat, causing operating income to grow faster than top-line revenue.`;
+      const gm = intel.research.fundamentals?.grossMargin;
+      const om = intel.research.fundamentals?.operatingMargin;
+      const gmText = gm !== null && gm !== undefined ? `${gm.toFixed(1)}%` : 'strong';
+      const omText = om !== null && om !== undefined ? `${om.toFixed(1)}%` : 'healthy';
+      dynamicNarrative = `${intel.name} illustrates operating leverage in the ${intel.sector} sector. With a gross margin of ${gmText} and an operating margin of ${omText}, unit economics are highly favorable. As sales expand, fixed costs (such as research and development and infrastructure) remain stable, driving operating profits to expand much faster than top-line revenues.`;
     } else if (conceptId === 'economic_moats') {
-      dynamicNarrative = `${intel.name} has a evaluated competitive moat of "${intel.research.moatRating.toUpperCase()}". Qualitative assessment shows: ${intel.research.moatRationale}. High moat profiles allow companies to defend their profit margins against competitive duplication, leading to sustained high returns on capital.`;
+      const roic = intel.research.fundamentals?.roic;
+      const roicText = roic !== null && roic !== undefined ? `${roic.toFixed(1)}%` : 'strong';
+      dynamicNarrative = `${intel.name}'s competitive advantage is evaluated as a "${intel.research.moatRating.toUpperCase()}" moat, backed by ROIC of ${roicText}. Qualitative assessment shows: ${intel.research.moatRationale}. High moat profiles allow companies to defend their profit margins against competitive duplication, leading to sustained high returns on capital.`;
     } else if (conceptId === 'free_cash_flow_margin') {
-      dynamicNarrative = `${intel.name} converts revenue to real cash profits with a Free Cash Flow (FCF) margin of ${intel.research.freeCashFlowMargin.toFixed(1)}%. Companies with FCF margins > 20% are considered cash-rich. This gives ${intel.name} the flexibility to buy back shares, clear debt, pay dividends, or fund research without reliance on bank loans.`;
+      const rg = intel.research.fundamentals?.revenueGrowthYoy;
+      const eg = intel.research.fundamentals?.earningsGrowthYoy;
+      const rgText = rg !== null && rg !== undefined ? `+${rg.toFixed(1)}% YoY` : 'steady growth';
+      const egText = eg !== null && eg !== undefined ? `+${eg.toFixed(1)}% YoY` : 'steady expansion';
+      dynamicNarrative = `${intel.name} converts revenue to deployable cash with a Free Cash Flow (FCF) margin of ${intel.research.freeCashFlowMargin.toFixed(1)}%, backed by YoY revenue growth of ${rgText} and earnings growth of ${egText}. This high conversion indicates low capital intensity, allowing ${intel.name} to self-fund expansion, pay down leverage, or return cash to owners.`;
     } else if (conceptId === 'financial_solvency') {
-      dynamicNarrative = `Evaluating ${intel.name}'s leverage ratio of ${intel.research.leverageRatio.toFixed(2)}. In general, leverage ratios below 0.5 indicate conservative leverage and structural safety, whereas leverage ratios above 1.5 indicate high dependency on credit debt markets, raising insolvency risk during rate-hiking macro cycles.`;
+      const de = intel.research.fundamentals?.debtToEquity !== null && intel.research.fundamentals?.debtToEquity !== undefined 
+        ? intel.research.fundamentals.debtToEquity 
+        : intel.research.leverageRatio;
+      dynamicNarrative = `Evaluating ${intel.name}'s balance sheet solvency showing a Debt/Equity ratio of ${de.toFixed(2)}. In general, leverage ratios below 0.50 indicate conservative capital structure and strong safety buffers. This profile reduces insolvency risks during macro rate-hiking cycles, assuring structural stability.`;
     }
 
     return c.json({

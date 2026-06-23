@@ -158,6 +158,14 @@ export interface AICommentary {
   inputHash: string;
 }
 
+export interface SmartMoneyMetric<T> {
+  value: T | null;
+  source: string;
+  timestamp: string;
+  freshness: string;
+  confidence: 'high' | 'medium' | 'low' | 'none';
+}
+
 export interface CompanyIntelligence {
   ticker: string;
   exchange: string;
@@ -165,6 +173,11 @@ export interface CompanyIntelligence {
   sector: string;
   qualityScore: number;
   qualityRationale: string;
+  qualityBreakdown?: {
+    moat: { score: number; max: number; weight: number; contribution: number; value: string; rationale: string };
+    leverage: { score: number; max: number; weight: number; contribution: number; value: number; rationale: string };
+    fcfMargin: { score: number; max: number; weight: number; contribution: number; value: number; rationale: string };
+  };
   research: {
     moatRating: 'wide' | 'narrow' | 'none';
     moatRationale: string;
@@ -173,6 +186,16 @@ export interface CompanyIntelligence {
     freeCashFlowMargin: number;
     majorRisks: string[];
     updatedAt: string;
+    fundamentals?: {
+      revenueGrowthYoy: number | null;
+      earningsGrowthYoy: number | null;
+      roic: number | null;
+      grossMargin: number | null;
+      operatingMargin: number | null;
+      debtToEquity: number | null;
+      marketCapMillions: number | null;
+      industry: string | null;
+    };
   };
   dip: {
     dipDetected: boolean;
@@ -180,14 +203,40 @@ export interface CompanyIntelligence {
     zScore: number;
     catalyst: string;
     isStructural: boolean;
+    currentPrice?: number;
+    fiftyTwoWeekHigh?: number;
+    fiftyTwoWeekLow?: number;
+    ema50?: number;
+    volatility?: number;
+    qualityScore?: number;
+    classification?: 'Healthy' | 'Uncertain' | 'Dangerous';
+    classificationRationale?: string;
     updatedAt: string;
   };
   smartMoney: {
-    institutionalOwnershipPercent: number;
-    netInstitutionalFlow: 'accumulation' | 'distribution' | 'neutral';
+    institutionalOwnershipPercent: number | null;
+    netInstitutionalFlow: 'accumulation' | 'distribution' | 'neutral' | 'unavailable';
     accumulationScore: number;
-    optionsVolumeRatio: number;
-    optionSentiment: 'bullish' | 'bearish' | 'neutral';
+    optionsVolumeRatio: number | null;
+    optionSentiment: 'bullish' | 'bearish' | 'neutral' | 'unavailable';
+    insiderTransactions?: SmartMoneyMetric<{
+      netSharesBought: number;
+      totalTransactionsCount: number;
+      buyCount: number;
+      sellCount: number;
+    }>;
+    insiderSentiment?: SmartMoneyMetric<{
+      mspr: number;
+      change: number;
+    }>;
+    optionsVolume?: SmartMoneyMetric<{
+      putCallRatio: number;
+      sentiment: 'bullish' | 'bearish' | 'neutral';
+    }>;
+    institutionalOwnership?: SmartMoneyMetric<{
+      ownershipPercent: number;
+      netFlow: 'accumulation' | 'distribution' | 'neutral';
+    }>;
     updatedAt: string;
   };
   updatedAt: string;
@@ -196,6 +245,8 @@ export interface CompanyIntelligence {
 export interface FactorBreakdown {
   score: number;
   max: number;
+  weight: number;
+  contribution: number;
   explanation: string;
 }
 
@@ -270,6 +321,13 @@ initMockUser();
 // Auth Service wrapper
 export const authService = {
   isMock: !realAuth,
+
+  getCurrentUser() {
+    if (realAuth) {
+      return realAuth.currentUser;
+    }
+    return mockCurrentUser;
+  },
 
   async getIdToken(): Promise<string> {
     if (realAuth && realAuth.currentUser) {
