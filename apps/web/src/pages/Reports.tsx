@@ -519,6 +519,37 @@ export const Reports: React.FC = () => {
                 {/* Left Panel: Market Snapshot & Portfolio Metrics */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                   
+                  {/* Market Intelligence Brief */}
+                  {selectedReport.sections.marketIntelligenceBrief && (
+                    <div style={{ 
+                      background: 'var(--color-bg-secondary)', 
+                      border: '1px solid var(--color-border)', 
+                      padding: '1rem', 
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem',
+                      borderRadius: '4px'
+                    }}>
+                      <h4 style={{ 
+                        fontSize: '0.8rem', 
+                        margin: '0 0 0.25rem 0', 
+                        fontFamily: 'var(--font-mono)', 
+                        textTransform: 'uppercase', 
+                        color: 'var(--color-accent)',
+                        border: 'none',
+                        padding: 0
+                      }}>
+                        Market Intelligence Brief
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                        <div><strong>Active Regimes:</strong> {selectedReport.sections.marketIntelligenceBrief.regimes}</div>
+                        <div><strong>Sector Leadership:</strong> Strongest: {selectedReport.sections.marketIntelligenceBrief.strongestSectors} | Weakest: {selectedReport.sections.marketIntelligenceBrief.weakestSectors}</div>
+                        <div><strong>Macro:</strong> {selectedReport.sections.marketIntelligenceBrief.macroDevelopments}</div>
+                        <div><strong>Notable Changes:</strong> {selectedReport.sections.marketIntelligenceBrief.notableChanges}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Market Snapshot */}
                   <div>
                     <h4 style={{ fontSize: '0.9rem', borderBottom: '1px solid #222', paddingBottom: '0.25rem', marginBottom: '0.75rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

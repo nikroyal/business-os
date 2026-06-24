@@ -10,7 +10,8 @@ import {
   Eye,
   FileText,
   Lightbulb,
-  Brain
+  Brain,
+  TrendingUp
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -50,6 +51,14 @@ export const Sidebar: React.FC = () => {
         >
           <Compass size={20} />
           <span>Dashboard</span>
+        </NavLink>
+
+        <NavLink 
+          to="/markets" 
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <TrendingUp size={20} />
+          <span>Markets</span>
         </NavLink>
 
         <NavLink 

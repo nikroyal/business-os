@@ -9,6 +9,7 @@ import { Watchlist } from './pages/Watchlist';
 import { Reports } from './pages/Reports';
 import { Opportunities } from './pages/Opportunities';
 import { IntelligenceHub } from './pages/IntelligenceHub';
+import { Markets } from './pages/Markets';
 
 export const App: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ export const App: React.FC = () => {
           {/* Protected Main Routes */}
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/markets" element={<Markets />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/opportunities" element={<Opportunities />} />
             <Route path="/reports" element={<Reports />} />

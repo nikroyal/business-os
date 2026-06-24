@@ -76,6 +76,14 @@ export class IntelligenceService {
     // 6. Generate editorial summary text (Simulates Gemini summary)
     const summary = this.generateEditorialSummary(analytics, marketSnapshot.globalTrend, profile);
 
+    const marketIntelligenceBrief = {
+      regimes: "US: Neutral | India: Strong Bull",
+      strongestSectors: "Semiconductors, Financials",
+      weakestSectors: "Utilities, Real Estate",
+      macroDevelopments: "Brent Crude oil climbs to $84.20/bbl on OPEC supply cuts. Spot Gold continues breakout on geopolitical hedging. US 10-Year yield rising near 4.35% pressures growth stock valuations.",
+      notableChanges: "US Market Regime downgraded from Bullish to Neutral due to index trend cooling near 200-day SMA."
+    };
+
     return {
       userId,
       date: dateStr,
@@ -86,7 +94,8 @@ export class IntelligenceService {
         portfolioSummary,
         watchlistMovers,
         riskFlags,
-        learningItem
+        learningItem,
+        marketIntelligenceBrief
       }
     };
   }

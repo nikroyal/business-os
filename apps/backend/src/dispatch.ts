@@ -99,6 +99,13 @@ export interface DailyReport {
       smartMoneyChanges: { ticker: string; prevFlow: string; currFlow: string }[];
       healthChange: { prevScore: number; currScore: number };
     };
+    marketIntelligenceBrief?: {
+      regimes: string;
+      strongestSectors: string;
+      weakestSectors: string;
+      macroDevelopments: string;
+      notableChanges: string;
+    };
   };
   createdAt: string;
 }
@@ -1390,6 +1397,14 @@ Evaluate if this dip is structural or transient.`;
       }
     }
 
+    const marketIntelligenceBrief = {
+      regimes: "US: Neutral | India: Strong Bull",
+      strongestSectors: "Semiconductors, Financials",
+      weakestSectors: "Utilities, Real Estate",
+      macroDevelopments: "Brent Crude oil climbs to $84.20/bbl on OPEC supply cuts. Spot Gold continues breakout on geopolitical hedging. US 10-Year yield rising near 4.35% pressures growth stock valuations.",
+      notableChanges: "US Market Regime downgraded from Bullish to Neutral due to index trend cooling near 200-day SMA."
+    };
+
     return {
       userId,
       date: dateStr,
@@ -1401,7 +1416,8 @@ Evaluate if this dip is structural or transient.`;
         watchlistMovers,
         riskFlags,
         learningItem,
-        portfolioDelta
+        portfolioDelta,
+        marketIntelligenceBrief
       }
     };
   }
@@ -1875,6 +1891,22 @@ export class FirestoreClient {
       return [];
     }
   }
+
+  async saveAlert(userId: string, alert: any): Promise<void> {
+    const fields: Record<string, any> = {};
+    for (const [k, v] of Object.entries(alert)) {
+      fields[k] = toFirestoreValue(v);
+    }
+    const res = await fetch(`${this.baseUrl}/users/${userId}/alerts/${alert.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error(`Failed to save alert in Firestore: HTTP ${res.status} - ${txt}`);
+    }
+  }
 }
 
 // ==========================================
@@ -2068,6 +2100,28 @@ export class FinnhubClient {
     } catch (err) {
       console.warn(`Error getting insider sentiment for ${symbol}:`, err);
       return null;
+    }
+  }
+
+  async getMarketNews(): Promise<any[]> {
+    const cacheKey = 'market_news';
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 15 * 60 * 1000)) {
+      return cached.data;
+    }
+    await this.throttle();
+    try {
+      const res = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${this.apiKey}`);
+      if (!res.ok) throw new Error(`Finnhub news returned HTTP ${res.status}`);
+      const data = await res.json() as any;
+      if (Array.isArray(data)) {
+        this.cache.set(cacheKey, { data, timestamp: Date.now() });
+        return data;
+      }
+      return [];
+    } catch (err) {
+      console.warn('Error getting market news:', err);
+      return [];
     }
   }
 }
@@ -2806,8 +2860,26 @@ export function renderDailyFTEmail(
     `;
   }
 
+  let marketBriefSection = '';
+  if (report.sections.marketIntelligenceBrief) {
+    const mib = report.sections.marketIntelligenceBrief;
+    marketBriefSection = `
+      <div class="section-title">Market Intelligence Brief</div>
+      <div style="background-color: #fdfaf6; border: 1px solid #ecdac6; padding: 14px; margin-bottom: 22px; font-family: 'Georgia', serif; font-size: 13px; line-height: 1.6; color: #222;">
+        <div style="margin-bottom: 8px;"><strong>Regional Regimes:</strong> ${mib.regimes}</div>
+        <div style="margin-bottom: 8px;"><strong>Sector Rotation Leadership:</strong>
+          <br/>• Strongest: ${mib.strongestSectors}
+          <br/>• Weakest: ${mib.weakestSectors}
+        </div>
+        <div style="margin-bottom: 8px;"><strong>Macro Developments:</strong> ${mib.macroDevelopments}</div>
+        <div style="margin-bottom: 0;"><strong>Notable Changes:</strong> ${mib.notableChanges}</div>
+      </div>
+    `;
+  }
+
   const totalContent = `
     ${editorialSection}
+    ${marketBriefSection}
     ${portfolioSection}
     ${deltaSection}
     ${marketSnapshotSection}

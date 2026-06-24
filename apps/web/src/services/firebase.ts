@@ -130,6 +130,13 @@ export interface DailyReport {
       smartMoneyChanges: { ticker: string; prevFlow: string; currFlow: string }[];
       healthChange: { prevScore: number; currScore: number };
     };
+    marketIntelligenceBrief?: {
+      regimes: string;
+      strongestSectors: string;
+      weakestSectors: string;
+      macroDevelopments: string;
+      notableChanges: string;
+    };
   };
   rawContent?: string;
   createdAt: string;
