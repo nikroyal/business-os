@@ -13,6 +13,7 @@ import {
   Clock
 } from 'lucide-react';
 import { PlatformHealthWidget } from '../components/PlatformHealthWidget';
+import { ProvenanceBadge } from '../components/ProvenanceBadge';
 
 export const Markets: React.FC = () => {
   const { user, isMockMode } = useAuth();
@@ -125,34 +126,61 @@ export const Markets: React.FC = () => {
 
       {/* Overview Stat Widgets */}
       <div className="metrics-grid" style={{ marginBottom: '2rem' }}>
-        <div className="metric-card">
-          <span className="metric-label">US MARKET REGIME</span>
-          <div className="metric-value-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.regimes.US.regime.includes('Bull') ? 'var(--color-success-text)' : data.regimes.US.regime.includes('Bear') ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
-              {data.regimes.US.regime}
-            </span>
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <span className="metric-label">US MARKET REGIME</span>
+            <div className="metric-value-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.regimes.US.regime.includes('Bull') ? 'var(--color-success-text)' : data.regimes.US.regime.includes('Bear') ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
+                {data.regimes.US.regime}
+              </span>
+            </div>
+            <span className="metric-subtext">S&P 500: {data.regimes.US.metrics.indexPrice.toFixed(0)} ({data.regimes.US.metrics.dailyChange >= 0 ? '+' : ''}{data.regimes.US.metrics.dailyChange.toFixed(2)}%)</span>
           </div>
-          <span className="metric-subtext">S&P 500: {data.regimes.US.metrics.indexPrice.toFixed(0)} ({data.regimes.US.metrics.dailyChange >= 0 ? '+' : ''}{data.regimes.US.metrics.dailyChange.toFixed(2)}%)</span>
+          <ProvenanceBadge 
+            category="Derived Analytics" 
+            source={data.regimes.US.source} 
+            timestamp={data.regimes.US.timestamp} 
+            confidence={data.regimes.US.confidence > 0.8 ? 'High' : 'Medium'} 
+            style={{ marginTop: '0.75rem', alignSelf: 'flex-start' }}
+          />
         </div>
         
-        <div className="metric-card">
-          <span className="metric-label">INDIA MARKET REGIME</span>
-          <div className="metric-value-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.regimes.IN.regime.includes('Bull') ? 'var(--color-success-text)' : data.regimes.IN.regime.includes('Bear') ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
-              {data.regimes.IN.regime}
-            </span>
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <span className="metric-label">INDIA MARKET REGIME</span>
+            <div className="metric-value-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.regimes.IN.regime.includes('Bull') ? 'var(--color-success-text)' : data.regimes.IN.regime.includes('Bear') ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
+                {data.regimes.IN.regime}
+              </span>
+            </div>
+            <span className="metric-subtext">Nifty 50: {data.regimes.IN.metrics.indexPrice.toFixed(0)} ({data.regimes.IN.metrics.dailyChange >= 0 ? '+' : ''}{data.regimes.IN.metrics.dailyChange.toFixed(2)}%)</span>
           </div>
-          <span className="metric-subtext">Nifty 50: {data.regimes.IN.metrics.indexPrice.toFixed(0)} ({data.regimes.IN.metrics.dailyChange >= 0 ? '+' : ''}{data.regimes.IN.metrics.dailyChange.toFixed(2)}%)</span>
+          <ProvenanceBadge 
+            category="Derived Analytics" 
+            source={data.regimes.IN.source} 
+            timestamp={data.regimes.IN.timestamp} 
+            confidence={data.regimes.IN.confidence > 0.8 ? 'High' : 'Medium'} 
+            style={{ marginTop: '0.75rem', alignSelf: 'flex-start' }}
+          />
         </div>
 
-        <div className="metric-card">
-          <span className="metric-label">PORTFOLIO EXPOSURE DELTA</span>
-          <div className="metric-value-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.portfolioImpact.allocationRiskDelta > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' }}>
-              {data.portfolioImpact.affectedHoldingsCount} Assets Impacted
-            </span>
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <span className="metric-label">PORTFOLIO EXPOSURE DELTA</span>
+            <div className="metric-value-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.5rem 0' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: data.portfolioImpact.allocationRiskDelta > 0 ? 'var(--color-warning-text)' : 'var(--color-success-text)' }}>
+                {data.portfolioImpact.affectedHoldingsCount} Assets Impacted
+              </span>
+            </div>
+            <span className="metric-subtext">Allocation Risk Shift: {data.portfolioImpact.allocationRiskDelta >= 0 ? '+' : ''}{data.portfolioImpact.allocationRiskDelta.toFixed(1)} pts</span>
           </div>
-          <span className="metric-subtext">Allocation Risk Shift: +{data.portfolioImpact.allocationRiskDelta.toFixed(1)} pts</span>
+          <ProvenanceBadge 
+            category="Derived Analytics" 
+            source="Portfolio Impact Engine" 
+            timestamp={data.timestamp} 
+            confidence="High" 
+            style={{ marginTop: '0.75rem', alignSelf: 'flex-start' }}
+          />
         </div>
       </div>
 
@@ -169,8 +197,8 @@ export const Markets: React.FC = () => {
               const badgeColor = event.significance === 'HIGH' ? 'var(--color-danger-text)' : event.significance === 'MEDIUM' ? 'var(--color-warning-text)' : 'var(--text-secondary)';
               const badgeBg = event.significance === 'HIGH' ? 'var(--color-danger-bg)' : event.significance === 'MEDIUM' ? 'var(--color-warning-bg)' : '#1a1a1a';
               return (
-                <div key={event.id} style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.25rem' }}>
+                <div key={event.id} style={{ borderBottom: '1px solid #1a1a1a', paddingBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="mono-tag" style={{ color: badgeColor, background: badgeBg, fontSize: '0.65rem' }}>{event.significance}</span>
                       <strong style={{ fontSize: '0.95rem' }}>{event.title}</strong>
@@ -179,12 +207,16 @@ export const Markets: React.FC = () => {
                       {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p style={{ margin: '0.25rem 0 0.5rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                     {event.description}
                   </p>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', fontStyle: 'italic' }}>
-                    Source: {event.source}
-                  </span>
+                  <ProvenanceBadge 
+                    category="News Intelligence" 
+                    source={event.source} 
+                    timestamp={event.timestamp} 
+                    confidence={event.significance === 'HIGH' ? 'High' : 'Medium'} 
+                    style={{ alignSelf: 'flex-start' }}
+                  />
                 </div>
               );
             })}
@@ -224,21 +256,28 @@ export const Markets: React.FC = () => {
                   padding: '0.75rem 1rem', 
                   display: 'flex', 
                   flexDirection: 'column', 
-                  gap: '0.25rem' 
+                  gap: '0.4rem' 
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: borderLeftColor }}>{item.type}</span>
                     <span className="mono-tag" style={{ fontSize: '0.6rem' }}>{item.significance} PRIORITY</span>
                   </div>
                   <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{item.title}</strong>
-                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                     {item.description}
                   </p>
                   {item.ticker && (
-                    <span style={{ marginTop: '0.25rem', alignSelf: 'start', background: '#222', padding: '1px 5px', fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ alignSelf: 'start', background: '#222', padding: '1px 5px', fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }}>
                       Asset: {item.ticker}
                     </span>
                   )}
+                  <ProvenanceBadge 
+                    category="Derived Analytics" 
+                    source="Decision Engine" 
+                    timestamp={item.timestamp} 
+                    confidence={item.significance === 'HIGH' ? 'High' : 'Medium'} 
+                    style={{ alignSelf: 'flex-start' }}
+                  />
                 </div>
               );
             })}
@@ -333,9 +372,17 @@ export const Markets: React.FC = () => {
 
         {/* Breadth and Macro values */}
         <div className="card-custom" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ borderBottom: '1px solid #333', paddingBottom: '0.75rem' }}>
-            <h2 style={{ fontSize: '1.25rem', margin: 0, padding: 0, border: 'none' }}>Market Breadth & Participation</h2>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Constituents trading above moving average thresholds</span>
+          <div style={{ borderBottom: '1px solid #333', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', margin: 0, padding: 0, border: 'none' }}>Market Breadth & Macro Factors</h2>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Market participation thresholds and Fed macroeconomic yields</span>
+            </div>
+            <ProvenanceBadge 
+              category="Macro Data" 
+              source="FRED Economics Feed" 
+              timestamp={data.timestamp} 
+              confidence="High" 
+            />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -370,11 +417,42 @@ export const Markets: React.FC = () => {
               </div>
             </div>
 
+            {/* Collapsible / dynamic Macroeconomic Indicators Grid */}
+            <div style={{ borderTop: '1px solid #222', paddingTop: '1rem', marginTop: '0.5rem' }}>
+              <strong style={{ fontSize: '0.8rem', display: 'block', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-primary)' }}>
+                Systemic Macro Indicators
+              </strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                {data.macros.map((macro) => {
+                  const isNegativeSpread = macro.id === 't10y2y' && typeof macro.value === 'number' && macro.value < 0;
+                  const isRisingInflation = (macro.id === 'cpiaucsl' || macro.id === 'cpilfesl') && macro.trendDirection === 'Rising';
+                  const valueColor = isNegativeSpread || isRisingInflation ? 'var(--color-danger-text, #ea4335)' : 'var(--text-primary)';
+                  const trendColor = macro.trendDirection === 'Rising' ? '#34a853' : macro.trendDirection === 'Falling' ? '#ea4335' : '#888';
+
+                  return (
+                    <div key={macro.id} style={{ background: '#111', padding: '0.5rem 0.75rem', borderRadius: '2px', border: '1px solid #1c1c1c' }} title={macro.explanation}>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {macro.name}
+                      </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '0.25rem' }}>
+                        <strong style={{ fontSize: '0.9rem', color: valueColor, fontFamily: 'var(--font-mono)' }}>
+                          {macro.value}{macro.unit}
+                        </strong>
+                        <span style={{ fontSize: '0.65rem', color: trendColor, fontFamily: 'var(--font-mono)' }}>
+                          {macro.trendDirection === 'Rising' ? '▲' : macro.trendDirection === 'Falling' ? '▼' : '■'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Breadth Definition Tip */}
             <div style={{ display: 'flex', gap: '0.5rem', background: '#111', padding: '0.75rem', fontSize: '0.75rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
               <Info size={16} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
               <span>
-                <strong>Divergence Alert:</strong> Narrow breadth (under 40%) during an index uptrend indicates high concentration risk and structural weakness. Broad breadth indicates stable rallies.
+                <strong>Macro Inversion Check:</strong> Inverted Yield Curve (10Y-2Y &lt; 0) warns of prospective recession. Elevated CPI Inflation (&gt; 3.5%) triggers multiples contraction risks.
               </span>
             </div>
 

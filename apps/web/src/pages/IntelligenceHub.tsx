@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { dbService } from '../services/firebase';
+import { dbService, authService } from '../services/firebase';
 import type { CompanyIntelligence, UserConviction, Holding } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import IntelligenceService from '../services/intelligenceService';
 import { ExportService } from '../services/exportService';
+import { ResearchEngine } from '../services/researchEngine';
+import type { ResearchReport } from '../services/researchEngine';
+import { ProvenanceBadge } from '../components/ProvenanceBadge';
+import { ExternalLink } from 'lucide-react';
 import {
   Brain,
   TrendingUp,
@@ -36,6 +40,9 @@ export const IntelligenceHub: React.FC = () => {
     intel: CompanyIntelligence | null;
     conviction: UserConviction | null;
   } | null>(null);
+
+  const [researchReport, setResearchReport] = useState<ResearchReport | null>(null);
+  const [researchLoading, setResearchLoading] = useState(false);
 
   // Business School State
   const [bsConcept, setBsConcept] = useState<string>('operating_leverage');
@@ -95,6 +102,8 @@ export const IntelligenceHub: React.FC = () => {
 
   const handleSelectAsset = async (ticker: string, exchange: string, currentConvictions = convictions) => {
     setSelectedAsset({ ticker, exchange, intel: null, conviction: null });
+    setResearchReport(null);
+    setResearchLoading(true);
     try {
       const intel = await IntelligenceService.fetchCompanyIntelligence(ticker, exchange);
       const conv = currentConvictions.find(
@@ -102,8 +111,13 @@ export const IntelligenceHub: React.FC = () => {
       ) || null;
       
       setSelectedAsset({ ticker, exchange, intel, conviction: conv });
+
+      const report = await ResearchEngine.generateResearchReport(ticker, exchange, authService.isMock);
+      setResearchReport(report);
     } catch (e) {
       console.error('Error selecting asset details:', e);
+    } finally {
+      setResearchLoading(false);
     }
   };
 
@@ -127,6 +141,16 @@ export const IntelligenceHub: React.FC = () => {
         if (selectedAsset && selectedAsset.ticker === ticker && selectedAsset.exchange === exchange) {
           const intel = await IntelligenceService.fetchCompanyIntelligence(ticker, exchange);
           setSelectedAsset({ ticker, exchange, intel, conviction: updatedConv });
+          
+          setResearchLoading(true);
+          try {
+            const report = await ResearchEngine.generateResearchReport(ticker, exchange, authService.isMock);
+            setResearchReport(report);
+          } catch (reErr) {
+            console.error('Failed to regenerate research report:', reErr);
+          } finally {
+            setResearchLoading(false);
+          }
         }
       }
     } catch (err) {
@@ -856,70 +880,141 @@ export const IntelligenceHub: React.FC = () => {
 
                     {/* SECTION 4 — EQUITY RESEARCH ENGINE */}
                     <div className="border border-stone-300 p-4 md:p-6 bg-white">
-                      <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4 flex items-center gap-1">
+                      <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4 flex items-center gap-1.5">
                         <Briefcase size={18} /> Equity Research Engine Brief
                       </h3>
                       
-                      <div className="flex flex-col gap-5 text-xs text-[#1A1A1A] font-serif leading-relaxed">
-                        {/* Business Overview */}
-                        <div>
-                          <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">1. Business Overview</strong>
-                          <p className="text-stone-700">
-                            {selectedAsset.intel.name} is an active participant in the {selectedAsset.intel.sector} sector, operating specifically within the {selectedAsset.intel.research.fundamentals?.industry || 'sourcing industry'}. The organization commands a market capitalization of ${((selectedAsset.intel.research.fundamentals?.marketCapMillions || 0) / 1000).toFixed(2)}B and is monitored with a {selectedAsset.intel.research.moatRating} competitive moat structure.
-                          </p>
+                      {researchLoading ? (
+                        <div className="flex items-center gap-2 text-stone-500 font-mono text-xs py-8">
+                          <RefreshCw size={14} className="animate-spin" /> Compiling Data Moat Research Report...
                         </div>
-
-                        {/* Revenue Drivers */}
-                        <div>
-                          <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">2. Revenue Drivers</strong>
-                          <p className="text-stone-700">
-                            Cash flow is sustained through capital efficiencies yielding gross profit margins of ${(selectedAsset.intel.research.fundamentals?.grossMargin || 0).toFixed(1)}% and operating profit margins of ${(selectedAsset.intel.research.fundamentals?.operatingMargin || 0).toFixed(1)}%. Revenue growth indicators are currently cataloged at +${(selectedAsset.intel.research.fundamentals?.revenueGrowthYoy || 0).toFixed(1)}% YoY.
-                          </p>
-                        </div>
-
-                        {/* Competitive Advantages */}
-                        <div>
-                          <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">3. Competitive Advantages</strong>
-                          <p className="text-stone-700">
-                            Moat analysis indicates a {selectedAsset.intel.research.moatRating.toUpperCase()} competitive structure. Rationale indicates: "{selectedAsset.intel.research.moatRationale}"
-                          </p>
-                        </div>
-
-                        {/* Growth Drivers */}
-                        <div>
-                          <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">4. Capital Efficiency & Growth</strong>
-                          <p className="text-stone-700">
-                            The organization converts revenue into cash assets efficiently. Return on Invested Capital (ROIC) is running at ${(selectedAsset.intel.research.fundamentals?.roic || 0).toFixed(1)}% with rolling YoY earnings growth of +${(selectedAsset.intel.research.fundamentals?.earningsGrowthYoy || 0).toFixed(1)}%.
-                          </p>
-                        </div>
-
-                        {/* Risks */}
-                        <div>
-                          <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">5. Structural Risks</strong>
-                          <p className="text-stone-700">
-                            Capital structure health presents a Debt-to-Equity solvency leverage of ${(selectedAsset.intel.research.fundamentals?.debtToEquity || 0).toFixed(2)}. Technical catalyst warning is classified under: "{selectedAsset.intel.dip.catalyst || 'No immediate structural triggers identified'}".
-                          </p>
-                        </div>
-                              {/* Management Quality & Industry Position */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-stone-200 pt-3 font-sans">
+                      ) : researchReport ? (
+                        <div className="flex flex-col gap-5 text-xs text-[#1A1A1A] font-serif leading-relaxed">
+                          {/* Business Overview */}
                           <div>
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">6. Management Quality</strong>
-                            <p className="text-stone-700 text-xs leading-normal">
-                              {selectedAsset.intel.smartMoney.insiderTransactions?.value && selectedAsset.intel.smartMoney.insiderSentiment?.value ? (
-                                `Evaluated via Form 4 insider buying flows. MSPR sentiment index is currently ${selectedAsset.intel.smartMoney.insiderSentiment.value.mspr.toFixed(2)} with insider transactions counts showing ${selectedAsset.intel.smartMoney.insiderTransactions.value.totalTransactionsCount} active filings.`
+                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">1. Business Overview</strong>
+                            <p className="text-stone-700">
+                              {researchReport.executiveSummary}
+                            </p>
+                          </div>
+
+                          {/* Revenue Drivers */}
+                          <div>
+                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">2. Financial Metrics Analysis</strong>
+                            <p className="text-stone-700">
+                              {researchReport.financialMetricsAnalysis}
+                            </p>
+                          </div>
+
+                          {/* Risks & Mitigations */}
+                          <div>
+                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">3. Risks and Mitigations</strong>
+                            <p className="text-stone-700">
+                              {researchReport.risksAndMitigations}
+                            </p>
+                          </div>
+
+                          {/* Filing Change Detector Alerts */}
+                          <div className="border border-stone-200 p-3 bg-[#FCFAF6]">
+                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-2">Filing Change Detector Alerts</strong>
+                            {researchReport.changeDetectionAlerts.length > 0 ? (
+                              <div className="flex flex-col gap-2">
+                                {researchReport.changeDetectionAlerts.map((alert, i) => (
+                                  <div key={i} className="flex flex-col sm:flex-row sm:justify-between font-mono text-[10px] pb-1 border-b border-stone-100 last:border-b-0">
+                                    <div>
+                                      <span className={alert.direction === 'improved' ? 'text-green-700 font-bold' : alert.direction === 'deteriorated' ? 'text-red-700 font-bold' : 'text-stone-600'}>
+                                        {alert.direction.toUpperCase()}
+                                      </span>
+                                      <span className="text-stone-800 ml-1.5">{alert.metric}:</span>
+                                    </div>
+                                    <div className="text-stone-600">
+                                      {alert.previousValue} → <strong>{alert.currentValue}</strong> ({alert.changePercent > 0 ? '+' : ''}{alert.changePercent}%)
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-stone-400 italic text-[10px] font-mono">Data unavailable</span>
+                            )}
+                          </div>
+
+                          {/* Earnings Trend */}
+                          <div>
+                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-2">Earnings & Margin Trend (Historical Highlights)</strong>
+                            {researchReport.earningsTrend.length > 0 ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left font-mono text-[9px] border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-stone-300 font-bold uppercase text-stone-500">
+                                      <th className="pb-1.5">Reporting Date</th>
+                                      <th className="pb-1.5 text-right">Quarterly Revenue</th>
+                                      <th className="pb-1.5 text-right">Operating Margin</th>
+                                      <th className="pb-1.5 text-right">Net Income</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {researchReport.earningsTrend.map((trend, i) => (
+                                      <tr key={i} className="border-b border-stone-100 last:border-b-0">
+                                        <td className="py-1.5">{trend.quarter}</td>
+                                        <td className="py-1.5 text-right font-bold">
+                                          {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' 
+                                            ? `₹${(trend.revenue / 10000000).toFixed(0)} Cr`
+                                            : `$${(trend.revenue / 1000000000).toFixed(2)}B`}
+                                        </td>
+                                        <td className="py-1.5 text-right font-bold" style={{ color: trend.operatingMargin > 25 ? '#34a853' : trend.operatingMargin > 10 ? '#fbbc05' : '#ea4335' }}>
+                                          {trend.operatingMargin.toFixed(1)}%
+                                        </td>
+                                        <td className="py-1.5 text-right text-stone-600">
+                                          {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE'
+                                            ? `₹${(trend.netIncome / 10000000).toFixed(0)} Cr`
+                                            : `$${(trend.netIncome / 1000000000).toFixed(2)}B`}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <span className="text-stone-400 italic text-[10px] font-mono">Data unavailable</span>
+                            )}
+                          </div>
+
+                          {/* Sources used */}
+                          <div className="mt-2 border-t border-stone-200 pt-3">
+                            <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+                              <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400">Sources and Citation Trail</strong>
+                              <ProvenanceBadge 
+                                category={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'News Intelligence' : 'Regulatory Filings'}
+                                source={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'Investor Relations disclosures' : 'SEC EDGAR Database'}
+                                timestamp={researchReport.generationDate}
+                                confidence={researchReport.confidenceScore > 90 ? 'High' : 'Medium'}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1 text-[10px] font-mono">
+                              {researchReport.sourcesUsed && researchReport.sourcesUsed.length > 0 ? (
+                                researchReport.sourcesUsed.map((src, i) => (
+                                  <div key={i} className="flex justify-between text-stone-600 items-center">
+                                    {src.url ? (
+                                      <a href={src.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#8c2a2a] text-[#8c2a2a] underline flex items-center gap-0.5">
+                                        {src.name} <ExternalLink size={8} />
+                                      </a>
+                                    ) : (
+                                      <span>{src.name}</span>
+                                    )}
+                                    <span className="text-stone-400">{src.timestamp}</span>
+                                  </div>
+                                ))
                               ) : (
-                                "Insider transaction activity and officer sentiment metrics are currently unavailable for this asset."
+                                <span className="text-stone-400 italic">Data unavailable</span>
                               )}
-                            </p>
-                          </div>
-                          <div>
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">7. Industry Position</strong>
-                            <p className="text-stone-700 text-xs leading-normal">
-                              Monitored relative to rolling peer groupings. The organization maintains an absolute Cash Margin of ${(selectedAsset.intel.research.freeCashFlowMargin || 0).toFixed(1)}%, positioning it inside the top tier of its corresponding sector allocation.
-                            </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="text-stone-400 font-mono text-[10px] italic">
+                          Click select asset above or verify database connections to trigger research compiler.
+                        </div>
+                      )}
                     </div>
 
                     {/* SECTION 6 — INTELLIGENCE AUDIT LAYER */}

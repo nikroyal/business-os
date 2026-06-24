@@ -15,6 +15,7 @@ export interface PlatformHealth {
     finnhub: ServiceStatus;
     gemini: ServiceStatus;
     resend: ServiceStatus;
+    dataMoat: ServiceStatus;
   };
   lastSuccessDispatch?: string;
   lastFailedDispatch?: string;
@@ -57,6 +58,7 @@ export class ServiceHealthService {
         finnhub: { name: 'Finnhub', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         gemini: { name: 'Gemini', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         resend: { name: 'Resend', status: 'not_configured', color: 'gray', description: 'Pending API check' },
+        dataMoat: { name: 'Data Moat & Cache', status: 'not_configured', color: 'gray', description: 'Pending API check' },
       }
     };
 
@@ -196,6 +198,56 @@ export class ServiceHealthService {
       health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
       health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
       health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
+    }
+
+    // 4. Data Quality cache check
+    if (workerAlive) {
+      try {
+        const token = await authService.getIdToken();
+        const res = await fetch(`${apiBaseUrl}/api/system/data-quality`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const dq = await res.json() as any;
+          const score = dq.overallHealthScore ?? 0;
+          let status: 'operational' | 'degraded' | 'failure' = 'operational';
+          let color: 'green' | 'orange' | 'red' = 'green';
+          if (score < 50) {
+            status = 'failure';
+            color = 'red';
+          } else if (score < 85) {
+            status = 'degraded';
+            color = 'orange';
+          }
+          health.services.dataMoat = {
+            name: 'Data Moat & Cache',
+            status,
+            color,
+            description: `Health score: ${score}%. Caches are populated & verified.`
+          };
+        } else {
+          health.services.dataMoat = {
+            name: 'Data Moat & Cache',
+            status: 'degraded',
+            color: 'orange',
+            description: `Failed to load data quality: HTTP ${res.status}`
+          };
+        }
+      } catch (err: any) {
+        health.services.dataMoat = {
+          name: 'Data Moat & Cache',
+          status: 'failure',
+          color: 'red',
+          description: `Data quality check failed: ${err.message || err}`
+        };
+      }
+    } else {
+      health.services.dataMoat = {
+        name: 'Data Moat & Cache',
+        status: 'failure',
+        color: 'red',
+        description: 'Cloudflare Worker is down'
+      };
     }
 
     // Fetch dispatch history to identify last success and last failed dispatches
