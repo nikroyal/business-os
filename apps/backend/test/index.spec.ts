@@ -62,6 +62,38 @@ describe("BusinessOS Backend Worker API Tests", () => {
 		});
 	});
 
+	describe("GET /api/health/services", () => {
+		it("rejects unauthorized access", async () => {
+			const response = await SELF.fetch("http://example.com/api/health/services");
+			expect(response.status).toBe(401);
+		});
+
+		it("returns all 7 services status structure when authenticated", async () => {
+			const response = await SELF.fetch("http://example.com/api/health/services", {
+				headers: {
+					"Authorization": "Bearer mock_user123"
+				}
+			});
+			expect(response.status).toBe(200);
+			const data = await response.json() as any;
+			
+			expect(data).toHaveProperty("workers");
+			expect(data).toHaveProperty("firestore");
+			expect(data).toHaveProperty("finnhub");
+			expect(data).toHaveProperty("gemini");
+			expect(data).toHaveProperty("resend");
+			expect(data).toHaveProperty("fred");
+			expect(data).toHaveProperty("secEdgar");
+
+			expect(data.workers).toHaveProperty("status");
+			expect(data.workers).toHaveProperty("description");
+			expect(data.fred).toHaveProperty("status");
+			expect(data.fred).toHaveProperty("description");
+			expect(data.secEdgar).toHaveProperty("status");
+			expect(data.secEdgar).toHaveProperty("description");
+		});
+	});
+
 	describe("Scheduled Worker Cron Trigger", () => {
 		it("triggers the scheduled function without throwing", async () => {
 			const ctx = createExecutionContext();

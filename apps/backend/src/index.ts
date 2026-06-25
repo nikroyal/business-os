@@ -190,14 +190,54 @@ app.get('/api/health/services', async (c) => {
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
   const resendKey = c.env.RESEND_API_KEY;
+  const fredKey = c.env.FRED_API_KEY;
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const firestore = new FirestoreClient(projectId);
 
-  const results = {
+  // Default results mapping
+  const results: any = {
+    workers: { status: 'operational', description: 'Cloudflare Worker runtime is operational' },
+    firestore: { status: 'operational', description: 'Firestore connection is active' },
     finnhub: { status: 'operational', description: 'Finnhub API is operational' },
     gemini: { status: 'operational', description: 'Gemini API is operational' },
-    resend: { status: 'operational', description: 'Resend API is operational' }
+    resend: { status: 'operational', description: 'Resend API is operational' },
+    fred: { status: 'not_configured', description: 'FRED_API_KEY is not configured in backend secrets' },
+    secEdgar: { status: 'operational', description: 'SEC EDGAR cache and scheduler are operational.' }
   };
 
-  // 1. Finnhub Check
+  // Perform Firestore check and retrieve data for FRED & SEC concurrently
+  const secTickers = Object.values(COMPANY_REGISTRY)
+    .filter(entry => entry.secCoverage)
+    .map(entry => entry.ticker);
+
+  let fredApiPromise: Promise<any> = Promise.resolve(null);
+  if (fredKey) {
+    const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=UNRATE&api_key=${fredKey}&file_type=json&limit=1`;
+    fredApiPromise = fetch(fredUrl)
+      .then(res => res.ok ? res.json() : null)
+      .catch(() => null);
+  }
+
+  const [
+    featureFlagsDoc,
+    cachedFred,
+    secSchedulerState,
+    secFacts,
+    fredApiResponse
+  ] = await Promise.all([
+    getFirestoreDoc(projectId, 'system/featureFlags').catch(() => null),
+    firestore.getFredIndicators().catch(() => null),
+    getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
+    Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null))),
+    fredApiPromise
+  ]);
+
+  // 1. Firestore Health Check
+  if (!featureFlagsDoc) {
+    results.firestore = { status: 'degraded', description: 'Firestore features config document missing or failed to fetch' };
+  }
+
+  // 2. Finnhub Check
   if (!finnhubKey) {
     results.finnhub = { status: 'not_configured', description: 'FINNHUB_API_KEY is not configured in backend secrets' };
   } else {
@@ -211,7 +251,7 @@ app.get('/api/health/services', async (c) => {
     }
   }
 
-  // 2. Gemini Check
+  // 3. Gemini Check
   if (!geminiKey) {
     results.gemini = { status: 'not_configured', description: 'GEMINI_API_KEY is not configured in backend secrets' };
   } else {
@@ -234,7 +274,7 @@ app.get('/api/health/services', async (c) => {
     }
   }
 
-  // 3. Resend Check
+  // 4. Resend Check
   if (!resendKey) {
     results.resend = { status: 'not_configured', description: 'RESEND_API_KEY is not configured in backend secrets' };
   } else {
@@ -253,6 +293,137 @@ app.get('/api/health/services', async (c) => {
       results.resend = { status: 'failure', description: `Resend is unreachable: ${err.message || err}` };
     }
   }
+
+  // 5. FRED Check
+  if (fredKey) {
+    const indicatorCount = cachedFred?.indicators?.length || 0;
+    let cacheFreshness = 'missing';
+    let fredStale = false;
+    if (cachedFred) {
+      const lastUpdated = cachedFred.updatedAt || new Date().toISOString();
+      const ageMs = Date.now() - new Date(lastUpdated).getTime();
+      if (ageMs > 24 * 60 * 60 * 1000) {
+        cacheFreshness = 'stale';
+        fredStale = true;
+      } else {
+        cacheFreshness = 'fresh';
+      }
+    }
+
+    const apiConnected = !!fredApiResponse;
+    const nowStr = new Date().toISOString();
+
+    let status = 'operational';
+    let description = `FRED API is operational. ${indicatorCount} indicators cached.`;
+
+    if (!apiConnected) {
+      status = 'degraded'; // Degrade if API is unavailable
+      description = 'FRED API check failed or endpoint is unreachable.';
+    } else if (!cachedFred) {
+      status = 'degraded'; // Degrade if cache is missing
+      description = 'FRED economic indicators cache is missing.';
+    } else if (fredStale) {
+      status = 'degraded'; // Degrade if cache is stale
+      description = 'FRED economic indicators cache is stale (>24 hours).';
+    }
+
+    // Save FRED health status to database
+    try {
+      await writeFirestoreDoc(projectId, 'system/fredHealth', {
+        lastSuccessfulCheck: nowStr,
+        apiConnectivity: apiConnected ? 'connected' : 'error',
+        latestIndicatorCount: indicatorCount,
+        cacheFreshness
+      });
+    } catch (writeErr: any) {
+      console.error('Failed to save FRED health stats:', writeErr.message);
+    }
+
+    results.fred = {
+      status,
+      description,
+      metadata: {
+        lastSuccessfulCheck: nowStr,
+        apiConnectivity: apiConnected ? 'connected' : 'error',
+        latestIndicatorCount: indicatorCount,
+        cacheFreshness
+      }
+    };
+  }
+
+  // 6. SEC EDGAR Check
+  const schedulerEnabled = (c.env as any).SEC_SCHEDULER_ENABLED !== 'false';
+  const lastIngestionRun = secSchedulerState?.lastExecution || null;
+  const schedulerFailed = secSchedulerState?.status === 'degraded' || (secSchedulerState?.failures || 0) > 0;
+
+  let companiesCached = 0;
+  let filingsCached = 0;
+  let oldestFilingDateStr = '';
+  let hasStaleCompany = false;
+  let cacheCollectionExists = false;
+
+  for (const data of secFacts) {
+    if (data) {
+      cacheCollectionExists = true;
+      companiesCached++;
+      const filings = data.recentFilings || [];
+      filingsCached += filings.length;
+
+      for (const f of filings) {
+        if (f.filingDate && (!oldestFilingDateStr || f.filingDate < oldestFilingDateStr)) {
+          oldestFilingDateStr = f.filingDate;
+        }
+      }
+
+      const lastUpdated = data.updatedAt || new Date().toISOString();
+      const ageMs = Date.now() - new Date(lastUpdated).getTime();
+      if (ageMs > 5 * 24 * 60 * 60 * 1000) { // 5 days threshold
+        hasStaleCompany = true;
+      }
+    }
+  }
+
+  let oldestCachedFilingAge = 0;
+  if (oldestFilingDateStr) {
+    const diffMs = Date.now() - new Date(oldestFilingDateStr).getTime();
+    oldestCachedFilingAge = Math.floor(diffMs / (1000 * 3600 * 24));
+  }
+
+  let cacheFreshness = 'fresh';
+  if (!cacheCollectionExists) {
+    cacheFreshness = 'missing';
+  } else if (hasStaleCompany) {
+    cacheFreshness = 'stale';
+  }
+
+  let status = 'operational';
+  let description = `SEC EDGAR is operational. ${companiesCached} companies, ${filingsCached} filings cached.`;
+
+  if (!schedulerEnabled) {
+    status = 'not_configured';
+    description = 'SEC batch ingestion scheduler is disabled.';
+  } else if (!cacheCollectionExists) {
+    status = 'degraded'; // Degrade if cache missing
+    description = 'SEC filings cache collection is missing.';
+  } else if (hasStaleCompany) {
+    status = 'degraded'; // Degrade if filings stale
+    description = 'SEC filings cache is stale (older than 5 days).';
+  } else if (schedulerFailed) {
+    status = 'degraded'; // Degrade if ingestion failures detected
+    description = `SEC ingestion job failures detected (Failed runs: ${secSchedulerState.failures}).`;
+  }
+
+  results.secEdgar = {
+    status,
+    description,
+    metadata: {
+      lastIngestionRun,
+      companiesCached,
+      filingsCached,
+      oldestCachedFilingAge,
+      cacheFreshness
+    }
+  };
 
   return c.json(results);
 });
@@ -1394,53 +1565,125 @@ app.post('/api/market-data/compile-research', async (c) => {
 app.get('/api/system/data-quality', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
   const firestore = new FirestoreClient(projectId);
+  const fredKey = c.env.FRED_API_KEY;
   
   try {
-    const tickers = ['AAPL', 'MSFT', 'GOOG', 'NVDA', 'TSLA', 'RELIANCE', 'TCS', 'INFY'];
+    const secTickers = Object.values(COMPANY_REGISTRY)
+      .filter(entry => entry.secCoverage)
+      .map(entry => entry.ticker);
+
+    // Parallel fetch of all facts, scheduler state, and health check state
+    const [
+      secSchedulerState,
+      fredHealthDoc,
+      fredIndicatorsDoc,
+      secFactsData
+    ] = await Promise.all([
+      getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
+      getFirestoreDoc(projectId, 'system/fredHealth').catch(() => null),
+      firestore.getFredIndicators().catch(() => null),
+      Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null)))
+    ]);
+
     const secFactsStatus: any[] = [];
     let healthyCount = 0;
+    let secCacheCollectionExists = false;
+    let secFilingsStale = false;
     
-    for (const t of tickers) {
-      const registry = COMPANY_REGISTRY[t];
-      if (registry && registry.secCoverage) {
-        const facts = await firestore.getSecCompanyFacts(t);
-        if (facts) {
-          const isStale = (Date.now() - new Date(facts.updatedAt).getTime() > 5 * 24 * 60 * 60 * 1000);
-          secFactsStatus.push({
-            ticker: t,
-            status: isStale ? 'Stale' : 'Healthy',
-            lastUpdated: facts.updatedAt,
-            recordCount: facts.history?.length || 0
-          });
-          if (!isStale) healthyCount++;
-        } else {
-          secFactsStatus.push({
-            ticker: t,
-            status: 'Missing',
-            recordCount: 0
-          });
+    // Check SEC covered tickers
+    for (let i = 0; i < secTickers.length; i++) {
+      const t = secTickers[i];
+      const facts = secFactsData[i];
+      if (facts) {
+        secCacheCollectionExists = true;
+        const isStale = (Date.now() - new Date(facts.updatedAt).getTime() > 5 * 24 * 60 * 60 * 1000);
+        if (isStale) {
+          secFilingsStale = true;
         }
+        secFactsStatus.push({
+          ticker: t,
+          status: isStale ? 'Stale' : 'Healthy',
+          lastUpdated: facts.updatedAt,
+          recordCount: facts.history?.length || 0
+        });
+        if (!isStale) healthyCount++;
+      } else {
+        secFactsStatus.push({
+          ticker: t,
+          status: 'Missing',
+          recordCount: 0
+        });
       }
     }
-    
-    const fred = await firestore.getFredIndicators();
-    let fredStatus: any = { status: 'Missing', indicatorCount: 0 };
-    if (fred) {
-      const isStale = (Date.now() - new Date(fred.updatedAt || Date.now()).getTime() > 24 * 60 * 60 * 1000);
-      fredStatus = {
-        status: isStale ? 'Stale' : 'Healthy',
-        lastUpdated: fred.updatedAt || new Date().toISOString(),
-        indicatorCount: fred.indicators?.length || 0
-      };
-      if (!isStale) healthyCount++;
+
+    // SEC overall scheduler & job status
+    const secSchedulerFailures = secSchedulerState?.failures || 0;
+    const secSchedulerStatusText = secSchedulerState?.status || 'idle';
+    const schedulerEnabled = (c.env as any).SEC_SCHEDULER_ENABLED !== 'false';
+
+    let secStatusText = 'Healthy';
+    if (!schedulerEnabled) {
+      secStatusText = 'Not Configured';
+    } else if (!secCacheCollectionExists) {
+      secStatusText = 'Missing'; // Cache missing
+    } else if (secFilingsStale) {
+      secStatusText = 'Stale'; // Filings stale
+    } else if (secSchedulerFailures > 0 || secSchedulerStatusText === 'degraded') {
+      secStatusText = 'Degraded'; // Ingestion failures detected
     }
 
-    const overallHealthScore = Math.round((healthyCount / (secFactsStatus.length + 1)) * 100);
+    // Adjust healthyCount based on overall SEC health
+    if (secStatusText === 'Healthy') {
+      healthyCount++;
+    }
+
+    // FRED Status check
+    const fredApiConnected = fredHealthDoc?.apiConnectivity === 'connected' || (fredKey ? true : false);
+    let fredStale = false;
+    let fredStatusText = 'Missing';
+    let fredIndicatorCount = 0;
+    let fredLastUpdated = new Date().toISOString();
+
+    if (fredIndicatorsDoc) {
+      fredIndicatorCount = fredIndicatorsDoc.indicators?.length || 0;
+      fredLastUpdated = fredIndicatorsDoc.updatedAt || new Date().toISOString();
+      const ageMs = Date.now() - new Date(fredLastUpdated).getTime();
+      fredStale = ageMs > 24 * 60 * 60 * 1000;
+      
+      if (fredStale) {
+        fredStatusText = 'Stale'; // Indicators stale
+      } else if (!fredApiConnected) {
+        fredStatusText = 'Degraded'; // API unavailable
+      } else {
+        fredStatusText = 'Healthy';
+      }
+      
+      if (fredStatusText === 'Healthy') {
+        healthyCount++;
+      }
+    } else {
+      fredStatusText = 'Missing'; // Cache missing
+    }
+
+    // Overall Score Calculation (combining individual covered SEC tickers, overall FRED health, and overall SEC health)
+    const totalChecksCount = secTickers.length + 2; 
+    const overallHealthScore = Math.round((healthyCount / totalChecksCount) * 100);
 
     return c.json({
       timestamp: new Date().toISOString(),
       secFactsStatus,
-      fredStatus,
+      secOverallStatus: {
+        status: secStatusText,
+        schedulerEnabled,
+        lastExecution: secSchedulerState?.lastExecution || null,
+        failures: secSchedulerFailures
+      },
+      fredStatus: {
+        status: fredStatusText,
+        lastUpdated: fredLastUpdated,
+        indicatorCount: fredIndicatorCount,
+        apiConnectivity: fredApiConnected ? 'connected' : 'error'
+      },
       overallHealthScore
     });
   } catch (err: any) {

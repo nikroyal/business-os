@@ -61,7 +61,7 @@ export const PlatformHealthWidget: React.FC = () => {
     if (!user || checking) return;
     setChecking(true);
     try {
-      const result = await ServiceHealthService.checkHealth(user.uid);
+      const result = await ServiceHealthService.checkHealth(user.uid, true);
       setHealth(result);
     } catch (err) {
       console.error('Manual platform health check failed:', err);
@@ -106,6 +106,21 @@ export const PlatformHealthWidget: React.FC = () => {
     try {
       const d = new Date(isoString);
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  const formatRelativeTime = (isoString: string | null | undefined) => {
+    if (!isoString) return 'N/A';
+    try {
+      const diffMs = Date.now() - new Date(isoString).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'just now';
+      if (diffMins < 60) return `${diffMins} min ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours} hr ago`;
+      return `${Math.floor(diffHours / 24)} days ago`;
     } catch {
       return 'N/A';
     }
@@ -195,32 +210,68 @@ export const PlatformHealthWidget: React.FC = () => {
 
           {/* List of Services */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {health && Object.entries(health.services).map(([key, service]) => (
-              <div key={key} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <div style={{ marginTop: '2px', display: 'flex' }}>
-                  {getStatusIcon(service.color)}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: '#222222' }}>
-                      {service.name}
-                    </span>
-                    <span style={{ 
-                      fontSize: '0.6rem', 
-                      fontFamily: 'var(--font-mono)', 
-                      fontWeight: 'bold', 
-                      textTransform: 'uppercase',
-                      color: getStatusColor(service.color)
-                    }}>
-                      {service.status.replace('_', ' ')}
-                    </span>
+            {health && Object.entries(health.services)
+              .filter(([key]) => key !== 'dataMoat')
+              .map(([key, service]) => (
+                <div key={key} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                  <div style={{ marginTop: '2px', display: 'flex' }}>
+                    {getStatusIcon(service.color)}
                   </div>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '1px', lineHeight: 1.2 }}>
-                    {service.description}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: '#222222' }}>
+                        {service.name}
+                      </span>
+                      <span style={{ 
+                        fontSize: '0.6rem', 
+                        fontFamily: 'var(--font-mono)', 
+                        fontWeight: 'bold', 
+                        textTransform: 'uppercase',
+                        color: getStatusColor(service.color)
+                      }}>
+                        {service.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '1px', lineHeight: 1.2 }}>
+                      {service.description}
+                    </span>
+
+                    {/* Custom details for FRED */}
+                    {key === 'fred' && (service as any).metadata && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px', fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                        <span style={{ color: '#222222', fontWeight: 500 }}>
+                          {(service as any).metadata.latestIndicatorCount ?? 0} indicators cached
+                        </span>
+                        <span>
+                          Updated {formatRelativeTime((service as any).metadata.lastSuccessfulCheck)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Custom details for SEC EDGAR */}
+                    {key === 'secEdgar' && (service as any).metadata && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px', fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                        <span style={{ color: '#222222', fontWeight: 500 }}>
+                          {(service as any).metadata.companiesCached ?? 0} companies cached
+                        </span>
+                        <span style={{ color: '#222222', fontWeight: 500 }}>
+                          {(service as any).metadata.filingsCached ?? 0} filings stored
+                        </span>
+                        <span>
+                          Updated {formatRelativeTime((service as any).metadata.lastIngestionRun)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Standard verification time for all other services */}
+                    {key !== 'fred' && key !== 'secEdgar' && (
+                      <span style={{ fontSize: '0.55rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Updated {formatRelativeTime(health.lastChecked)}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {/* Daily Dispatch Stats */}

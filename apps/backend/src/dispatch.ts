@@ -1916,6 +1916,46 @@ export class FirestoreClient {
     return { indicators, updatedAt: timestamp };
   }
 
+  async saveSecSchedulerStatus(status: {
+    schedulerEnabled: boolean;
+    lastExecution: string;
+    status: string;
+    failures: number;
+    successes: number;
+  }): Promise<any> {
+    const fields: Record<string, any> = {};
+    for (const [k, v] of Object.entries(status)) {
+      fields[k] = toFirestoreValue(v);
+    }
+    const res = await fetch(`${this.baseUrl}/system/secSchedulerState`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Failed to save secSchedulerState: HTTP ${res.status} - ${txt}`);
+    }
+    return status;
+  }
+
+  async getSecSchedulerStatus(): Promise<any | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/system/secSchedulerState`);
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        console.error(`Failed to get secSchedulerState: HTTP ${res.status}`);
+        return null;
+      }
+      const data = await res.json() as any;
+      return fromFirestoreDoc(data);
+    } catch (err) {
+      console.error(`Error getting secSchedulerState:`, err);
+      return null;
+    }
+  }
+
+
   async getUserConviction(userId: string, ticker: string, exchange: string): Promise<UserConviction | null> {
     try {
       const key = `${ticker}:${exchange}`;
@@ -3345,6 +3385,9 @@ export async function runSecBatchIngestion(firestore: FirestoreClient) {
     .filter(entry => entry.secCoverage)
     .map(entry => entry.ticker);
 
+  let successes = 0;
+  let failures = 0;
+
   for (const ticker of secTickers) {
     try {
       const existing = await firestore.getSecCompanyFacts(ticker);
@@ -3352,6 +3395,7 @@ export async function runSecBatchIngestion(firestore: FirestoreClient) {
       
       if (!isStale) {
         console.log(`[Scheduler] SEC facts for ${ticker} are fresh. Skipping.`);
+        successes++;
         continue;
       }
 
@@ -3382,11 +3426,26 @@ export async function runSecBatchIngestion(firestore: FirestoreClient) {
       const parsedFacts = parseSecCompanyFacts(ticker, cik, secData);
       await firestore.saveSecCompanyFacts(ticker, parsedFacts);
       console.log(`[Scheduler] SEC facts for ${ticker} successfully parsed and cached.`);
+      successes++;
       
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (err: any) {
       console.error(`[Scheduler] SEC ingestion failed for ${ticker}:`, err.message || err);
+      failures++;
     }
+  }
+
+  // Save the scheduler state to Firestore
+  try {
+    await firestore.saveSecSchedulerStatus({
+      schedulerEnabled: true,
+      lastExecution: new Date().toISOString(),
+      status: failures === 0 ? 'success' : 'degraded',
+      failures,
+      successes
+    });
+  } catch (saveErr: any) {
+    console.error('[Scheduler] Failed to save SEC scheduler status:', saveErr.message || saveErr);
   }
 }
 

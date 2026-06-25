@@ -15,6 +15,8 @@ export interface PlatformHealth {
     finnhub: ServiceStatus;
     gemini: ServiceStatus;
     resend: ServiceStatus;
+    fred: ServiceStatus;
+    secEdgar: ServiceStatus;
     dataMoat: ServiceStatus;
   };
   lastSuccessDispatch?: string;
@@ -45,7 +47,17 @@ export class ServiceHealthService {
   /**
    * Performs a complete status check of all services.
    */
-  public static async checkHealth(userId: string): Promise<PlatformHealth> {
+  public static async checkHealth(userId: string, force = false): Promise<PlatformHealth> {
+    // Implement local caching to avoid excessive checks (60s threshold)
+    const cached = this.getCachedHealth();
+    if (cached && !force) {
+      const ageMs = Date.now() - new Date(cached.lastChecked).getTime();
+      if (ageMs < 60000) {
+        console.log('[ServiceHealthService] Returning cached health status (age: ' + Math.round(ageMs/1000) + 's)');
+        return cached;
+      }
+    }
+
     const apiBaseUrl = this.getApiBaseUrl();
     const generatedTimestamp = new Date().toISOString();
 
@@ -58,6 +70,8 @@ export class ServiceHealthService {
         finnhub: { name: 'Finnhub', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         gemini: { name: 'Gemini', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         resend: { name: 'Resend', status: 'not_configured', color: 'gray', description: 'Pending API check' },
+        fred: { name: 'FRED', status: 'not_configured', color: 'gray', description: 'Pending API check' },
+        secEdgar: { name: 'SEC EDGAR', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         dataMoat: { name: 'Data Moat & Cache', status: 'not_configured', color: 'gray', description: 'Pending API check' },
       }
     };
@@ -134,7 +148,7 @@ export class ServiceHealthService {
       };
     }
 
-    // 3. Worker-based proxy service checks (Finnhub, Gemini, Resend)
+    // 3. Worker-based proxy service checks (Finnhub, Gemini, Resend, FRED, SEC EDGAR)
     if (workerAlive) {
       try {
         const token = await authService.getIdToken();
@@ -179,18 +193,46 @@ export class ServiceHealthService {
               description: serviceStatuses.resend.description
             };
           }
+
+          // FRED
+          if (serviceStatuses.fred) {
+            const mapped = mapStatus(serviceStatuses.fred.status);
+            health.services.fred = {
+              name: 'FRED',
+              status: mapped.status,
+              color: mapped.color,
+              description: serviceStatuses.fred.description,
+              metadata: serviceStatuses.fred.metadata
+            } as any;
+          }
+
+          // SEC EDGAR
+          if (serviceStatuses.secEdgar) {
+            const mapped = mapStatus(serviceStatuses.secEdgar.status);
+            health.services.secEdgar = {
+              name: 'SEC EDGAR',
+              status: mapped.status,
+              color: mapped.color,
+              description: serviceStatuses.secEdgar.description,
+              metadata: serviceStatuses.secEdgar.metadata
+            } as any;
+          }
         } else {
           // Worker was reachable but status services endpoint failed (e.g., unauthorized)
           const desc = `Health endpoint returned status ${res.status}`;
           health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
           health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
           health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
+          health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
+          health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
         }
       } catch (err: any) {
         const desc = `Verification failed: ${err.message || err}`;
         health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
         health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
         health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
+        health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
+        health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
       }
     } else {
       // Worker is down, so backend services are implicitly unreachable
@@ -198,6 +240,8 @@ export class ServiceHealthService {
       health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
       health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
       health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
+      health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
+      health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
     }
 
     // 4. Data Quality cache check
