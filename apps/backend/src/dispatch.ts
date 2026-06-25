@@ -1,3 +1,5 @@
+import { AIModelRegistry } from './aiModelRegistry';
+
 // ==========================================
 // TYPE DEFINITIONS
 // ==========================================
@@ -26,6 +28,10 @@ export interface UserProfile {
   aiCommentaryIncluded?: boolean;
   setupCompleted?: boolean;
   onboardingCompleted?: boolean;
+  modelEditorialCommentary?: string;
+  modelResearchEngine?: string;
+  modelBusinessSchool?: string;
+  modelCopilot?: string;
 }
 
 export interface Holding {
@@ -985,8 +991,9 @@ Leverage Ratio (Debt/Equity): ${leverage}`;
       majorRisks: ['Macroeconomic headwinds', 'Sector competition'] 
     };
 
+    const resolvedModel = AIModelRegistry.resolveModel('Automatic', 'Research Engine');
     try {
-      researchQual = await gemini.generateCommentary(systemPrompt, userPrompt);
+      researchQual = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
     } catch (e) {
       console.warn(`Gemini research generation failed for ${ticker}, using fallback:`, e);
     }
@@ -1067,7 +1074,7 @@ Severity of deviation: ${severityPercent.toFixed(1)}%
 Evaluate if this dip is structural or transient.`;
         
         try {
-          const dipQual = await gemini.generateCommentary(dipSystemPrompt, dipUserPrompt);
+          const dipQual = await gemini.generateCommentary(dipSystemPrompt, dipUserPrompt, resolvedModel);
           dipCatalyst = dipQual.catalyst;
           isStructural = dipQual.isStructural;
         } catch (e) {
@@ -3640,7 +3647,8 @@ Quantitative Dataset:
 
 Output JSON format exactly:`;
 
-        geminiCommentary = await gemini.generateCommentary(systemPrompt, userPrompt, user.geminiModel);
+        const resolvedModel = AIModelRegistry.resolveModel(user.modelEditorialCommentary || user.geminiModel, 'Editorial Commentary');
+        geminiCommentary = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
       } catch (geminiErr) {
         console.error(`[Scheduler] Gemini daily commentary failed for ${user.uid}:`, geminiErr);
       }
@@ -3757,7 +3765,8 @@ Quantitative Weekly Dataset:
 
 Output JSON format exactly:`;
 
-        geminiCommentary = await gemini.generateCommentary(systemPrompt, userPrompt, user.geminiModel);
+        const resolvedModel = AIModelRegistry.resolveModel(user.modelEditorialCommentary || user.geminiModel, 'Editorial Commentary');
+        geminiCommentary = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
       } catch (geminiErr) {
         console.error(`[Scheduler] Weekly Gemini commentary failed for ${user.uid}:`, geminiErr);
       }

@@ -358,7 +358,7 @@ app.post('/api/commentary/generate', async (c) => {
       return c.json({ error: 'Missing systemPrompt or userPrompt parameters' }, 400);
     }
 
-    const modelName = model || 'gemini-1.5-flash';
+    const modelName = AIModelRegistry.resolveModel(model, 'Editorial Commentary');
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
     const res = await fetch(endpoint, {
@@ -414,6 +414,7 @@ import {
   NewsDataService,
   InvestorRelationsService
 } from './dispatch';
+import { AIModelRegistry } from './aiModelRegistry';
 
 class FREDDataService {
   private static readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -1545,11 +1546,21 @@ async function getUserRoleProfile(userId: string, projectId: string): Promise<{
   subscriptionTier: string;
   customLimits: Partial<UsageLimits>;
   featureFlags: Partial<FeatureFlags>;
+  modelEditorialCommentary?: string;
+  modelResearchEngine?: string;
+  modelBusinessSchool?: string;
+  modelCopilot?: string;
+  geminiModel?: string;
 }> {
   let role: UserRole = 'FREE';
   let subscriptionTier = 'free';
   let customLimits: Partial<UsageLimits> = {};
   let featureFlags: Partial<FeatureFlags> = {};
+  let modelEditorialCommentary = 'Automatic';
+  let modelResearchEngine = 'Automatic';
+  let modelBusinessSchool = 'Automatic';
+  let modelCopilot = 'Automatic';
+  let geminiModel = '';
 
   const profile = await getFirestoreDoc(projectId, `users/${userId}`);
   if (profile) {
@@ -1557,8 +1568,23 @@ async function getUserRoleProfile(userId: string, projectId: string): Promise<{
     if (profile.subscriptionTier) subscriptionTier = profile.subscriptionTier;
     if (profile.customLimits) customLimits = profile.customLimits;
     if (profile.featureFlags) featureFlags = profile.featureFlags;
+    if (profile.modelEditorialCommentary) modelEditorialCommentary = profile.modelEditorialCommentary;
+    if (profile.modelResearchEngine) modelResearchEngine = profile.modelResearchEngine;
+    if (profile.modelBusinessSchool) modelBusinessSchool = profile.modelBusinessSchool;
+    if (profile.modelCopilot) modelCopilot = profile.modelCopilot;
+    if (profile.geminiModel) geminiModel = profile.geminiModel;
   }
-  return { role, subscriptionTier, customLimits, featureFlags };
+  return { 
+    role, 
+    subscriptionTier, 
+    customLimits, 
+    featureFlags,
+    modelEditorialCommentary,
+    modelResearchEngine,
+    modelBusinessSchool,
+    modelCopilot,
+    geminiModel
+  };
 }
 
 async function resolveFlags(_userId: string, role: UserRole, userOverrides: Partial<FeatureFlags>, projectId: string): Promise<FeatureFlags> {
@@ -1821,7 +1847,7 @@ app.post('/api/copilot/chat', async (c) => {
 
   try {
     // 1. Resolve Auth Roles and Feature Flags
-    const { role, customLimits, featureFlags } = await getUserRoleProfile(userId, projectId);
+    const { role, customLimits, featureFlags, modelCopilot, geminiModel } = await getUserRoleProfile(userId, projectId);
     const flags = await resolveFlags(userId, role, featureFlags, projectId);
 
     if (!flags.copilot) {
@@ -1989,8 +2015,9 @@ CRITICAL INSTRUCTIONS:
     User Prompt: "${prompt}"
     `;
 
+    const resolvedModel = AIModelRegistry.resolveModel(modelCopilot || geminiModel, 'Copilot');
     const gemini = new GeminiClient(geminiKey);
-    const geminiResult = await gemini.generateCommentary(systemPrompt, userPrompt);
+    const geminiResult = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
 
     // Cost Tier Indicator Calculation
     let costLevel: 'Very Low' | 'Medium' | 'High' = 'Very Low';

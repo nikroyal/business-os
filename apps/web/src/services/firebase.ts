@@ -56,6 +56,10 @@ export interface UserProfile {
   customLimits?: any;
   featureFlags?: any;
   suspended?: boolean;
+  modelEditorialCommentary?: string;
+  modelResearchEngine?: string;
+  modelBusinessSchool?: string;
+  modelCopilot?: string;
 }
 
 export interface Holding {

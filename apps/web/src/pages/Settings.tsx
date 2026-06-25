@@ -182,8 +182,11 @@ export const Settings: React.FC = () => {
 
   // Gemini Settings
   const [geminiEnabled, setGeminiEnabled] = useState(false);
-  const [geminiModel, setGeminiModel] = useState('gemini-1.5-flash');
   const [geminiTone, setGeminiTone] = useState<'editorial' | 'analytical' | 'succinct'>('editorial');
+  const [modelEditorialCommentary, setModelEditorialCommentary] = useState('Automatic');
+  const [modelResearchEngine, setModelResearchEngine] = useState('Automatic');
+  const [modelBusinessSchool, setModelBusinessSchool] = useState('Automatic');
+  const [modelCopilot, setModelCopilot] = useState('Automatic');
 
   // Dispatch Settings
   const [preferredDeliveryTime, setPreferredDeliveryTime] = useState('07:00');
@@ -205,8 +208,11 @@ export const Settings: React.FC = () => {
       setReportingCurrency(profile.reportingCurrency || 'INR');
       setUsdToInrRate((profile.usdToInrRate ?? 83.50).toString());
       setGeminiEnabled(profile.geminiEnabled ?? false);
-      setGeminiModel(profile.geminiModel || 'gemini-1.5-flash');
       setGeminiTone(profile.geminiTone || 'editorial');
+      setModelEditorialCommentary(profile.modelEditorialCommentary || 'Automatic');
+      setModelResearchEngine(profile.modelResearchEngine || 'Automatic');
+      setModelBusinessSchool(profile.modelBusinessSchool || 'Automatic');
+      setModelCopilot(profile.modelCopilot || 'Automatic');
       setPreferredDeliveryTime(profile.preferredDeliveryTime || '07:00');
       setEmailDeliveryAddress(profile.emailDeliveryAddress || profile.email || '');
       setAiCommentaryIncluded(profile.aiCommentaryIncluded ?? true);
@@ -263,8 +269,11 @@ export const Settings: React.FC = () => {
         reportingCurrency,
         usdToInrRate: parseFloat(usdToInrRate) || 83.50,
         geminiEnabled,
-        geminiModel,
         geminiTone,
+        modelEditorialCommentary,
+        modelResearchEngine,
+        modelBusinessSchool,
+        modelCopilot,
         preferredDeliveryTime,
         preferredTimezone: timezone,
         emailDeliveryAddress,
@@ -747,19 +756,6 @@ export const Settings: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Model Selection</label>
-                  <select 
-                    className="form-input form-select"
-                    value={geminiModel}
-                    onChange={(e) => setGeminiModel(e.target.value)}
-                  >
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended)</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Editorial Tone</label>
                   <select 
                     className="form-input form-select"
@@ -770,6 +766,72 @@ export const Settings: React.FC = () => {
                     <option value="analytical">Analytical (Wall Street Analyst style)</option>
                     <option value="succinct">Succinct (Concise Executive summary)</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Subsystem AI Models Grid */}
+              <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '1.25rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.75rem' }}>
+                  Subsystem AI Model Routing Configuration
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  
+                  {/* Editorial Commentary */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Editorial Commentary Model</label>
+                    <select 
+                      className="form-input form-select"
+                      value={modelEditorialCommentary}
+                      onChange={(e) => setModelEditorialCommentary(e.target.value)}
+                    >
+                      <option value="Automatic">Automatic (Recommended - Latest Flash)</option>
+                      <option value="Latest Flash">Latest Flash (Fast & Efficient)</option>
+                      <option value="Latest Pro">Latest Pro (High Quality Analytical)</option>
+                    </select>
+                  </div>
+
+                  {/* Research Engine */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Research Engine Model</label>
+                    <select 
+                      className="form-input form-select"
+                      value={modelResearchEngine}
+                      onChange={(e) => setModelResearchEngine(e.target.value)}
+                    >
+                      <option value="Automatic">Automatic (Recommended - Latest Pro)</option>
+                      <option value="Latest Flash">Latest Flash (Fast & Efficient)</option>
+                      <option value="Latest Pro">Latest Pro (High Quality Analytical)</option>
+                    </select>
+                  </div>
+
+                  {/* Business School */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Business School Model</label>
+                    <select 
+                      className="form-input form-select"
+                      value={modelBusinessSchool}
+                      onChange={(e) => setModelBusinessSchool(e.target.value)}
+                    >
+                      <option value="Automatic">Automatic (Recommended - Latest Flash)</option>
+                      <option value="Latest Flash">Latest Flash (Fast & Efficient)</option>
+                      <option value="Latest Pro">Latest Pro (High Quality Analytical)</option>
+                    </select>
+                  </div>
+
+                  {/* Copilot */}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">BusinessOS Copilot Model</label>
+                    <select 
+                      className="form-input form-select"
+                      value={modelCopilot}
+                      onChange={(e) => setModelCopilot(e.target.value)}
+                    >
+                      <option value="Automatic">Automatic (Recommended - Latest Pro)</option>
+                      <option value="Latest Flash">Latest Flash (Fast & Efficient)</option>
+                      <option value="Latest Pro">Latest Pro (High Quality Analytical)</option>
+                    </select>
+                  </div>
+
                 </div>
               </div>
 

@@ -1,6 +1,7 @@
 import { dbService, authService } from './firebase';
 import type { UserProfile, DailyReport, Opportunity, AICommentary } from './firebase';
 import type { PortfolioAnalytics } from './portfolioAnalyticsService';
+import { AIModelRegistry } from './aiModelRegistry';
 
 export class GeminiService {
   private static lastCallTime = 0;
@@ -83,7 +84,7 @@ export class GeminiService {
     this.lastCallTime = now;
 
     // 5. Trigger Fetch request to Gemini REST endpoint via worker backend
-    const model = profile.geminiModel || 'gemini-1.5-flash';
+    const model = AIModelRegistry.resolveModel(profile.modelEditorialCommentary || profile.geminiModel, 'Editorial Commentary');
     const tone = profile.geminiTone || 'editorial';
 
     const systemPrompt = `You are a Senior Editorial Writer for an elite global financial dispatch (Financial Times/Wall Street Journal style).
