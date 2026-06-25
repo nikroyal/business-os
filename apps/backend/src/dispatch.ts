@@ -4062,7 +4062,6 @@ export class InvestorRelationsService {
   private static mapArticleToAnnouncement(art: any, symbol: string): IRAnnouncement {
     const headline = art.headline || art.title || '';
     const summary = art.summary || art.description || 'Details unavailable.';
-    const sourceName = art.source || art.sourceName || 'Corporate Disclosures Feed';
     const url = art.url || 'https://news.google.com';
     const rawDate = art.datetime ? (art.datetime * 1000) : (art.publishedAt || art.publishDate || Date.now());
     const publishDate = new Date(rawDate).toISOString().split('T')[0];
@@ -4100,7 +4099,6 @@ export class InvestorRelationsService {
       return null;
     }
 
-    const cacheKey = `ir_data_${cleanTicker}`;
     try {
       const res = await fetch(`${firestore['baseUrl']}/irDisclosuresCache/${encodeURIComponent(cleanTicker)}`);
       if (res.ok) {

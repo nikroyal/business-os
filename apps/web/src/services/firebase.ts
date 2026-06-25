@@ -49,6 +49,13 @@ export interface UserProfile {
   // Onboarding & Setup Progress
   setupCompleted?: boolean;
   onboardingCompleted?: boolean;
+
+  // Operational Console Admin role & flags
+  role?: string;
+  subscriptionTier?: string;
+  customLimits?: any;
+  featureFlags?: any;
+  suspended?: boolean;
 }
 
 export interface Holding {

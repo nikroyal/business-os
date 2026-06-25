@@ -11,7 +11,9 @@ import {
   FileText,
   Lightbulb,
   Brain,
-  TrendingUp
+  TrendingUp,
+  MessageSquare,
+  Terminal
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -94,6 +96,24 @@ export const Sidebar: React.FC = () => {
         </NavLink>
         
         <NavLink 
+          to="/copilot" 
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <MessageSquare size={20} />
+          <span>Copilot</span>
+        </NavLink>
+
+        {(profile?.role === 'OWNER' || profile?.role === 'ADMIN') && (
+          <NavLink 
+            to="/developer" 
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <Terminal size={20} style={{ color: 'var(--color-danger-text)' }} />
+            <span style={{ color: 'var(--color-danger-text)', fontWeight: 'bold' }}>Operations Console</span>
+          </NavLink>
+        )}
+
+        <NavLink 
           to="/settings" 
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
@@ -127,6 +147,26 @@ export const Sidebar: React.FC = () => {
           <div className="user-info">
             <span className="user-name">{profile?.displayName || 'User'}</span>
             <span className="user-email">{profile?.email}</span>
+            {profile?.role && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.25rem' }}>
+                <span style={{
+                  background: (profile.role === 'OWNER' || profile.role === 'ADMIN') ? 'rgba(239, 68, 68, 0.2)' : 'rgba(139, 92, 246, 0.2)',
+                  color: (profile.role === 'OWNER' || profile.role === 'ADMIN') ? '#f87171' : '#a78bfa',
+                  border: `1px solid ${(profile.role === 'OWNER' || profile.role === 'ADMIN') ? 'rgba(239, 68, 68, 0.4)' : 'rgba(139, 92, 246, 0.4)'}`,
+                  fontSize: '0.55rem',
+                  fontWeight: 'bold',
+                  padding: '1px 4px',
+                  fontFamily: 'var(--font-mono)',
+                  borderRadius: '2px',
+                  textTransform: 'uppercase'
+                }}>
+                  {profile.role}
+                </span>
+                <span style={{ fontSize: '0.55rem', color: 'var(--text-secondary)' }}>
+                  {profile.role === 'OWNER' || profile.role === 'ADMIN' ? 'Unlimited' : profile.role === 'PRO' ? 'Pro Access' : 'Free Plan'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -10,6 +10,8 @@ import { Reports } from './pages/Reports';
 import { Opportunities } from './pages/Opportunities';
 import { IntelligenceHub } from './pages/IntelligenceHub';
 import { Markets } from './pages/Markets';
+import { Copilot } from './pages/Copilot';
+import { DeveloperConsole } from './pages/DeveloperConsole';
 
 export const App: React.FC = () => {
   return (
@@ -27,6 +29,8 @@ export const App: React.FC = () => {
             <Route path="/opportunities" element={<Opportunities />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/intelligence" element={<IntelligenceHub />} />
+            <Route path="/copilot" element={<Copilot />} />
+            <Route path="/developer" element={<DeveloperConsole />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           

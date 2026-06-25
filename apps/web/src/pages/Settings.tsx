@@ -29,8 +29,145 @@ const AVAILABLE_INTERESTS = [
 ];
 
 export const Settings: React.FC = () => {
-  const { profile, updateProfile } = useAuth();
-  
+  const { profile, updateProfile, isMockMode } = useAuth();
+
+  // Account & limits states
+  const [usage, setUsage] = useState({ businessosCount: 0, liveCount: 0, deepCount: 0 });
+  const [limits, setLimits] = useState<any>({ businessos: 50, live: 10, deep: 2 });
+  const [resetTimeLeft, setResetTimeLeft] = useState('');
+  const [globalFlags, setGlobalFlags] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchGlobalFlags = async () => {
+      try {
+        const { AdminService } = await import('../services/adminService');
+        const flags = await AdminService.getGlobalFeatureFlags(isMockMode);
+        setGlobalFlags(flags);
+      } catch (err) {
+        console.warn('Failed to load global feature flags in settings:', err);
+      }
+    };
+    fetchGlobalFlags();
+  }, [isMockMode]);
+
+  useEffect(() => {
+    const calculateResetTimeLeft = () => {
+      const now = new Date();
+      const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+      const diffMs = tomorrow.getTime() - now.getTime();
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return `${hours}h ${minutes}m`;
+    };
+
+    setResetTimeLeft(calculateResetTimeLeft());
+    const interval = setInterval(() => {
+      setResetTimeLeft(calculateResetTimeLeft());
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchUsageAndLimits = async () => {
+      if (!profile) return;
+      
+      const role = profile.role || 'FREE';
+      const roleLimitsMap: Record<string, any> = {
+        GUEST: { businessos: 10, live: 0, deep: 0 },
+        FREE: { businessos: 50, live: 10, deep: 2 },
+        PRO: { businessos: 'unlimited', live: 100, deep: 25 },
+        ADMIN: { businessos: 'unlimited', live: 999999, deep: 999999 },
+        OWNER: { businessos: 'unlimited', live: 999999, deep: 999999 }
+      };
+      const baseLimits = roleLimitsMap[role] || roleLimitsMap.FREE;
+      const mergedLimits = { ...baseLimits, ...profile.customLimits };
+      setLimits(mergedLimits);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (isMockMode) {
+        const saved = localStorage.getItem(`mock_usage_${profile.uid}_${todayStr}`);
+        if (saved) {
+          setUsage(JSON.parse(saved));
+        } else {
+          const mockUsages = { businessosCount: 4, liveCount: 1, deepCount: 0 };
+          localStorage.setItem(`mock_usage_${profile.uid}_${todayStr}`, JSON.stringify(mockUsages));
+          setUsage(mockUsages);
+        }
+      } else {
+        try {
+          const { authService } = await import('../services/firebase');
+          const token = await authService.getIdToken();
+          const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'business-os-dev';
+          const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${profile.uid}/copilotUsage/${todayStr}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const docData = await res.json();
+            const fields = docData.fields || {};
+            setUsage({
+              businessosCount: fields.businessosCount?.integerValue ? parseInt(fields.businessosCount.integerValue) : 0,
+              liveCount: fields.liveCount?.integerValue ? parseInt(fields.liveCount.integerValue) : 0,
+              deepCount: fields.deepCount?.integerValue ? parseInt(fields.deepCount.integerValue) : 0
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to load real usage, using mock values:', err);
+        }
+      }
+    };
+
+    fetchUsageAndLimits();
+  }, [profile, isMockMode]);
+
+  const getEnabledFeaturesList = () => {
+    const role = profile?.role || 'FREE';
+    const roleFlagsMap: Record<string, any> = {
+      GUEST: { copilot: true, quickMode: true, businessOSMode: true, liveWebMode: false, deepResearchMode: false, developerPanel: false, exportReports: false, betaFeatures: false, marketIntelligence: true, intelligenceHub: false },
+      FREE: { copilot: true, quickMode: true, businessOSMode: true, liveWebMode: true, deepResearchMode: true, developerPanel: false, exportReports: true, betaFeatures: false, marketIntelligence: true, intelligenceHub: true },
+      PRO: { copilot: true, quickMode: true, businessOSMode: true, liveWebMode: true, deepResearchMode: true, developerPanel: false, exportReports: true, betaFeatures: true, marketIntelligence: true, intelligenceHub: true },
+      ADMIN: { copilot: true, quickMode: true, businessOSMode: true, liveWebMode: true, deepResearchMode: true, developerPanel: true, exportReports: true, betaFeatures: true, marketIntelligence: true, intelligenceHub: true },
+      OWNER: { copilot: true, quickMode: true, businessOSMode: true, liveWebMode: true, deepResearchMode: true, developerPanel: true, exportReports: true, betaFeatures: true, marketIntelligence: true, intelligenceHub: true }
+    };
+    const baseFlags = roleFlagsMap[role] || roleFlagsMap.FREE;
+    const userOverrides = profile?.featureFlags || {};
+
+    const keys = [
+      'copilot', 'quickMode', 'businessOSMode', 'liveWebMode', 'deepResearchMode',
+      'developerPanel', 'exportReports', 'betaFeatures', 'marketIntelligence', 'intelligenceHub'
+    ];
+
+    const resolved: Record<string, boolean> = {};
+    for (const k of keys) {
+      // 1. User Override (highest precedence)
+      if (userOverrides[k] !== undefined) {
+        resolved[k] = userOverrides[k];
+        continue;
+      }
+      // 2. Role override in database (e.g. "PRO_copilot" or "FREE_copilot" inside globalFlags)
+      const dbRoleKey = `${role}_${k}`;
+      if (globalFlags && globalFlags[dbRoleKey] !== undefined) {
+        resolved[k] = !!globalFlags[dbRoleKey];
+        continue;
+      }
+      // 3. Fallback to hardcoded role default
+      if (baseFlags[k] !== undefined) {
+        resolved[k] = baseFlags[k];
+        continue;
+      }
+      // 4. Global default (lowest precedence)
+      if (globalFlags && globalFlags[k] !== undefined) {
+        resolved[k] = !!globalFlags[k];
+      } else {
+        resolved[k] = false;
+      }
+    }
+
+    return Object.entries(resolved)
+      .filter(([_, val]) => val)
+      .map(([key]) => key.replace(/([A-Z])/g, ' $1').toUpperCase());
+  };
+
   const [displayName, setDisplayName] = useState('');
   const [riskProfile, setRiskProfile] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate');
   const [interests, setInterests] = useState<string[]>([]);
@@ -200,6 +337,125 @@ export const Settings: React.FC = () => {
 
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         
+        {/* Section 0: Account Details & Limits */}
+        <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <h2 style={{ fontSize: '1.35rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-serif)' }}>
+            <Shield size={18} style={{ color: 'var(--color-accent)' }} />
+            Account & Usage Limits
+          </h2>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1.25rem' }}>
+            {/* Plan Badge Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Subscription Tier & Access</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{
+                  background: (profile?.role === 'OWNER' || profile?.role === 'ADMIN') ? 'var(--color-danger-bg)' : 'var(--color-primary-dark)',
+                  color: (profile?.role === 'OWNER' || profile?.role === 'ADMIN') ? 'var(--color-danger-text)' : '#fff',
+                  border: `1px solid ${(profile?.role === 'OWNER' || profile?.role === 'ADMIN') ? 'var(--color-danger-border)' : 'var(--color-primary)'}`,
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  padding: '4px 8px',
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  {profile?.role || 'FREE'}
+                </span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'var(--font-serif)' }}>
+                  {profile?.role === 'OWNER' || profile?.role === 'ADMIN' ? 'Unlimited Access' : profile?.role === 'PRO' ? 'BusinessOS Pro' : 'Free Tier'}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Registered: {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+
+            {/* Reset Timer Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', justifyContent: 'center', textAlign: 'right' }}>
+              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Next Limit Reset</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>
+                {resetTimeLeft || 'Computing...'}
+              </span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Quota refreshes daily at 00:00 UTC</span>
+            </div>
+          </div>
+
+          {/* Usage Meters */}
+          <div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.75rem' }}>
+              Daily Resource Consumption Meters
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              
+              {/* BusinessOS Meter */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <span>BusinessOS Intelligence Queries</span>
+                  <strong>{usage.businessosCount} / {limits.businessos === 'unlimited' || typeof limits.businessos === 'string' ? '∞' : limits.businessos}</strong>
+                </div>
+                <div style={{ height: '6px', background: '#e2dacd', position: 'relative' }}>
+                  <div style={{
+                    height: '100%',
+                    background: 'var(--color-primary)',
+                    width: limits.businessos === 'unlimited' || typeof limits.businessos === 'string' ? '100%' : `${Math.min(100, (usage.businessosCount / limits.businessos) * 100)}%`
+                  }} />
+                </div>
+              </div>
+
+              {/* Live Web Searches */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <span>Live Web Searches</span>
+                  <strong>{usage.liveCount} / {limits.live === 'unlimited' || typeof limits.live === 'string' ? '∞' : limits.live}</strong>
+                </div>
+                <div style={{ height: '6px', background: '#e2dacd', position: 'relative' }}>
+                  <div style={{
+                    height: '100%',
+                    background: 'var(--color-primary)',
+                    width: limits.live === 'unlimited' || typeof limits.live === 'string' ? '100%' : `${Math.min(100, (usage.liveCount / limits.live) * 100)}%`
+                  }} />
+                </div>
+              </div>
+
+              {/* Deep Research Runs */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <span>Deep Research Crawls</span>
+                  <strong>{usage.deepCount} / {limits.deep === 'unlimited' || typeof limits.deep === 'string' ? '∞' : limits.deep}</strong>
+                </div>
+                <div style={{ height: '6px', background: '#e2dacd', position: 'relative' }}>
+                  <div style={{
+                    height: '100%',
+                    background: 'var(--color-primary)',
+                    width: limits.deep === 'unlimited' || typeof limits.deep === 'string' ? '100%' : `${Math.min(100, (usage.deepCount / limits.deep) * 100)}%`
+                  }} />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Enabled Features List */}
+          <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '1rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
+              Activated System Feature Flags
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {getEnabledFeaturesList().map(flag => (
+                <span key={flag} style={{
+                  background: '#faf8f5',
+                  border: '1px solid #e2dacd',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.65rem',
+                  fontFamily: 'var(--font-mono)',
+                  padding: '2px 6px'
+                }}>
+                  ✓ {flag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Section 1: User Profile Settings */}
         <section className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
