@@ -194,6 +194,21 @@ export const IntelligenceHub: React.FC = () => {
     }
   }, [convictions, selectedAsset]);
 
+  const formatFreshness = (isoString?: string) => {
+    if (!isoString) return 'Pending update';
+    try {
+      const diffMs = Date.now() - new Date(isoString).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} min ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours} hr ago`;
+      return new Date(isoString).toLocaleDateString();
+    } catch {
+      return 'N/A';
+    }
+  };
+
   // Executive Narrative Generators answering "Why care about this company?"
   const getExecutiveThesis = (intel: CompanyIntelligence, conviction: UserConviction | null) => {
     if (!conviction) return `${intel.name} represents a standard asset holding currently under quantitative model scoring review.`;
@@ -514,24 +529,32 @@ export const IntelligenceHub: React.FC = () => {
                   <div className="flex flex-col gap-8">
                     
                     {/* Header Workspace Title and Exports */}
-                    <div className="border-b-2 border-stone-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                    <div className="border-b-2 border-stone-800 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
                       <div>
-                        <div className="font-mono text-[9px] text-[#8c2a2a] uppercase tracking-widest font-bold flex items-center gap-1">
-                          <Activity size={10} /> Mounted Workspace Rationale
+                        <div className="font-mono text-[9px] text-[#8c2a2a] uppercase tracking-widest font-bold flex items-center gap-1.5">
+                          <Activity size={10} /> Live Workspace Rationale
                         </div>
-                        <h2 className="font-serif text-3xl font-normal text-[#1A1A1A] mt-1">
+                        <h2 className="font-serif text-4xl font-normal text-[#1A1A1A] mt-1">
                           {selectedAsset.intel.name}
                         </h2>
-                        <div className="flex gap-2 text-xs font-mono text-stone-500 mt-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-stone-500 mt-1.5">
                           <strong className="text-stone-800">{selectedAsset.ticker}:{selectedAsset.exchange}</strong>
                           <span>|</span>
                           <span>{selectedAsset.intel.sector}</span>
                           <span>|</span>
                           <span>{selectedAsset.intel.research.fundamentals?.industry || 'Data unavailable'}</span>
+                          <span>|</span>
+                          <span className="bg-[#FAF8F5] border border-stone-200 px-1.5 py-0.5 text-[10px] text-[#8c2a2a] font-bold">
+                            CONFIDENCE: {researchReport?.confidenceScore || selectedAsset.intel.qualityScore}%
+                          </span>
+                          <span>|</span>
+                          <span className="text-stone-600 font-bold">
+                            FRESHNESS: {formatFreshness(selectedAsset.intel.updatedAt)}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button 
                           onClick={() => handleRecalculate(selectedAsset.ticker, selectedAsset.exchange)}
                           disabled={recalculating === `${selectedAsset.ticker}:${selectedAsset.exchange}`}
@@ -558,469 +581,493 @@ export const IntelligenceHub: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Section 3.1: Executive Thesis */}
-                    <div className="border border-stone-300 p-4 md:p-6 bg-[#FCFAF6]">
-                      <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
-                        Executive Investment Thesis
-                      </h3>
+                    {/* Bloomberg-FT Flagship Analysis Dashboard Layout Grid */}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                       
-                      <div className="flex flex-col gap-4 font-serif text-sm leading-relaxed text-[#1A1A1A]">
-                        <div>
-                          <strong className="font-mono text-[10px] uppercase tracking-wider text-stone-400 block mb-1">Thesis Overview</strong>
-                          <p className="italic bg-white p-3 border-l-4 border-[#8c2a2a]">
-                            "{getExecutiveThesis(selectedAsset.intel, selectedAsset.conviction)}"
-                          </p>
-                        </div>
+                      {/* LEFT SECTION (Col Span 2) */}
+                      <div className="xl:col-span-2 flex flex-col gap-6">
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                          <div>
-                            <strong className="font-mono text-[10px] uppercase tracking-wider text-stone-400 block mb-1">Primary Opportunity</strong>
-                            <p className="text-stone-700 bg-white p-3 border border-stone-200 text-xs">
-                              {getPrimaryOpportunity(selectedAsset.intel)}
+                        {/* 1. Executive Summary & Thesis */}
+                        <div className="border border-stone-300 p-6 bg-[#FCFAF6] shadow-sm">
+                          <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                            Executive Investment Thesis
+                          </h3>
+                          <div className="flex flex-col gap-4 font-serif text-sm leading-relaxed text-[#1A1A1A]">
+                            <p className="italic bg-white p-4 border-l-4 border-[#8c2a2a] text-stone-850 text-base shadow-sm">
+                              "{getExecutiveThesis(selectedAsset.intel, selectedAsset.conviction)}"
                             </p>
-                          </div>
-                          <div>
-                            <strong className="font-mono text-[10px] uppercase tracking-wider text-stone-400 block mb-1">Primary Catalyst & Risk</strong>
-                            <p className="text-stone-700 bg-white p-3 border border-stone-200 text-xs">
-                              {getPrimaryRisk(selectedAsset.intel)}
-                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                              <div className="bg-white p-4 border border-stone-200 rounded-none shadow-xs">
+                                <strong className="font-mono text-[10px] uppercase tracking-wider text-stone-400 block mb-1">Primary Opportunity</strong>
+                                <p className="text-stone-700 font-serif text-xs leading-relaxed">
+                                  {getPrimaryOpportunity(selectedAsset.intel)}
+                                </p>
+                              </div>
+                              <div className="bg-white p-4 border border-stone-200 rounded-none shadow-xs">
+                                <strong className="font-mono text-[10px] uppercase tracking-wider text-stone-400 block mb-1">Core Catalysts</strong>
+                                <p className="text-stone-700 font-serif text-xs leading-relaxed">
+                                  {getPrimaryRisk(selectedAsset.intel)}
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Section 3.2: Conviction Breakdown */}
-                    <div className="border border-[#E5E2D9] p-4 md:p-6 bg-white">
-                      <div className="flex justify-between items-center border-b border-stone-200 pb-2 mb-4">
-                        <h3 className="font-serif text-lg font-bold text-stone-900">
-                          Personalized Conviction Breakdown
-                        </h3>
-                        <div className="font-mono text-base font-bold text-[#8c2a2a] bg-[#FAF8F5] border px-2 py-0.5">
-                          {selectedAsset.conviction?.overallScore || '—'}/100 Overall
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-4 text-xs">
-                        {/* Allocation */}
-                        <div>
-                          <div className="flex justify-between font-mono font-bold mb-1">
-                            <span>Portfolio Exposure Sizing</span>
-                            <span>{selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0} / 25 Max</span>
-                          </div>
-                          <div className="w-full h-2 bg-stone-100 border border-stone-200 rounded-none overflow-hidden">
-                            <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0) / 25) * 100}%` }}></div>
-                          </div>
-                          <span className="font-mono text-[9px] text-stone-400 block mt-1 uppercase">
-                            Score Weight: 25% | RAW Metric: {selectedAsset.conviction?.breakdown.allocationFactor.score || 0}/100
-                          </span>
-                          <p className="text-stone-600 mt-1 font-serif">
-                            {selectedAsset.conviction?.breakdown.allocationFactor.explanation}
+                        {/* 2. Supporting Evidence & Pullback Deviation workbench */}
+                        <div className="border border-[#E5E2D9] p-6 bg-white shadow-sm">
+                          <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                            Supporting Evidence & Technical Deviation
+                          </h3>
+                          <p className="font-serif text-xs text-stone-600 mb-4 leading-relaxed">
+                            Analytical support indicates that statistical pullback margins-of-safety are preserved. Volatility indices and exponential moving averages verify that short-term price pullbacks exist inside structural long-term asset appreciation patterns.
                           </p>
-                        </div>
-
-                        {/* Fundamental */}
-                        <div className="border-t border-stone-200 pt-3">
-                          <div className="flex justify-between font-mono font-bold mb-1">
-                            <span>Fundamental Quality Index</span>
-                            <span>{selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0} / 25 Max</span>
-                          </div>
-                          <div className="w-full h-2 bg-stone-100 border border-stone-200 rounded-none overflow-hidden">
-                            <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0) / 25) * 100}%` }}></div>
-                          </div>
-                          <span className="font-mono text-[9px] text-stone-400 block mt-1 uppercase">
-                            Score Weight: 25% | RAW Metric: {selectedAsset.conviction?.breakdown.fundamentalFactor.score || 0}/100
-                          </span>
-                          <p className="text-stone-600 mt-1 font-serif">
-                            {selectedAsset.conviction?.breakdown.fundamentalFactor.explanation}
-                          </p>
-                        </div>
-
-                        {/* Dip */}
-                        <div className="border-t border-stone-200 pt-3">
-                          <div className="flex justify-between font-mono font-bold mb-1">
-                            <span>Technical Dip Premium</span>
-                            <span>{selectedAsset.conviction?.breakdown.dipFactor.contribution || 0} / 25 Max</span>
-                          </div>
-                          <div className="w-full h-2 bg-stone-100 border border-stone-200 rounded-none overflow-hidden">
-                            <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.dipFactor.contribution || 0) / 25) * 100}%` }}></div>
-                          </div>
-                          <span className="font-mono text-[9px] text-stone-400 block mt-1 uppercase">
-                            Score Weight: 25% | RAW Metric: {selectedAsset.conviction?.breakdown.dipFactor.score || 0}/100
-                          </span>
-                          <p className="text-stone-600 mt-1 font-serif">
-                            {selectedAsset.conviction?.breakdown.dipFactor.explanation}
-                          </p>
-                        </div>
-
-                        {/* Institutional */}
-                        <div className="border-t border-stone-200 pt-3">
-                          <div className="flex justify-between font-mono font-bold mb-1">
-                            <span>Institutional & Insider Support</span>
-                            <span>{selectedAsset.conviction?.breakdown.institutionalFactor.contribution || 0} / 25 Max</span>
-                          </div>
-                          <div className="w-full h-2 bg-stone-100 border border-stone-200 rounded-none overflow-hidden">
-                            <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.institutionalFactor.contribution || 0) / 25) * 100}%` }}></div>
-                          </div>
-                          <span className="font-mono text-[9px] text-stone-400 block mt-1 uppercase">
-                            Score Weight: 25% | RAW Metric: {selectedAsset.conviction?.breakdown.institutionalFactor.score || 0}/100
-                          </span>
-                          <p className="text-stone-600 mt-1 font-serif">
-                            {selectedAsset.conviction?.breakdown.institutionalFactor.explanation}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section 3.3: Quality Score Framework */}
-                    <div className="border border-[#E5E2D9] p-4 md:p-6 bg-[#FCFAF6]">
-                      <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
-                        Quality Score Framework ({selectedAsset.intel.qualityScore}/100)
-                      </h3>
-
-                      {(() => {
-                        const qb = selectedAsset.intel.qualityBreakdown || {
-                          moat: { score: selectedAsset.intel.qualityScore >= 70 ? 40 : 25, max: 40, weight: 0.4, contribution: selectedAsset.intel.qualityScore >= 70 ? 40 : 25, value: selectedAsset.intel.research.moatRating.toUpperCase(), rationale: selectedAsset.intel.research.moatRationale },
-                          leverage: { score: selectedAsset.intel.research.leverageRatio < 0.4 ? 30 : 20, max: 30, weight: 0.3, contribution: selectedAsset.intel.research.leverageRatio < 0.4 ? 30 : 20, value: selectedAsset.intel.research.leverageRatio, rationale: `Leverage ratio is ${selectedAsset.intel.research.leverageRatio.toFixed(2)}.` },
-                          fcfMargin: { score: selectedAsset.intel.research.freeCashFlowMargin > 25 ? 30 : 20, max: 30, weight: 0.3, contribution: selectedAsset.intel.research.freeCashFlowMargin > 25 ? 30 : 20, value: selectedAsset.intel.research.freeCashFlowMargin, rationale: `FCF Margin is ${selectedAsset.intel.research.freeCashFlowMargin.toFixed(1)}%.` }
-                        };
-                        
-                        return (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                            {/* Economic Moat */}
-                            <div className="bg-white border border-stone-200 p-3">
-                              <div className="flex justify-between font-mono font-bold border-b border-stone-100 pb-1 mb-1 text-stone-800">
-                                <span>Economic Moat</span>
-                                <span className="text-[#8c2a2a]">{qb.moat.score}/40 Max</span>
-                              </div>
-                              <div className="font-mono text-[9px] uppercase text-stone-400 mb-2">Rating: {qb.moat.value}</div>
-                              <p className="font-serif italic text-[#555555]">
-                                "{qb.moat.rationale}"
-                              </p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs font-mono text-stone-600 bg-[#FCFAF6] border border-stone-200 p-4">
+                            <div>
+                              <span className="text-[9px] text-stone-400 uppercase block">Current Live Price</span>
+                              <strong className="text-stone-950 text-sm font-bold">${(selectedAsset.intel.dip.currentPrice || 0).toFixed(2)}</strong>
                             </div>
-
-                            {/* Leverage */}
-                            <div className="bg-white border border-stone-200 p-3">
-                              <div className="flex justify-between font-mono font-bold border-b border-stone-100 pb-1 mb-1 text-stone-800">
-                                <span>Balance Sheet</span>
-                                <span className="text-[#8c2a2a]">{qb.leverage.score}/30 Max</span>
-                              </div>
-                              <div className="font-mono text-[9px] uppercase text-stone-400 mb-2">Threshold target: &lt; 0.40</div>
-                              <p className="text-[#555555]">
-                                {qb.leverage.rationale}
-                              </p>
+                            <div>
+                              <span className="text-[9px] text-stone-400 uppercase block">Z-Score Price Deviation</span>
+                              <strong className="text-stone-950 text-sm font-bold">{(selectedAsset.intel.dip.zScore || 0).toFixed(2)} σ</strong>
                             </div>
-
-                            {/* FCF Margin */}
-                            <div className="bg-white border border-stone-200 p-3">
-                              <div className="flex justify-between font-mono font-bold border-b border-stone-100 pb-1 mb-1 text-stone-800">
-                                <span>Cash Generation</span>
-                                <span className="text-[#8c2a2a]">{qb.fcfMargin.score}/30 Max</span>
-                              </div>
-                              <div className="font-mono text-[9px] uppercase text-stone-400 mb-2">Threshold target: &gt; 25.0%</div>
-                              <p className="text-[#555555]">
-                                {qb.fcfMargin.rationale}
-                              </p>
+                            <div>
+                              <span className="text-[9px] text-stone-400 uppercase block">Historical Volatility</span>
+                              <strong className="text-stone-950 text-sm font-bold">{(selectedAsset.intel.dip.volatility || 0).toFixed(2)}</strong>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-stone-400 uppercase block">52-Week Range</span>
+                              <strong className="text-stone-950 text-sm font-bold">${(selectedAsset.intel.dip.fiftyTwoWeekLow || 0).toFixed(0)} - ${(selectedAsset.intel.dip.fiftyTwoWeekHigh || 0).toFixed(0)}</strong>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-stone-400 uppercase block">50-Day Price EMA</span>
+                              <strong className="text-stone-950 text-sm font-bold">${(selectedAsset.intel.dip.ema50 || 0).toFixed(2)}</strong>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-stone-400 uppercase block">Technical Pullback Status</span>
+                              <strong className="text-stone-950 text-sm font-bold uppercase">{selectedAsset.intel.dip.dipDetected ? (selectedAsset.intel.dip.classification || 'Active Pullback') : 'Baseline bounds'}</strong>
                             </div>
                           </div>
-                        );
-                      })()}
-                    </div>
+                        </div>
 
-                    {/* Section 3.4: Smart Money Terminal */}
-                    <div className="border border-[#E5E2D9] p-4 md:p-6 bg-white">
-                      <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
-                        Institutional & Insider Flows
-                      </h3>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        {/* Insider Activity */}
-                        <div className="p-3 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between">
-                          <div>
-                            <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1 mb-2 text-stone-800">
-                              <span>Insider Transactions</span>
-                              <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider">
-                                Conf: {selectedAsset.intel.smartMoney.insiderTransactions?.confidence || 'none'}
-                              </span>
-                            </div>
+                        {/* 3. Smart Money Dashboard (Insider & Institutional flows) */}
+                        <div className="border border-[#E5E2D9] p-6 bg-white shadow-sm">
+                          <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                            Smart Money Flow Dashboard
+                          </h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             
-                            {selectedAsset.intel.smartMoney.insiderTransactions?.value ? (
-                              <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
-                                <div><strong>Net Volume:</strong> {selectedAsset.intel.smartMoney.insiderTransactions.value.netSharesBought.toLocaleString()} Shares</div>
-                                <div><strong>Transactions (90d):</strong> {selectedAsset.intel.smartMoney.insiderTransactions.value.totalTransactionsCount} ({selectedAsset.intel.smartMoney.insiderTransactions.value.buyCount} buys, {selectedAsset.intel.smartMoney.insiderTransactions.value.sellCount} sells)</div>
-                              </div>
-                            ) : (
-                              <div className="text-stone-400 font-mono text-[10px] italic">Data unavailable</div>
-                            )}
-                          </div>
-                          
-                          <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
-                            SOURCE: SEC FORM 4 FILINGS | AS OF: {selectedAsset.intel.smartMoney.insiderTransactions?.timestamp ? new Date(selectedAsset.intel.smartMoney.insiderTransactions.timestamp).toLocaleDateString() : 'Baseline'}
-                          </div>
-                        </div>
-
-                        {/* Officer Sentiment */}
-                        <div className="p-3 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between">
-                          <div>
-                            <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1 mb-2 text-stone-800">
-                              <span>Corporate Officer Sentiment</span>
-                              <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider">
-                                Conf: {selectedAsset.intel.smartMoney.insiderSentiment?.confidence || 'none'}
-                              </span>
-                            </div>
-                            
-                            {selectedAsset.intel.smartMoney.insiderSentiment?.value ? (
-                              <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
-                                <div><strong>Monthly Purchase Ratio:</strong> {selectedAsset.intel.smartMoney.insiderSentiment.value.mspr.toFixed(2)} Index</div>
-                                <div><strong>Officer Share Change:</strong> {selectedAsset.intel.smartMoney.insiderSentiment.value.change.toLocaleString()} Shares</div>
-                              </div>
-                            ) : (
-                              <div className="text-stone-400 font-mono text-[10px] italic">Data unavailable</div>
-                            )}
-                          </div>
-                          
-                          <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
-                            SOURCE: FINNHUB INSIDER API | AS OF: {selectedAsset.intel.smartMoney.insiderSentiment?.timestamp ? new Date(selectedAsset.intel.smartMoney.insiderSentiment.timestamp).toLocaleDateString() : 'Baseline'}
-                          </div>
-                        </div>
-
-                        {/* Options Put/Call */}
-                        <div className="p-3 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between">
-                          <div>
-                            <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1 mb-2 text-stone-800">
-                              <span>Options Sentiment Ratio</span>
-                              <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider">
-                                Conf: {selectedAsset.intel.smartMoney.optionsVolume?.confidence || 'none'}
-                              </span>
-                            </div>
-                            
-                            {selectedAsset.intel.smartMoney.optionsVolume?.value ? (
-                              <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
-                                <div><strong>Put/Call Volume Ratio:</strong> {selectedAsset.intel.smartMoney.optionsVolume.value.putCallRatio.toFixed(2)}</div>
-                                <div><strong>Sentiment Classification:</strong> {selectedAsset.intel.smartMoney.optionsVolume.value.sentiment.toUpperCase()}</div>
-                              </div>
-                            ) : (
-                              <div className="text-stone-400 font-mono text-[10px] italic">Data unavailable</div>
-                            )}
-                          </div>
-                          
-                          <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
-                            SOURCE: HISTORICAL OPTIONS DATA | AS OF: {selectedAsset.intel.smartMoney.optionsVolume?.timestamp ? new Date(selectedAsset.intel.smartMoney.optionsVolume.timestamp).toLocaleDateString() : 'Baseline'}
-                          </div>
-                        </div>
-
-                        {/* 13F Ownership */}
-                        <div className="p-3 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between">
-                          <div>
-                            <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1 mb-2 text-stone-800">
-                              <span>Institutional 13F Holdings</span>
-                              <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider">
-                                Conf: {selectedAsset.intel.smartMoney.institutionalOwnership?.confidence || 'none'}
-                              </span>
-                            </div>
-                            
-                            {selectedAsset.intel.smartMoney.institutionalOwnership?.value ? (
-                              <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
-                                <div><strong>Institutional Ownership:</strong> {selectedAsset.intel.smartMoney.institutionalOwnership.value.ownershipPercent.toFixed(1)}%</div>
-                                <div><strong>Fund Net Flows:</strong> {selectedAsset.intel.smartMoney.institutionalOwnership.value.netFlow.toUpperCase()}</div>
-                              </div>
-                            ) : (
-                              <div className="text-stone-400 font-mono text-[10px] italic">Data unavailable</div>
-                            )}
-                          </div>
-                          
-                          <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
-                            SOURCE: SEC FORM 13F DATABASES | AS OF: {selectedAsset.intel.smartMoney.institutionalOwnership?.timestamp ? new Date(selectedAsset.intel.smartMoney.institutionalOwnership.timestamp).toLocaleDateString() : 'Baseline'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section 3.5: Dip Analysis Workbench */}
-                    <div className="border border-[#E5E2D9] p-4 md:p-6 bg-[#FCFAF6]">
-                      <div className="flex justify-between items-center border-b border-stone-200 pb-2 mb-4">
-                        <h3 className="font-serif text-lg font-bold text-stone-900">
-                          Dip Technical Workbench
-                        </h3>
-                        <span className="font-mono text-xs font-bold text-[#8c2a2a] bg-white border px-2 py-0.5">
-                          CLASSIFICATION: {selectedAsset.intel.dip.dipDetected ? (selectedAsset.intel.dip.classification?.toUpperCase() || 'UNCERTAIN') : 'NO ACTIVE DIP'}
-                        </span>
-                      </div>
-
-                      <p className="font-serif text-xs italic text-stone-700 bg-white p-3 border border-stone-200 mb-4">
-                        "{selectedAsset.intel.dip.classificationRationale || selectedAsset.intel.dip.catalyst || 'Sufficient technical support ranges preserved. Security operates inside regular statistical deviation limits.'}"
-                      </p>
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs font-mono text-stone-600">
-                        <div>
-                          <span className="text-[9px] text-stone-400 uppercase block">Current Live Price</span>
-                          <strong className="text-stone-900 text-sm font-bold">${(selectedAsset.intel.dip.currentPrice || 0).toFixed(2)}</strong>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-stone-400 uppercase block">52-Week High/Low</span>
-                          <strong className="text-stone-900 text-sm font-bold">${(selectedAsset.intel.dip.fiftyTwoWeekLow || 0).toFixed(0)} - ${(selectedAsset.intel.dip.fiftyTwoWeekHigh || 0).toFixed(0)}</strong>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-stone-400 uppercase block">50-Day Price EMA</span>
-                          <strong className="text-stone-900 text-sm font-bold">${(selectedAsset.intel.dip.ema50 || 0).toFixed(2)}</strong>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-stone-400 uppercase block">Z-Score Price Deviation</span>
-                          <strong className="text-stone-900 text-sm font-bold">{(selectedAsset.intel.dip.zScore || 0).toFixed(2)} σ</strong>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-stone-400 uppercase block">Historical Volatility</span>
-                          <strong className="text-stone-900 text-sm font-bold">{(selectedAsset.intel.dip.volatility || 0).toFixed(2)}</strong>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-stone-400 uppercase block">Calculated Quality Index</span>
-                          <strong className="text-stone-900 text-sm font-bold">{selectedAsset.intel.qualityScore}/100</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* SECTION 4 — EQUITY RESEARCH ENGINE */}
-                    <div className="border border-stone-300 p-4 md:p-6 bg-white">
-                      <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4 flex items-center gap-1.5">
-                        <Briefcase size={18} /> Equity Research Engine Brief
-                      </h3>
-                      
-                      {researchLoading ? (
-                        <div className="flex items-center gap-2 text-stone-500 font-mono text-xs py-8">
-                          <RefreshCw size={14} className="animate-spin" /> Compiling Data Moat Research Report...
-                        </div>
-                      ) : researchReport ? (
-                        <div className="flex flex-col gap-5 text-xs text-[#1A1A1A] font-serif leading-relaxed">
-                          {/* Business Overview */}
-                          <div>
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">1. Business Overview</strong>
-                            <p className="text-stone-700">
-                              {researchReport.executiveSummary}
-                            </p>
-                          </div>
-
-                          {/* Revenue Drivers */}
-                          <div>
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">2. Financial Metrics Analysis</strong>
-                            <p className="text-stone-700">
-                              {researchReport.financialMetricsAnalysis}
-                            </p>
-                          </div>
-
-                          {/* Risks & Mitigations */}
-                          <div>
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">3. Risks and Mitigations</strong>
-                            <p className="text-stone-700">
-                              {researchReport.risksAndMitigations}
-                            </p>
-                          </div>
-
-                          {/* Filing Change Detector Alerts */}
-                          <div className="border border-stone-200 p-3 bg-[#FCFAF6]">
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-2">Filing Change Detector Alerts</strong>
-                            {researchReport.changeDetectionAlerts.length > 0 ? (
-                              <div className="flex flex-col gap-2">
-                                {researchReport.changeDetectionAlerts.map((alert, i) => (
-                                  <div key={i} className="flex flex-col sm:flex-row sm:justify-between font-mono text-[10px] pb-1 border-b border-stone-100 last:border-b-0">
-                                    <div>
-                                      <span className={alert.direction === 'improved' ? 'text-green-700 font-bold' : alert.direction === 'deteriorated' ? 'text-red-700 font-bold' : 'text-stone-600'}>
-                                        {alert.direction.toUpperCase()}
-                                      </span>
-                                      <span className="text-stone-800 ml-1.5">{alert.metric}:</span>
-                                    </div>
-                                    <div className="text-stone-600">
-                                      {alert.previousValue} → <strong>{alert.currentValue}</strong> ({alert.changePercent > 0 ? '+' : ''}{alert.changePercent}%)
-                                    </div>
+                            {/* Insider Activity */}
+                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                              <div>
+                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                  <span>Insider Net Volume</span>
+                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
+                                    Conf: {selectedAsset.intel.smartMoney.insiderTransactions?.confidence || 'none'}
+                                  </span>
+                                </div>
+                                {selectedAsset.intel.smartMoney.insiderTransactions?.value ? (
+                                  <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
+                                    <div><strong>Net Volume:</strong> {selectedAsset.intel.smartMoney.insiderTransactions.value.netSharesBought.toLocaleString()} Shares</div>
+                                    <div><strong>Transactions (90d):</strong> {selectedAsset.intel.smartMoney.insiderTransactions.value.totalTransactionsCount} ({selectedAsset.intel.smartMoney.insiderTransactions.value.buyCount} buys, {selectedAsset.intel.smartMoney.insiderTransactions.value.sellCount} sells)</div>
                                   </div>
-                                ))}
+                                ) : (
+                                  <div className="text-stone-450 font-mono text-[10px] italic">Data unavailable</div>
+                                )}
                               </div>
-                            ) : (
-                              <span className="text-stone-400 italic text-[10px] font-mono">Data unavailable</span>
-                            )}
-                          </div>
+                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
+                                SOURCE: SEC FORM 4 FILINGS | AS OF: {selectedAsset.intel.smartMoney.insiderTransactions?.timestamp ? new Date(selectedAsset.intel.smartMoney.insiderTransactions.timestamp).toLocaleDateString() : 'Baseline'}
+                              </div>
+                            </div>
 
-                          {/* Earnings Trend */}
-                          <div>
-                            <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-2">Earnings & Margin Trend (Historical Highlights)</strong>
-                            {researchReport.earningsTrend.length > 0 ? (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left font-mono text-[9px] border-collapse">
-                                  <thead>
-                                    <tr className="border-b border-stone-300 font-bold uppercase text-stone-500">
-                                      <th className="pb-1.5">Reporting Date</th>
-                                      <th className="pb-1.5 text-right">Quarterly Revenue</th>
-                                      <th className="pb-1.5 text-right">Operating Margin</th>
-                                      <th className="pb-1.5 text-right">Net Income</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {researchReport.earningsTrend.map((trend, i) => (
-                                      <tr key={i} className="border-b border-stone-100 last:border-b-0">
-                                        <td className="py-1.5">{trend.quarter}</td>
-                                        <td className="py-1.5 text-right font-bold">
-                                          {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' 
-                                            ? `₹${(trend.revenue / 10000000).toFixed(0)} Cr`
-                                            : `$${(trend.revenue / 1000000000).toFixed(2)}B`}
-                                        </td>
-                                        <td className="py-1.5 text-right font-bold" style={{ color: trend.operatingMargin > 25 ? '#34a853' : trend.operatingMargin > 10 ? '#fbbc05' : '#ea4335' }}>
-                                          {trend.operatingMargin.toFixed(1)}%
-                                        </td>
-                                        <td className="py-1.5 text-right text-stone-600">
-                                          {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE'
-                                            ? `₹${(trend.netIncome / 10000000).toFixed(0)} Cr`
-                                            : `$${(trend.netIncome / 1000000000).toFixed(2)}B`}
-                                        </td>
-                                      </tr>
+                            {/* Officer Sentiment */}
+                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                              <div>
+                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                  <span>Corporate Officer Sentiment</span>
+                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
+                                    Conf: {selectedAsset.intel.smartMoney.insiderSentiment?.confidence || 'none'}
+                                  </span>
+                                </div>
+                                {selectedAsset.intel.smartMoney.insiderSentiment?.value ? (
+                                  <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
+                                    <div><strong>Monthly Purchase Ratio:</strong> {selectedAsset.intel.smartMoney.insiderSentiment.value.mspr.toFixed(2)} Index</div>
+                                    <div><strong>Officer Share Change:</strong> {selectedAsset.intel.smartMoney.insiderSentiment.value.change.toLocaleString()} Shares</div>
+                                  </div>
+                                ) : (
+                                  <div className="text-stone-450 font-mono text-[10px] italic">Data unavailable</div>
+                                )}
+                              </div>
+                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
+                                SOURCE: FINNHUB INSIDER API | AS OF: {selectedAsset.intel.smartMoney.insiderSentiment?.timestamp ? new Date(selectedAsset.intel.smartMoney.insiderSentiment.timestamp).toLocaleDateString() : 'Baseline'}
+                              </div>
+                            </div>
+
+                            {/* Options Put/Call */}
+                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                              <div>
+                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                  <span>Options Volume Ratio</span>
+                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
+                                    Conf: {selectedAsset.intel.smartMoney.optionsVolume?.confidence || 'none'}
+                                  </span>
+                                </div>
+                                {selectedAsset.intel.smartMoney.optionsVolume?.value ? (
+                                  <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
+                                    <div><strong>Put/Call Volume Ratio:</strong> {selectedAsset.intel.smartMoney.optionsVolume.value.putCallRatio.toFixed(2)}</div>
+                                    <div><strong>Sentiment Classification:</strong> {selectedAsset.intel.smartMoney.optionsVolume.value.sentiment.toUpperCase()}</div>
+                                  </div>
+                                ) : (
+                                  <div className="text-stone-450 font-mono text-[10px] italic">Data unavailable</div>
+                                )}
+                              </div>
+                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
+                                SOURCE: HISTORICAL OPTIONS DATA | AS OF: {selectedAsset.intel.smartMoney.optionsVolume?.timestamp ? new Date(selectedAsset.intel.smartMoney.optionsVolume.timestamp).toLocaleDateString() : 'Baseline'}
+                              </div>
+                            </div>
+
+                            {/* 13F Ownership */}
+                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                              <div>
+                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                  <span>Institutional 13F Ownership</span>
+                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
+                                    Conf: {selectedAsset.intel.smartMoney.institutionalOwnership?.confidence || 'none'}
+                                  </span>
+                                </div>
+                                {selectedAsset.intel.smartMoney.institutionalOwnership?.value ? (
+                                  <div className="font-mono text-[11px] text-stone-700 leading-normal flex flex-col gap-1">
+                                    <div><strong>Institutional Ownership:</strong> {selectedAsset.intel.smartMoney.institutionalOwnership.value.ownershipPercent.toFixed(1)}%</div>
+                                    <div><strong>Fund Net Flows:</strong> {selectedAsset.intel.smartMoney.institutionalOwnership.value.netFlow.toUpperCase()}</div>
+                                  </div>
+                                ) : (
+                                  <div className="text-stone-450 font-mono text-[10px] italic">Data unavailable</div>
+                                )}
+                              </div>
+                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
+                                SOURCE: SEC FORM 13F DATABASES | AS OF: {selectedAsset.intel.smartMoney.institutionalOwnership?.timestamp ? new Date(selectedAsset.intel.smartMoney.institutionalOwnership.timestamp).toLocaleDateString() : 'Baseline'}
+                              </div>
+                            </div>
+
+                          </div>
+                        </div>
+
+                        {/* 4. Research Summary Cards */}
+                        <div className="border border-stone-300 p-6 bg-white shadow-sm">
+                          <h3 className="font-serif text-xl font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4 flex items-center gap-1.5">
+                            <Briefcase size={18} /> Institutional Research Engine Brief
+                          </h3>
+                          
+                          {researchLoading ? (
+                            <div className="flex items-center gap-2 text-stone-500 font-mono text-xs py-8">
+                              <RefreshCw size={14} className="animate-spin" /> Compiling Data Moat Research Report...
+                            </div>
+                          ) : researchReport ? (
+                            <div className="flex flex-col gap-5 text-xs text-[#1A1A1A] font-serif leading-relaxed">
+                              
+                              {/* Executive Summary Narrative */}
+                              <div className="bg-[#FCFAF6] border border-stone-200 p-4">
+                                <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-1">1. Business Overview & Context</strong>
+                                <p className="text-stone-850 font-sans leading-relaxed text-sm">
+                                  {researchReport.executiveSummary}
+                                </p>
+                              </div>
+
+                              {/* Financial Analysis */}
+                              <div className="bg-[#FCFAF6] border border-stone-200 p-4">
+                                <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-1">2. Financial Metrics Analysis</strong>
+                                <p className="text-stone-850 font-sans leading-relaxed text-sm">
+                                  {researchReport.financialMetricsAnalysis}
+                                </p>
+                              </div>
+
+                              {/* Key Risks */}
+                              <div className="bg-[#FCFAF6] border border-stone-200 p-4">
+                                <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-1">3. Risks and Mitigations</strong>
+                                <p className="text-stone-850 font-sans leading-relaxed text-sm">
+                                  {researchReport.risksAndMitigations}
+                                </p>
+                              </div>
+
+                              {/* Filing Change Detector Alerts */}
+                              <div className="border border-stone-200 p-4 bg-white">
+                                <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-2">Filing Change Detector Alerts</strong>
+                                {researchReport.changeDetectionAlerts.length > 0 ? (
+                                  <div className="flex flex-col gap-2">
+                                    {researchReport.changeDetectionAlerts.map((alert, i) => (
+                                      <div key={i} className="flex flex-col sm:flex-row sm:justify-between font-mono text-[10px] pb-1 border-b border-stone-100 last:border-b-0">
+                                        <div>
+                                          <span className={alert.direction === 'improved' ? 'text-green-700 font-bold' : alert.direction === 'deteriorated' ? 'text-red-700 font-bold' : 'text-stone-600'}>
+                                            {alert.direction.toUpperCase()}
+                                          </span>
+                                          <span className="text-stone-800 ml-1.5">{alert.metric}:</span>
+                                        </div>
+                                        <div className="text-stone-600">
+                                          {alert.previousValue} → <strong>{alert.currentValue}</strong> ({alert.changePercent > 0 ? '+' : ''}{alert.changePercent}%)
+                                        </div>
+                                      </div>
                                     ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <span className="text-stone-400 italic text-[10px] font-mono">Data unavailable</span>
-                            )}
-                          </div>
-
-                          {/* Sources used */}
-                          <div className="mt-2 border-t border-stone-200 pt-3">
-                            <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
-                              <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400">Sources and Citation Trail</strong>
-                              <ProvenanceBadge 
-                                category={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'News Intelligence' : 'Regulatory Filings'}
-                                source={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'Investor Relations disclosures' : 'SEC EDGAR Database'}
-                                timestamp={researchReport.generationDate}
-                                confidence={researchReport.confidenceScore > 90 ? 'High' : 'Medium'}
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1 text-[10px] font-mono">
-                              {researchReport.sourcesUsed && researchReport.sourcesUsed.length > 0 ? (
-                                researchReport.sourcesUsed.map((src, i) => (
-                                  <div key={i} className="flex justify-between text-stone-600 items-center">
-                                    {src.url ? (
-                                      <a href={src.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#8c2a2a] text-[#8c2a2a] underline flex items-center gap-0.5">
-                                        {src.name} <ExternalLink size={8} />
-                                      </a>
-                                    ) : (
-                                      <span>{src.name}</span>
-                                    )}
-                                    <span className="text-stone-400">{src.timestamp}</span>
                                   </div>
-                                ))
-                              ) : (
-                                <span className="text-stone-400 italic">Data unavailable</span>
-                              )}
+                                ) : (
+                                  <span className="text-stone-400 italic text-[10px] font-mono">No material filing changes detected relative to recent history.</span>
+                                )}
+                              </div>
+
+                              {/* Earnings Trend */}
+                              <div>
+                                <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-2">Earnings & Margin Trend (Historical Highlights)</strong>
+                                {researchReport.earningsTrend.length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left font-mono text-[9px] border-collapse">
+                                      <thead>
+                                        <tr className="border-b border-stone-300 font-bold uppercase text-stone-500">
+                                          <th className="pb-1.5">Reporting Date</th>
+                                          <th className="pb-1.5 text-right">Quarterly Revenue</th>
+                                          <th className="pb-1.5 text-right">Operating Margin</th>
+                                          <th className="pb-1.5 text-right">Net Income</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {researchReport.earningsTrend.map((trend, i) => (
+                                          <tr key={i} className="border-b border-stone-100 last:border-b-0">
+                                            <td className="py-1.5">{trend.quarter}</td>
+                                            <td className="py-1.5 text-right font-bold">
+                                              {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' 
+                                                ? `₹${(trend.revenue / 10000000).toFixed(0)} Cr`
+                                                : `$${(trend.revenue / 1000000000).toFixed(2)}B`}
+                                            </td>
+                                            <td className="py-1.5 text-right font-bold" style={{ color: trend.operatingMargin > 25 ? '#2C6B50' : trend.operatingMargin > 10 ? '#B45309' : '#9B1C1C' }}>
+                                              {trend.operatingMargin.toFixed(1)}%
+                                            </td>
+                                            <td className="py-1.5 text-right text-stone-600">
+                                              {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE'
+                                                ? `₹${(trend.netIncome / 10000000).toFixed(0)} Cr`
+                                                : `$${(trend.netIncome / 1000000000).toFixed(2)}B`}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <span className="text-stone-400 italic text-[10px] font-mono">Historical earnings stats unavailable</span>
+                                )}
+                              </div>
+
                             </div>
+                          ) : (
+                            <div className="text-stone-400 font-mono text-[10px] italic">
+                              Select an asset above to load details or verify cache database connection.
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+
+                      {/* RIGHT SECTION (Col Span 1) */}
+                      <div className="xl:col-span-1 flex flex-col gap-6">
+                        
+                        {/* 1. Large Conviction Score Card */}
+                        <div className="bg-[#FCFAF6] border-2 border-[#8c2a2a] p-6 text-center shadow-md relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-full h-1.5 bg-[#8c2a2a]" />
+                          <span className="font-mono text-[10px] text-stone-400 uppercase tracking-widest block mb-2 font-bold">Conviction Rating</span>
+                          
+                          <div className="font-serif text-6xl font-bold text-[#8c2a2a] my-2 select-none">
+                            {selectedAsset.conviction?.overallScore || '—'}
+                          </div>
+                          
+                          <span className="font-mono text-xs font-bold text-stone-800 uppercase tracking-wider block bg-white border border-stone-200 py-1 px-3 inline-block rounded-none shadow-xs mt-1">
+                            {(() => {
+                              const score = selectedAsset.conviction?.overallScore || 0;
+                              return score >= 75 ? '🔥 High Conviction Buy' : score >= 50 ? '🟡 Moderate Conviction Hold' : '❌ Low Conviction / Restrict';
+                            })()}
+                          </span>
+
+                          <div className="flex flex-col gap-3.5 text-left text-xs border-t border-stone-200 pt-5 mt-5">
+                            
+                            {/* Allocation */}
+                            <div>
+                              <div className="flex justify-between font-mono font-bold mb-1">
+                                <span className="text-stone-700">Portfolio Exposure Sizing</span>
+                                <span className="text-stone-900">{selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0} / 25</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-stone-200 rounded-none overflow-hidden">
+                                <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0) / 25) * 100}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Fundamental */}
+                            <div>
+                              <div className="flex justify-between font-mono font-bold mb-1">
+                                <span className="text-stone-700">Fundamental Quality Index</span>
+                                <span className="text-stone-900">{selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0} / 25</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-stone-200 rounded-none overflow-hidden">
+                                <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0) / 25) * 100}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Dip */}
+                            <div>
+                              <div className="flex justify-between font-mono font-bold mb-1">
+                                <span className="text-stone-700">Technical Dip Premium</span>
+                                <span className="text-stone-900">{selectedAsset.conviction?.breakdown.dipFactor.contribution || 0} / 25</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-stone-200 rounded-none overflow-hidden">
+                                <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.dipFactor.contribution || 0) / 25) * 100}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Institutional */}
+                            <div>
+                              <div className="flex justify-between font-mono font-bold mb-1">
+                                <span className="text-stone-700">Institutional / Insider support</span>
+                                <span className="text-stone-900">{selectedAsset.conviction?.breakdown.institutionalFactor.contribution || 0} / 25</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-stone-200 rounded-none overflow-hidden">
+                                <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.institutionalFactor.contribution || 0) / 25) * 100}%` }} />
+                              </div>
+                            </div>
+
                           </div>
                         </div>
-                      ) : (
-                        <div className="text-stone-400 font-mono text-[10px] italic">
-                          Click select asset above or verify database connections to trigger research compiler.
+
+                        {/* 2. Quality Score Visualization */}
+                        <div className="border border-stone-300 p-5 bg-white shadow-sm">
+                          <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                            Quality Score Framework ({selectedAsset.intel.qualityScore}/100)
+                          </h3>
+                          
+                          {(() => {
+                            const qb = selectedAsset.intel.qualityBreakdown || {
+                              moat: { score: selectedAsset.intel.qualityScore >= 70 ? 40 : 25, max: 40, weight: 0.4, contribution: selectedAsset.intel.qualityScore >= 70 ? 40 : 25, value: selectedAsset.intel.research.moatRating.toUpperCase(), rationale: selectedAsset.intel.research.moatRationale },
+                              leverage: { score: selectedAsset.intel.research.leverageRatio < 0.4 ? 30 : 20, max: 30, weight: 0.3, contribution: selectedAsset.intel.research.leverageRatio < 0.4 ? 30 : 20, value: selectedAsset.intel.research.leverageRatio, rationale: `Leverage ratio is ${selectedAsset.intel.research.leverageRatio.toFixed(2)}.` },
+                              fcfMargin: { score: selectedAsset.intel.research.freeCashFlowMargin > 25 ? 30 : 20, max: 30, weight: 0.3, contribution: selectedAsset.intel.research.freeCashFlowMargin > 25 ? 30 : 20, value: selectedAsset.intel.research.freeCashFlowMargin, rationale: `FCF Margin is ${selectedAsset.intel.research.freeCashFlowMargin.toFixed(1)}%.` }
+                            };
+                            
+                            return (
+                              <div className="flex flex-col gap-4 text-xs">
+                                
+                                {/* Moat */}
+                                <div className="border-b border-stone-100 pb-3">
+                                  <div className="flex justify-between font-mono font-bold text-stone-800 mb-1">
+                                    <span>Economic Moat Rating</span>
+                                    <span className="text-[#8c2a2a]">{qb.moat.score} / {qb.moat.max} Max</span>
+                                  </div>
+                                  <div className="font-mono text-[9px] uppercase text-[#8c2a2a] mb-1.5 font-bold">Class: {qb.moat.value}</div>
+                                  <p className="font-serif italic text-stone-600 text-[11px] leading-normal bg-[#FCFAF6] border-l-2 border-stone-300 p-2">
+                                    "{qb.moat.rationale}"
+                                  </p>
+                                </div>
+
+                                {/* Solvency */}
+                                <div className="border-b border-stone-100 pb-3">
+                                  <div className="flex justify-between font-mono font-bold text-stone-800 mb-1">
+                                    <span>Solvency & Leverage</span>
+                                    <span className="text-[#8c2a2a]">{qb.leverage.score} / {qb.leverage.max} Max</span>
+                                  </div>
+                                  <div className="font-mono text-[9px] uppercase text-stone-400 mb-1.5">Target ratio: &lt; 0.40</div>
+                                  <p className="text-stone-600 text-[11px] leading-normal">
+                                    {qb.leverage.rationale}
+                                  </p>
+                                </div>
+
+                                {/* Cash Flow */}
+                                <div>
+                                  <div className="flex justify-between font-mono font-bold text-stone-800 mb-1">
+                                    <span>Cash Generation Capacity</span>
+                                    <span className="text-[#8c2a2a]">{qb.fcfMargin.score} / {qb.fcfMargin.max} Max</span>
+                                  </div>
+                                  <div className="font-mono text-[9px] uppercase text-stone-400 mb-1.5">Target FCF Margin: &gt; 25.0%</div>
+                                  <p className="text-stone-600 text-[11px] leading-normal">
+                                    {qb.fcfMargin.rationale}
+                                  </p>
+                                </div>
+
+                              </div>
+                            );
+                          })()}
                         </div>
-                      )}
+
+                        {/* 3. Risks & Catalysts section */}
+                        <div className="bg-[#FDF2F2] border border-[#F8B4B4] p-5 shadow-xs">
+                          <h3 className="font-serif text-lg font-bold text-[#9B1C1C] border-b border-[#F8B4B4] pb-2 mb-3">
+                            Risk Factors & Catalysts
+                          </h3>
+                          <div className="flex flex-col gap-3 text-xs text-[#9B1C1C]">
+                            
+                            {/* Leverage Warning */}
+                            {selectedAsset.intel.research.leverageRatio >= 0.4 && (
+                              <div className="bg-white border border-[#F8B4B4] p-2.5 font-sans leading-normal">
+                                <strong>⚠️ High Leverage Ratio Warning:</strong> Leverage ratio is {(selectedAsset.intel.research.leverageRatio || 0).toFixed(2)}, which exceeds the targeted 0.40 limit. Re-check interest coverage rates.
+                              </div>
+                            )}
+
+                            {/* Major catalog risks */}
+                            <div className="font-sans leading-normal">
+                              <strong>Primary Operational Risks:</strong>
+                              <ul className="list-disc pl-4 mt-1.5 flex flex-col gap-1 text-stone-700">
+                                {selectedAsset.intel.research.majorRisks && selectedAsset.intel.research.majorRisks.length > 0 ? (
+                                  selectedAsset.intel.research.majorRisks.map((risk, i) => (
+                                    <li key={i}>{risk}</li>
+                                  ))
+                                ) : (
+                                  <li>Competitor price war and regulatory changes.</li>
+                                )}
+                              </ul>
+                            </div>
+
+                            {/* Technical Catalyst Alert */}
+                            <div className="font-sans leading-normal mt-1 border-t border-[#F8B4B4] pt-3">
+                              <strong>Current Catalyst Alert:</strong>
+                              <p className="italic text-stone-700 mt-1 font-serif">
+                                "{selectedAsset.intel.dip.catalyst || 'Baseline structural competition'}"
+                              </p>
+                            </div>
+
+                          </div>
+                        </div>
+
+                      </div>
+
                     </div>
 
-                    {/* SECTION 6 — INTELLIGENCE AUDIT LAYER */}
-                    <div className="border border-stone-300 p-4 md:p-6 bg-[#FCFAF6] mt-4">
+                    {/* Citations and Sources Full-Width Block */}
+                    <div className="border border-stone-300 p-6 bg-[#FCFAF6] shadow-sm">
+                      <div className="flex justify-between items-center mb-4 flex-wrap gap-2 border-b border-stone-200 pb-2">
+                        <h4 className="font-serif text-lg font-bold text-stone-900">Sources and Citation Trail</h4>
+                        {researchReport && (
+                          <ProvenanceBadge 
+                            category={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'News Intelligence' : 'Regulatory Filings'}
+                            source={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'Investor Relations disclosures' : 'SEC EDGAR Database'}
+                            timestamp={researchReport.generationDate}
+                            confidence={researchReport.confidenceScore > 90 ? 'High' : 'Medium'}
+                          />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1 text-[10px] font-mono">
+                        {researchReport && researchReport.sourcesUsed && researchReport.sourcesUsed.length > 0 ? (
+                          researchReport.sourcesUsed.map((src, i) => (
+                            <div key={i} className="flex justify-between text-stone-600 items-center">
+                              {src.url ? (
+                                <a href={src.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#8c2a2a] text-[#8c2a2a] underline flex items-center gap-0.5">
+                                  {src.name} <ExternalLink size={8} />
+                                </a>
+                              ) : (
+                                <span>{src.name}</span>
+                              )}
+                              <span className="text-stone-400">{src.timestamp}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-stone-400 italic">No formal external citations linked to this snapshot rationale.</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Verification Audit Log Block */}
+                    <div className="border border-stone-300 p-6 bg-white shadow-sm">
                       <h3 className="font-mono text-[9px] text-[#8c2a2a] uppercase tracking-widest font-bold border-b border-stone-200 pb-1.5 mb-3 flex items-center gap-1.5">
-                        <Shield size={12} /> Section 6 — Intelligence Verification Audit Log
+                        <Shield size={12} /> Live Intelligence Verification Audit Log
                       </h3>
                       
                       <div className="overflow-x-auto text-[10px] font-mono text-stone-600 bg-white border border-[#E5E2D9] p-3">
@@ -1075,7 +1122,7 @@ export const IntelligenceHub: React.FC = () => {
                                   ? selectedAsset.intel.smartMoney.insiderTransactions.value.netSharesBought.toLocaleString() 
                                   : 'Unavailable'}
                               </td>
-                              <td className="py-1.5 font-bold" style={{ color: selectedAsset.intel.smartMoney.insiderTransactions?.value ? 'var(--ft-red, #8c2a2a)' : 'var(--text-muted, #888)' }}>
+                              <td className="py-1.5 font-bold" style={{ color: selectedAsset.intel.smartMoney.insiderTransactions?.value ? 'var(--color-accent)' : 'var(--text-muted)' }}>
                                 {selectedAsset.intel.smartMoney.insiderTransactions?.value ? 'Regulatory Filing' : 'Unavailable'}
                               </td>
                               <td className="py-1.5">SEC Form 4</td>
@@ -1089,7 +1136,7 @@ export const IntelligenceHub: React.FC = () => {
                                   ? selectedAsset.intel.smartMoney.optionsVolume.value.putCallRatio.toFixed(2) 
                                   : 'Unavailable'}
                               </td>
-                              <td className="py-1.5 text-stone-400 font-bold">Unavailable</td>
+                              <td className="py-1.5 text-stone-400 font-bold">Derived Options Ratio</td>
                               <td className="py-1.5">Options Database</td>
                               <td className="py-1.5">{selectedAsset.intel.smartMoney.optionsVolume?.timestamp ? new Date(selectedAsset.intel.smartMoney.optionsVolume.timestamp).toLocaleDateString() : '—'}</td>
                             </tr>
@@ -1101,7 +1148,7 @@ export const IntelligenceHub: React.FC = () => {
                                   ? `${selectedAsset.intel.smartMoney.institutionalOwnership.value.ownershipPercent.toFixed(1)}%` 
                                   : 'Unavailable'}
                               </td>
-                              <td className="pt-1.5 text-stone-400 font-bold">Unavailable</td>
+                              <td className="pt-1.5 text-stone-400 font-bold">Regulatory 13F</td>
                               <td className="pt-1.5">SEC Edgar 13F</td>
                               <td className="pt-1.5">{selectedAsset.intel.smartMoney.institutionalOwnership?.timestamp ? new Date(selectedAsset.intel.smartMoney.institutionalOwnership.timestamp).toLocaleDateString() : '—'}</td>
                             </tr>

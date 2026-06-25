@@ -2,7 +2,16 @@ import { authService, dbService } from './firebase';
 
 export interface ServiceStatus {
   name: string;
-  status: 'operational' | 'degraded' | 'failure' | 'not_configured';
+  status:
+    | 'operational'
+    | 'degraded'
+    | 'failure'
+    | 'not_configured'
+    | 'available'
+    | 'healthy'
+    | 'cache_empty'
+    | 'waiting_for_scheduled_sync'
+    | 'last_sync_failed';
   color: 'green' | 'orange' | 'red' | 'gray';
   description: string;
 }
@@ -70,8 +79,8 @@ export class ServiceHealthService {
         finnhub: { name: 'Finnhub', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         gemini: { name: 'Gemini', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         resend: { name: 'Resend', status: 'not_configured', color: 'gray', description: 'Pending API check' },
-        fred: { name: 'FRED', status: 'not_configured', color: 'gray', description: 'Pending API check' },
-        secEdgar: { name: 'SEC EDGAR', status: 'not_configured', color: 'gray', description: 'Pending API check' },
+        fred: { name: 'FRED', status: 'available', color: 'green', description: 'Pending API check' },
+        secEdgar: { name: 'SEC EDGAR', status: 'available', color: 'green', description: 'Pending API check' },
         dataMoat: { name: 'Data Moat & Cache', status: 'not_configured', color: 'gray', description: 'Pending API check' },
       }
     };
@@ -79,14 +88,21 @@ export class ServiceHealthService {
     // Helper to map backend status to standard colors
     const mapStatus = (status: string): { status: any; color: any } => {
       switch (status) {
+        case 'available':
+        case 'healthy':
         case 'operational':
-          return { status: 'operational', color: 'green' };
+          return { status, color: 'green' };
+        case 'cache_empty':
+        case 'waiting_for_scheduled_sync':
         case 'degraded':
-          return { status: 'degraded', color: 'orange' };
+          return { status, color: 'orange' };
+        case 'last_sync_failed':
+        case 'failure':
+          return { status, color: 'red' };
         case 'not_configured':
           return { status: 'not_configured', color: 'gray' };
         default:
-          return { status: 'failure', color: 'red' };
+          return { status, color: 'red' };
       }
     };
 

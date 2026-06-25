@@ -75,10 +75,10 @@ export const PlatformHealthWidget: React.FC = () => {
     if (!health) return { label: 'CHECKING STATUS...', color: 'var(--text-muted)', indicator: 'gray' };
 
     const statuses = Object.values(health.services);
-    if (statuses.some(s => s.status === 'failure')) {
+    if (statuses.some(s => s.color === 'red')) {
       return { label: 'SERVICE ISSUES DETECTED', color: 'var(--color-danger-text)', indicator: 'red' };
     }
-    if (statuses.some(s => s.status === 'degraded')) {
+    if (statuses.some(s => s.color === 'orange')) {
       return { label: 'DEGRADED PERFORMANCE', color: 'var(--color-warning-text)', indicator: 'orange' };
     }
     return { label: 'ALL SERVICES OPERATIONAL', color: 'var(--color-success-text)', indicator: 'green' };
@@ -229,7 +229,7 @@ export const PlatformHealthWidget: React.FC = () => {
                         textTransform: 'uppercase',
                         color: getStatusColor(service.color)
                       }}>
-                        {service.status.replace('_', ' ')}
+                        {service.status.replace(/_/g, ' ')}
                       </span>
                     </div>
                     <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '1px', lineHeight: 1.2 }}>

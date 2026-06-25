@@ -201,8 +201,8 @@ app.get('/api/health/services', async (c) => {
     finnhub: { status: 'operational', description: 'Finnhub API is operational' },
     gemini: { status: 'operational', description: 'Gemini API is operational' },
     resend: { status: 'operational', description: 'Resend API is operational' },
-    fred: { status: 'not_configured', description: 'FRED_API_KEY is not configured in backend secrets' },
-    secEdgar: { status: 'operational', description: 'SEC EDGAR cache and scheduler are operational.' }
+    fred: { status: 'available', description: 'FRED service is available.' },
+    secEdgar: { status: 'available', description: 'SEC EDGAR service is available.' }
   };
 
   // Perform Firestore check and retrieve data for FRED & SEC concurrently
@@ -295,64 +295,66 @@ app.get('/api/health/services', async (c) => {
   }
 
   // 5. FRED Check
+  const indicatorCount = cachedFred?.indicators?.length || 0;
+  let fredCacheFreshness = 'missing';
+  let fredStale = false;
+  if (cachedFred) {
+    const lastUpdated = cachedFred.updatedAt || new Date().toISOString();
+    const ageMs = Date.now() - new Date(lastUpdated).getTime();
+    if (ageMs > 24 * 60 * 60 * 1000) {
+      fredCacheFreshness = 'stale';
+      fredStale = true;
+    } else {
+      fredCacheFreshness = 'fresh';
+    }
+  }
+
+  const apiConnected = !!fredApiResponse;
+  const nowStr = new Date().toISOString();
+
+  let fredStatus = 'available';
+  let fredDescription = `FRED is available. ${indicatorCount} economic indicators cached.`;
+
+  if (!cachedFred || indicatorCount === 0) {
+    fredStatus = 'cache_empty';
+    fredDescription = 'FRED economic indicators cache is empty.';
+  } else if (!apiConnected && fredStale) {
+    fredStatus = 'last_sync_failed';
+    fredDescription = 'FRED API check failed and cached data is stale.';
+  } else if (fredStale) {
+    fredStatus = 'waiting_for_scheduled_sync';
+    fredDescription = 'FRED cache is stale. Waiting for scheduled sync.';
+  } else {
+    fredStatus = 'healthy';
+    fredDescription = `FRED cache is healthy. ${indicatorCount} indicators cached.`;
+  }
+
+  // Save FRED health status to database
   if (fredKey) {
-    const indicatorCount = cachedFred?.indicators?.length || 0;
-    let cacheFreshness = 'missing';
-    let fredStale = false;
-    if (cachedFred) {
-      const lastUpdated = cachedFred.updatedAt || new Date().toISOString();
-      const ageMs = Date.now() - new Date(lastUpdated).getTime();
-      if (ageMs > 24 * 60 * 60 * 1000) {
-        cacheFreshness = 'stale';
-        fredStale = true;
-      } else {
-        cacheFreshness = 'fresh';
-      }
-    }
-
-    const apiConnected = !!fredApiResponse;
-    const nowStr = new Date().toISOString();
-
-    let status = 'operational';
-    let description = `FRED API is operational. ${indicatorCount} indicators cached.`;
-
-    if (!apiConnected) {
-      status = 'degraded'; // Degrade if API is unavailable
-      description = 'FRED API check failed or endpoint is unreachable.';
-    } else if (!cachedFred) {
-      status = 'degraded'; // Degrade if cache is missing
-      description = 'FRED economic indicators cache is missing.';
-    } else if (fredStale) {
-      status = 'degraded'; // Degrade if cache is stale
-      description = 'FRED economic indicators cache is stale (>24 hours).';
-    }
-
-    // Save FRED health status to database
     try {
       await writeFirestoreDoc(projectId, 'system/fredHealth', {
         lastSuccessfulCheck: nowStr,
         apiConnectivity: apiConnected ? 'connected' : 'error',
         latestIndicatorCount: indicatorCount,
-        cacheFreshness
+        cacheFreshness: fredCacheFreshness
       });
     } catch (writeErr: any) {
       console.error('Failed to save FRED health stats:', writeErr.message);
     }
-
-    results.fred = {
-      status,
-      description,
-      metadata: {
-        lastSuccessfulCheck: nowStr,
-        apiConnectivity: apiConnected ? 'connected' : 'error',
-        latestIndicatorCount: indicatorCount,
-        cacheFreshness
-      }
-    };
   }
 
+  results.fred = {
+    status: fredStatus,
+    description: fredDescription,
+    metadata: {
+      lastSuccessfulCheck: nowStr,
+      apiConnectivity: apiConnected ? 'connected' : 'error',
+      latestIndicatorCount: indicatorCount,
+      cacheFreshness: fredCacheFreshness
+    }
+  };
+
   // 6. SEC EDGAR Check
-  const schedulerEnabled = (c.env as any).SEC_SCHEDULER_ENABLED !== 'false';
   const lastIngestionRun = secSchedulerState?.lastExecution || null;
   const schedulerFailed = secSchedulerState?.status === 'degraded' || (secSchedulerState?.failures || 0) > 0;
 
@@ -389,39 +391,39 @@ app.get('/api/health/services', async (c) => {
     oldestCachedFilingAge = Math.floor(diffMs / (1000 * 3600 * 24));
   }
 
-  let cacheFreshness = 'fresh';
+  let secCacheFreshness = 'fresh';
   if (!cacheCollectionExists) {
-    cacheFreshness = 'missing';
+    secCacheFreshness = 'missing';
   } else if (hasStaleCompany) {
-    cacheFreshness = 'stale';
+    secCacheFreshness = 'stale';
   }
 
-  let status = 'operational';
-  let description = `SEC EDGAR is operational. ${companiesCached} companies, ${filingsCached} filings cached.`;
+  let secStatus = 'available';
+  let secDescription = `SEC EDGAR is available. ${companiesCached} companies, ${filingsCached} filings cached.`;
 
-  if (!schedulerEnabled) {
-    status = 'not_configured';
-    description = 'SEC batch ingestion scheduler is disabled.';
-  } else if (!cacheCollectionExists) {
-    status = 'degraded'; // Degrade if cache missing
-    description = 'SEC filings cache collection is missing.';
-  } else if (hasStaleCompany) {
-    status = 'degraded'; // Degrade if filings stale
-    description = 'SEC filings cache is stale (older than 5 days).';
+  if (!cacheCollectionExists || companiesCached === 0) {
+    secStatus = 'cache_empty';
+    secDescription = 'SEC filings cache is empty.';
   } else if (schedulerFailed) {
-    status = 'degraded'; // Degrade if ingestion failures detected
-    description = `SEC ingestion job failures detected (Failed runs: ${secSchedulerState.failures}).`;
+    secStatus = 'last_sync_failed';
+    secDescription = `SEC ingestion sync failed (Failed runs: ${secSchedulerState?.failures || 1}).`;
+  } else if (hasStaleCompany) {
+    secStatus = 'waiting_for_scheduled_sync';
+    secDescription = 'SEC filings cache is stale. Waiting for scheduled sync.';
+  } else {
+    secStatus = 'healthy';
+    secDescription = `SEC EDGAR cache is healthy. ${companiesCached} companies cached.`;
   }
 
   results.secEdgar = {
-    status,
-    description,
+    status: secStatus,
+    description: secDescription,
     metadata: {
       lastIngestionRun,
       companiesCached,
       filingsCached,
       oldestCachedFilingAge,
-      cacheFreshness
+      cacheFreshness: secCacheFreshness
     }
   };
 
