@@ -2513,6 +2513,7 @@ app.get('/api/admin/system-stats', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
+  const firestoreClient = new FirestoreClient(projectId);
 
   // Measure latency to check services live
   const start = Date.now();
@@ -2522,6 +2523,68 @@ app.get('/api/admin/system-stats', async (c) => {
     dbLatency = Date.now() - start;
   } catch {}
 
+  // Perform checks for FRED and SEC EDGAR dynamically
+  const secTickers = Object.values(COMPANY_REGISTRY)
+    .filter(entry => entry.secCoverage)
+    .map(entry => entry.ticker);
+
+  const [
+    cachedFred,
+    secSchedulerState,
+    secFacts
+  ] = await Promise.all([
+    firestoreClient.getFredIndicators().catch(() => null),
+    getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
+    Promise.all(secTickers.map(t => firestoreClient.getSecCompanyFacts(t).catch(() => null)))
+  ]);
+
+  // Compute FRED status
+  const indicatorCount = cachedFred?.indicators?.length || 0;
+  let fredStatus = 'available';
+  if (!cachedFred || indicatorCount === 0) {
+    fredStatus = 'cache_empty';
+  } else {
+    const lastUpdated = cachedFred.updatedAt || new Date().toISOString();
+    const ageMs = Date.now() - new Date(lastUpdated).getTime();
+    if (ageMs > 24 * 60 * 60 * 1000) {
+      fredStatus = 'waiting_for_scheduled_sync';
+    } else {
+      fredStatus = 'healthy';
+    }
+  }
+
+  // Compute SEC EDGAR status
+  const schedulerFailed = secSchedulerState?.status === 'degraded' || (secSchedulerState?.failures || 0) > 0;
+  let companiesCached = 0;
+  let filingsCached = 0;
+  let hasStaleCompany = false;
+  let cacheCollectionExists = false;
+
+  for (const data of secFacts) {
+    if (data) {
+      cacheCollectionExists = true;
+      companiesCached++;
+      const filings = data.recentFilings || [];
+      filingsCached += filings.length;
+      const lastUpdated = data.updatedAt || new Date().toISOString();
+      const ageMs = Date.now() - new Date(lastUpdated).getTime();
+      if (ageMs > 5 * 24 * 60 * 60 * 1000) {
+        hasStaleCompany = true;
+      }
+    }
+  }
+
+  let secStatus = 'available';
+  if (!cacheCollectionExists || companiesCached === 0) {
+    secStatus = 'cache_empty';
+  } else if (schedulerFailed) {
+    secStatus = 'last_sync_failed';
+  } else if (hasStaleCompany) {
+    secStatus = 'waiting_for_scheduled_sync';
+  } else {
+    secStatus = 'healthy';
+  }
+
   const health = {
     pages: { status: 'operational', latency: 45 },
     workers: { status: 'operational', latency: 28 },
@@ -2529,20 +2592,20 @@ app.get('/api/admin/system-stats', async (c) => {
     firestore: { status: dbLatency > 0 ? 'operational' : 'degraded', latency: dbLatency },
     finnhub: { status: finnhubKey ? 'operational' : 'not_configured', latency: finnhubKey ? 180 : 0 },
     gemini: { status: geminiKey ? 'operational' : 'not_configured', latency: geminiKey ? 320 : 0 },
-    fred: { status: 'operational', latency: 150 },
-    secEdgar: { status: 'operational', latency: 210 },
+    fred: { status: fredStatus, latency: 150 },
+    secEdgar: { status: secStatus, latency: 210 },
     resend: { status: 'operational', latency: 85 }
   };
 
   const apiAnalytics = {
     gemini: { flashRequests: 1450, proRequests: 120, totalTokens: 18500000, dailyCost: 7.42, hitRate: 84.5 },
     finnhub: { requestsToday: 1840, hitRate: 72.8, count429: 0, latency: 180 },
-    fred: { requests: 220, cachedIndicators: 7, lastRefresh: new Date().toISOString() },
-    sec: { companiesCached: 5, filingsCached: 42, lastIngestion: new Date().toISOString(), queueHealth: 'healthy' }
+    fred: { requests: 220, cachedIndicators: indicatorCount, lastRefresh: cachedFred?.updatedAt || new Date().toISOString() },
+    sec: { companiesCached, filingsCached, lastIngestion: secSchedulerState?.lastExecution || new Date().toISOString(), queueHealth: schedulerFailed ? 'degraded' : 'healthy' }
   };
 
   const queues = {
-    secIngestion: { status: 'idle', lastExecution: new Date().toISOString(), duration: 12, pending: 0, failures: 0, retries: 0 },
+    secIngestion: { status: secSchedulerState?.status || 'idle', lastExecution: secSchedulerState?.lastExecution || new Date().toISOString(), duration: 12, pending: 0, failures: secSchedulerState?.failures || 0, retries: 0 },
     fredRefresh: { status: 'idle', lastExecution: new Date().toISOString(), duration: 4, pending: 0, failures: 0, retries: 0 },
     newsIngestion: { status: 'idle', lastExecution: new Date().toISOString(), duration: 8, pending: 0, failures: 0, retries: 0 },
     researchCache: { status: 'idle', lastExecution: new Date().toISOString(), duration: 25, pending: 0, failures: 0, retries: 0 },

@@ -330,17 +330,31 @@ export const DeveloperConsole: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(health).map(([node, detail]: any) => (
-                  <tr key={node} style={{ borderBottom: '1px solid #1c1c1c' }}>
-                    <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{node.toUpperCase()}</td>
-                    <td style={{ padding: '0.5rem' }}>
-                      <span style={{ color: detail.status === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                        ● {detail.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>{detail.latency} ms</td>
-                  </tr>
-                ))}
+                {Object.entries(health).map(([node, detail]: any) => {
+                  const s = detail.status.toLowerCase();
+                  const isGreen = ['operational', 'available', 'healthy'].includes(s);
+                  const isOrange = ['degraded', 'cache_empty', 'waiting_for_scheduled_sync'].includes(s);
+                  const isGray = ['not_configured'].includes(s);
+                  const color = isGreen 
+                    ? 'var(--color-success-text)' 
+                    : isOrange 
+                      ? 'var(--color-warning-text)' 
+                      : isGray 
+                        ? 'var(--text-muted)' 
+                        : 'var(--color-danger-text)';
+                  
+                  return (
+                    <tr key={node} style={{ borderBottom: '1px solid #1c1c1c' }}>
+                      <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{node.toUpperCase()}</td>
+                      <td style={{ padding: '0.5rem' }}>
+                        <span style={{ color }}>
+                          ● {detail.status.toUpperCase().replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.5rem' }}>{detail.latency} ms</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

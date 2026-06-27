@@ -244,20 +244,34 @@ export class ServiceHealthService {
         }
       } catch (err: any) {
         const desc = `Verification failed: ${err.message || err}`;
-        health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
-        health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
-        health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
-        health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
-        health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
+        health.services.finnhub = { name: 'Finnhub', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
+        health.services.gemini = { name: 'Gemini', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
+        health.services.resend = { name: 'Resend', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
+        
+        if (authService.isMock) {
+          const { secStatus, secDesc, secMeta, fredStatus, fredDesc, fredMeta } = this.getMockOfflinePublicServicesHealth();
+          health.services.secEdgar = { name: 'SEC EDGAR', status: secStatus, color: secStatus === 'healthy' ? 'green' : 'orange', description: secDesc, metadata: secMeta } as any;
+          health.services.fred = { name: 'FRED', status: fredStatus, color: fredStatus === 'healthy' ? 'green' : 'orange', description: fredDesc, metadata: fredMeta } as any;
+        } else {
+          health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
+          health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
+        }
       }
     } else {
       // Worker is down, so backend services are implicitly unreachable
       const desc = 'Cloudflare Worker is down / unreachable';
-      health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
-      health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
-      health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
-      health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
-      health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
+      health.services.finnhub = { name: 'Finnhub', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
+      health.services.gemini = { name: 'Gemini', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
+      health.services.resend = { name: 'Resend', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
+      
+      if (authService.isMock) {
+        const { secStatus, secDesc, secMeta, fredStatus, fredDesc, fredMeta } = this.getMockOfflinePublicServicesHealth();
+        health.services.secEdgar = { name: 'SEC EDGAR', status: secStatus, color: secStatus === 'healthy' ? 'green' : 'orange', description: secDesc, metadata: secMeta } as any;
+        health.services.fred = { name: 'FRED', status: fredStatus, color: fredStatus === 'healthy' ? 'green' : 'orange', description: fredDesc, metadata: fredMeta } as any;
+      } else {
+        health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
+        health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
+      }
     }
 
     // 4. Data Quality cache check
@@ -329,6 +343,68 @@ export class ServiceHealthService {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(health));
 
     return health;
+  }
+
+  /**
+   * Helper to derive public services health status when running offline in Demo Mode.
+   */
+  private static getMockOfflinePublicServicesHealth() {
+    let secCachedCount = 0;
+    let oldestFilingDateStr = '';
+    let hasStaleCompany = false;
+    const secTickers = ['AAPL', 'MSFT'];
+
+    for (const t of secTickers) {
+      const cached = localStorage.getItem(`sec_facts_${t}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          secCachedCount++;
+          const filings = parsed.data?.recentFilings || [];
+          for (const f of filings) {
+            if (f.filingDate && (!oldestFilingDateStr || f.filingDate < oldestFilingDateStr)) {
+              oldestFilingDateStr = f.filingDate;
+            }
+          }
+          const ageMs = Date.now() - parsed.cachedAt;
+          if (ageMs > 5 * 24 * 60 * 60 * 1000) {
+            hasStaleCompany = true;
+          }
+        } catch {}
+      }
+    }
+
+    const secStatus = secCachedCount === 0 
+      ? 'cache_empty' 
+      : hasStaleCompany 
+        ? 'waiting_for_scheduled_sync' 
+        : 'healthy';
+
+    const secDesc = secCachedCount === 0 
+      ? 'SEC filings cache is empty (Offline).' 
+      : `SEC EDGAR is available (Offline). ${secCachedCount} mock companies cached.`;
+
+    const secMeta = {
+      lastIngestionRun: new Date().toISOString(),
+      companiesCached: secCachedCount,
+      filingsCached: secCachedCount * 3,
+      oldestCachedFilingAge: oldestFilingDateStr ? Math.floor((Date.now() - new Date(oldestFilingDateStr).getTime()) / (1000 * 3600 * 24)) : 0,
+      cacheFreshness: secCachedCount === 0 ? 'missing' : hasStaleCompany ? 'stale' : 'fresh'
+    };
+
+    return {
+      secStatus,
+      secDesc,
+      secMeta,
+      fredStatus: 'healthy',
+      fredDesc: 'FRED economic indicators are operational (Offline).',
+      fredMeta: {
+        lastSuccessfulCheck: new Date().toISOString(),
+        apiConnectivity: 'connected',
+        latestIndicatorCount: 7,
+        cacheFreshness: 'fresh'
+      }
+    };
   }
 }
 

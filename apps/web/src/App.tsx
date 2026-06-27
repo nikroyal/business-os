@@ -28,7 +28,7 @@ export const App: React.FC = () => {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/opportunities" element={<Opportunities />} />
             <Route path="/reports" element={<Reports />} />
-            <Route path="/intelligence" element={<IntelligenceHub />} />
+            <Route path="/intelligence/:ticker?" element={<IntelligenceHub />} />
             <Route path="/copilot" element={<Copilot />} />
             <Route path="/developer" element={<DeveloperConsole />} />
             <Route path="/settings" element={<Settings />} />

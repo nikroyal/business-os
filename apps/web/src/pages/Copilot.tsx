@@ -75,6 +75,54 @@ export const Copilot: React.FC = () => {
     }
   }, [user, isMockMode]);
 
+  // Context-binding check on mount or ticker query change
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const urlTicker = queryParams.get('ticker');
+    
+    if (urlTicker && user && sessions.length > 0) {
+      const tickerName = urlTicker.toUpperCase();
+      const defaultPrompt = `Analyze the moat status, solvency risks, and smart money flow indicators for ${tickerName} based on recent disclosures.`;
+      
+      // Prevent infinite auto-creation if already active
+      if (activeSession && activeSession.title.includes(tickerName)) return;
+
+      const matchingSession = sessions.find(s => s.title.includes(tickerName));
+      if (matchingSession) {
+        handleSelectSession(matchingSession);
+      } else {
+        setLoadingHistory(true);
+        CopilotService.createSession(defaultPrompt, 'deep', isMockMode)
+          .then(async (newSession) => {
+            setSessions(prev => [newSession, ...prev]);
+            setActiveSession(newSession);
+            
+            const userMsg: CopilotMessage = {
+              id: `user_${Date.now()}`,
+              sender: 'user',
+              content: defaultPrompt,
+              timestamp: new Date().toISOString()
+            };
+            setMessages([userMsg]);
+            setSending(true);
+            try {
+              const reply = await CopilotService.sendChatMessage(newSession.id, defaultPrompt, isMockMode);
+              setMessages([userMsg, reply]);
+            } catch (err) {
+              console.error('Auto session trigger chat failed:', err);
+            } finally {
+              setSending(false);
+              setLoadingHistory(false);
+            }
+          })
+          .catch(err => {
+            console.error('Auto session creation failed:', err);
+            setLoadingHistory(false);
+          });
+      }
+    }
+  }, [user, sessions.length]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
