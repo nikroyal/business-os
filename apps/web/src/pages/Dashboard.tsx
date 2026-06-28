@@ -612,7 +612,7 @@ export const Dashboard: React.FC = () => {
 
       <div className="workspace-body">
         <div className="dashboard-workspace-grid" style={{ width: '100%' }}>
-          <div className="dashboard-workspace-main scrollable-panel" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingRight: '1rem' }}>
+          <div className="dashboard-workspace-main" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
             <OnboardingChecklist 
         holdingsCount={holdings.length}
         watchlistCount={watchlistSummary.length}

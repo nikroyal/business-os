@@ -1487,7 +1487,9 @@ input:focus-visible {
   flex-direction: column;
   gap: 1.5rem;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  overscroll-behavior: contain;
   min-height: 0;
 }
 

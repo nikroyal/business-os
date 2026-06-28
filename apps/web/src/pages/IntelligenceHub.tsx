@@ -525,7 +525,7 @@ export const IntelligenceHub: React.FC = () => {
 
             {/* RIGHT COLUMN: FLAGSHIP COMPANY WORKSPACE */}
             <div className="lg:col-span-3" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <section className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm">
+              <section className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
                 
                 {!selectedAsset ? (
                   <div className="py-24 text-center flex flex-col items-center justify-center gap-4">
@@ -544,7 +544,7 @@ export const IntelligenceHub: React.FC = () => {
                     <p className="text-xs text-stone-400 font-mono">Resolving options pricing indexes and cash efficiency coefficients...</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-6">
+                  <div className="flex flex-col gap-6" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                     
                     {/* Header Workspace Title and Action Ribbon */}
                     <div className="border-b-2 border-stone-800 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
