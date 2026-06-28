@@ -1415,6 +1415,7 @@ input:focus-visible {
   height: 100%;
   overflow-y: auto;
   padding: 3rem;
+  overscroll-behavior: contain;
 }
 
 /* Stable viewport container for workspace style layouts */
@@ -1425,6 +1426,7 @@ input:focus-visible {
   width: 100%;
   overflow: hidden;
   padding: 2rem 2.5rem;
+  overscroll-behavior: none;
 }
 
 /* Workspace header block */
@@ -1446,6 +1448,7 @@ input:focus-visible {
   overflow-y: auto;
   height: 100%;
   padding-right: 0.5rem;
+  overscroll-behavior: contain;
 }
 
 /* Fixed sub-panel */
@@ -1459,6 +1462,7 @@ input:focus-visible {
   border: var(--border-thin);
   background: var(--bg-card);
   max-height: 100%;
+  overscroll-behavior: contain;
 }
 
 /* Dashboard-specific stable layout grid */
@@ -1485,6 +1489,7 @@ input:focus-visible {
   height: 100%;
   overflow-y: auto;
   padding-right: 0.5rem;
+  overscroll-behavior: contain;
 }
 
 /* Markets Page structures */
@@ -1519,6 +1524,7 @@ input:focus-visible {
   border-right: var(--border-thin);
   height: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* Responsive grid overrides */
@@ -1532,6 +1538,8 @@ input:focus-visible {
   }
   .workspace-page {
     overflow-y: auto !important;
+    overscroll-behavior: auto !important;
+    padding: 1rem 1.25rem !important;
   }
   .workspace-body {
     flex-direction: column !important;
