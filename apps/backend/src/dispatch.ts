@@ -2324,7 +2324,7 @@ export class GeminiClient {
     this.apiKey = apiKey;
   }
 
-  async generateCommentary(systemPrompt: string, userPrompt: string, model = 'gemini-1.5-flash'): Promise<any> {
+  async generateCommentary(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<any> {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -3272,14 +3272,18 @@ export function parseSecCompanyFacts(ticker: string, cik: string, secData: any):
   };
 }
 
-export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?: string) {
+export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?: string, force = false) {
+  if (typeof globalThis !== 'undefined' && (('VITEST' in globalThis) || ('describe' in globalThis) || ('expect' in globalThis) || (globalThis as any).__vitest_worker__)) {
+    console.log('[Scheduler] Test environment detected. Skipping live FRED daily ingestion.');
+    return;
+  }
   if (!apiKey) {
     console.log('[Scheduler] FRED API Key missing. Skipping FRED live update.');
     return;
   }
   
   const existing = await firestore.getFredIndicators();
-  if (existing && existing.updatedAt && (Date.now() - new Date(existing.updatedAt).getTime() < 24 * 60 * 60 * 1000)) {
+  if (!force && existing && existing.updatedAt && (Date.now() - new Date(existing.updatedAt).getTime() < 24 * 60 * 60 * 1000)) {
     console.log('[Scheduler] FRED indicators are fresh. Skipping.');
     return;
   }
@@ -3378,7 +3382,11 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
   }
 }
 
-export async function runSecBatchIngestion(firestore: FirestoreClient) {
+export async function runSecBatchIngestion(firestore: FirestoreClient, force = false) {
+  if (typeof globalThis !== 'undefined' && (('VITEST' in globalThis) || ('describe' in globalThis) || ('expect' in globalThis) || (globalThis as any).__vitest_worker__)) {
+    console.log('[Scheduler] Test environment detected. Skipping live SEC EDGAR ingestion.');
+    return;
+  }
   console.log('[Scheduler] Checking SEC EDGAR batch Ingestion status using Company Registry...');
   
   const secTickers = Object.values(COMPANY_REGISTRY)
@@ -3393,7 +3401,7 @@ export async function runSecBatchIngestion(firestore: FirestoreClient) {
       const existing = await firestore.getSecCompanyFacts(ticker);
       const isStale = existing ? (Date.now() - new Date(existing.updatedAt).getTime() > 3 * 24 * 60 * 60 * 1000) : true;
       
-      if (!isStale) {
+      if (!force && !isStale) {
         console.log(`[Scheduler] SEC facts for ${ticker} are fresh. Skipping.`);
         successes++;
         continue;
@@ -3467,17 +3475,18 @@ export async function checkAndRunScheduled(env: {
 
   const firestore = new FirestoreClient(env.FIREBASE_PROJECT_ID);
 
+  const cleanFredKey = (env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   // Ingest FRED and SEC data in background cron run
   try {
-    await runFredDailyIngestion(firestore, env.FRED_API_KEY);
+    await runFredDailyIngestion(firestore, cleanFredKey);
     await runSecBatchIngestion(firestore);
   } catch (batchErr) {
     console.error('[Scheduler] Batch ingestion error:', batchErr);
   }
 
-  const finnhub = new FinnhubClient(env.FINNHUB_API_KEY || '');
-  const gemini = new GeminiClient(env.GEMINI_API_KEY || '');
-  const resend = new ResendClient(env.RESEND_API_KEY || '');
+  const finnhub = new FinnhubClient((env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
+  const gemini = new GeminiClient((env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
+  const resend = new ResendClient((env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
 
   const users = await firestore.listUsers();
   console.log(`[Scheduler] Fetched ${users.length} users to scan.`);

@@ -94,6 +94,46 @@ describe("BusinessOS Backend Worker API Tests", () => {
 		});
 	});
 
+	describe("POST /api/system/fred/refresh", () => {
+		it("rejects unauthorized access", async () => {
+			const response = await SELF.fetch("http://example.com/api/system/fred/refresh", {
+				method: "POST"
+			});
+			expect(response.status).toBe(401);
+		});
+
+		it("allows access and triggers refresh when authenticated", async () => {
+			const response = await SELF.fetch("http://example.com/api/system/fred/refresh", {
+				method: "POST",
+				headers: {
+					"Authorization": "Bearer mock_user123"
+				}
+			});
+			expect(response.status).toBe(200);
+			const data = await response.json() as any;
+			expect(data.success).toBe(true);
+		});
+	});
+
+	describe("POST /api/system/sec/ingest", () => {
+		it("rejects unauthorized access", async () => {
+			const response = await SELF.fetch("http://example.com/api/system/sec/ingest", {
+				method: "POST"
+			});
+			expect(response.status).toBe(401);
+		});
+
+		it("allows access and triggers ingest when authenticated", async () => {
+			const response = await SELF.fetch("http://example.com/api/system/sec/ingest", {
+				method: "POST",
+				headers: {
+					"Authorization": "Bearer mock_user123"
+				}
+			});
+			expect(response.status).not.toBe(401);
+		});
+	});
+
 	describe("Scheduled Worker Cron Trigger", () => {
 		it("triggers the scheduled function without throwing", async () => {
 			const ctx = createExecutionContext();

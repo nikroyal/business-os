@@ -2,8 +2,8 @@ export type LogicalModel = 'Latest Flash' | 'Latest Pro' | 'Automatic';
 export type Subsystem = 'Editorial Commentary' | 'Research Engine' | 'Business School' | 'Copilot';
 
 export const GEMINI_MODEL_MAPPING = {
-  'Latest Flash': 'gemini-1.5-flash',
-  'Latest Pro': 'gemini-1.5-pro'
+  'Latest Flash': 'gemini-3.5-flash',
+  'Latest Pro': 'gemini-3.1-pro'
 };
 
 export const SUBSYSTEM_AUTOMATIC_MAPPING: Record<Subsystem, keyof typeof GEMINI_MODEL_MAPPING> = {

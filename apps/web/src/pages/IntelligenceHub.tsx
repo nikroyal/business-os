@@ -998,7 +998,7 @@ export const IntelligenceHub: React.FC = () => {
                                     <td className="py-1.5">Economic Moat</td>
                                     <td className="py-1.5 font-bold">{selectedAsset.intel.research.moatRating.toUpperCase()}</td>
                                     <td className="py-1.5 text-purple-700 font-bold">AI Interpretation</td>
-                                    <td className="py-1.5">Gemini 1.5 Pro</td>
+                                    <td className="py-1.5">Gemini 3.1 Pro</td>
                                   </tr>
                                   <tr className="border-b border-stone-100">
                                     <td className="py-1.5">Debt to Equity</td>

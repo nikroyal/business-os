@@ -187,10 +187,10 @@ app.use('/api/system/*', authenticateUser);
 
 // Services Health Check Endpoint
 app.get('/api/health/services', async (c) => {
-  const finnhubKey = c.env.FINNHUB_API_KEY;
-  const geminiKey = c.env.GEMINI_API_KEY;
-  const resendKey = c.env.RESEND_API_KEY;
-  const fredKey = c.env.FRED_API_KEY;
+  const finnhubKey = (c.env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const resendKey = (c.env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
   const firestore = new FirestoreClient(projectId);
 
@@ -256,7 +256,7 @@ app.get('/api/health/services', async (c) => {
     results.gemini = { status: 'not_configured', description: 'GEMINI_API_KEY is not configured in backend secrets' };
   } else {
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -284,10 +284,18 @@ app.get('/api/health/services', async (c) => {
           'Authorization': `Bearer ${resendKey}`
         }
       });
-      if (res.status === 401) {
-        results.resend = { status: 'failure', description: 'Invalid Resend API Key' };
+      if (res.ok || res.status === 200) {
+        results.resend = { status: 'operational', description: 'Resend API is operational' };
+      } else if (res.status === 401) {
+        let details = 'Invalid or revoked key';
+        if (!resendKey.startsWith('re_')) {
+          details = 'Incorrectly formatted (should start with re_)';
+        }
+        results.resend = { status: 'failure', description: `Invalid Resend API Key: ${details}` };
       } else if (res.status >= 500) {
         results.resend = { status: 'degraded', description: `Resend API returned HTTP ${res.status}` };
+      } else {
+        results.resend = { status: 'failure', description: `Resend returned HTTP ${res.status}` };
       }
     } catch (err: any) {
       results.resend = { status: 'failure', description: `Resend is unreachable: ${err.message || err}` };
@@ -1693,6 +1701,37 @@ app.get('/api/system/data-quality', async (c) => {
   }
 });
 
+// Manual FRED Cache Refresh Endpoint
+app.post('/api/system/fred/refresh', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const firestore = new FirestoreClient(projectId);
+
+  try {
+    console.log('[Manual Trigger] Triggering FRED daily ingestion...');
+    await runFredDailyIngestion(firestore, fredKey, true); // force = true
+    return c.json({ success: true, message: 'FRED cache refreshed successfully.' });
+  } catch (err: any) {
+    console.error('[Manual Trigger] FRED refresh failed:', err);
+    return c.json({ error: 'FRED refresh failed', details: err.message }, 500);
+  }
+});
+
+// Manual SEC EDGAR Ingestion Trigger Endpoint
+app.post('/api/system/sec/ingest', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const firestore = new FirestoreClient(projectId);
+
+  try {
+    console.log('[Manual Trigger] Triggering SEC batch ingestion...');
+    await runSecBatchIngestion(firestore, true); // force = true
+    return c.json({ success: true, message: 'SEC EDGAR ingestion triggered successfully.' });
+  } catch (err: any) {
+    console.error('[Manual Trigger] SEC EDGAR ingestion failed:', err);
+    return c.json({ error: 'SEC EDGAR ingestion failed', details: err.message }, 500);
+  }
+});
+
 // =========================================================================
 // PHASE 14 COPILOT & OPERATIONS CONSOLE SERVICES
 // =========================================================================
@@ -2667,7 +2706,7 @@ app.all('*', (c) => {
   return c.json({ error: 'Endpoint not found' }, 404);
 });
 
-import { checkAndRunScheduled } from './dispatch';
+import { checkAndRunScheduled, runFredDailyIngestion, runSecBatchIngestion } from './dispatch';
 
 export default {
   fetch: app.fetch,
