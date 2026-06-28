@@ -87,7 +87,7 @@ async function authenticateUser(c: any, next: any) {
     if (cachedGoogleCerts && nowMs < cachedGoogleCertsExpires) {
       keys = cachedGoogleCerts;
     } else {
-      const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken-system@system.gserviceaccount.com');
+      const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
       if (!certsRes.ok) {
         throw new Error('Failed to fetch Google public certificates');
       }
