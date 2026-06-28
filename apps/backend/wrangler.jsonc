@@ -21,6 +21,11 @@
 	"upload_source_maps": true,
 	"triggers": {
 		"crons": ["*/30 * * * *"]
+	},
+	"keep_vars": true,
+	"vars": {
+		"ENVIRONMENT": "production",
+		"FIREBASE_PROJECT_ID": "business-os"
 	}
 	/**
 	 * Smart Placement
