@@ -215,8 +215,11 @@ p {
 
 .main-content {
   flex-grow: 1;
-  padding: 3.5rem 4rem;
-  overflow-y: auto;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 54px);
 }
 
 /* User Profile Widget in Footer */
@@ -581,6 +584,8 @@ input:checked + .slider:before {
 /* Editorial Financial Tables */
 .financial-table-wrapper {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 400px;
   margin-top: 1rem;
   border-bottom: 2px solid var(--text-primary);
 }
@@ -1398,6 +1403,146 @@ select:focus-visible,
 input:focus-visible {
   outline: 2px solid var(--color-accent) !important;
   outline-offset: 2px !important;
+}
+
+/* =========================================================================
+   DESKTOP WORKSPACE LAYOUT SYSTEM (BLOOMBERG/TRADINGVIEW STYLE)
+   ========================================================================= */
+
+/* Standard scrollable full-page wrapper (e.g. Settings, Developer Panel) */
+.scrollable-page {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 3rem;
+}
+
+/* Stable viewport container for workspace style layouts */
+.workspace-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding: 2rem 2.5rem;
+}
+
+/* Workspace header block */
+.workspace-header {
+  flex-shrink: 0;
+  margin-bottom: 1.5rem;
+}
+
+/* Workspace main content body that fills vertical height */
+.workspace-body {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+  gap: 2rem;
+}
+
+/* Scrollable sub-panel */
+.scrollable-panel {
+  overflow-y: auto;
+  height: 100%;
+  padding-right: 0.5rem;
+}
+
+/* Fixed sub-panel */
+.fixed-panel {
+  flex-shrink: 0;
+}
+
+/* Table scrollable wrapper */
+.table-scroll-wrapper {
+  overflow-y: auto;
+  border: var(--border-thin);
+  background: var(--bg-card);
+  max-height: 100%;
+}
+
+/* Dashboard-specific stable layout grid */
+.dashboard-workspace-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard-workspace-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dashboard-workspace-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+/* Markets Page structures */
+.markets-workspace-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 2rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Company Hub structures */
+.company-workspace-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 2rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Copilot / Chat layout structures */
+.copilot-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.copilot-history-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: var(--border-thin);
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Responsive grid overrides */
+@media (max-width: 1024px) {
+  .dashboard-workspace-grid,
+  .markets-workspace-grid,
+  .company-workspace-grid {
+    grid-template-columns: 1fr !important;
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  .workspace-page {
+    overflow-y: auto !important;
+  }
+  .workspace-body {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+  .dashboard-workspace-main,
+  .dashboard-workspace-sidebar {
+    height: auto !important;
+    overflow: visible !important;
+  }
 }
 
 

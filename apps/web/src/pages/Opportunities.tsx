@@ -293,11 +293,11 @@ export const Opportunities: React.FC = () => {
   });
 
   return (
-    <div className="container" style={{ padding: '2rem 0' }}>
-      <div className="opportunities-container">
+    <div className="workspace-page" style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
+      <div className="opportunities-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', gap: '1.5rem' }}>
         
         {/* Header Section */}
-        <div className="opportunities-header-section">
+        <div className="opportunities-header-section workspace-header" style={{ marginBottom: 0 }}>
           <div className="opportunities-title-area">
             <span className="mono-tag" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Lightbulb size={12} />
@@ -326,7 +326,7 @@ export const Opportunities: React.FC = () => {
         </div>
 
         {/* Filters and Summary Toolbar */}
-        <div className="filter-bar">
+        <div className="filter-bar fixed-panel" style={{ marginBottom: 0 }}>
           <span className="filter-label">Filter Intelligence:</span>
           
           <button 
@@ -365,8 +365,9 @@ export const Opportunities: React.FC = () => {
           </button>
         </div>
 
-        {/* Scanning Simulation View */}
-        {scanning && (
+        <div className="scrollable-panel" style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
+          {/* Scanning Simulation View */}
+          {scanning && (
           <div className="scanner-animation-overlay">
             <div className="scanner-radar-line"></div>
             <RefreshCw size={36} className="spinner" style={{ animation: 'spin 1.5s linear infinite', color: 'var(--color-accent)' }} />
@@ -559,7 +560,7 @@ export const Opportunities: React.FC = () => {
             )}
           </>
         )}
-
+        </div>
       </div>
 
       {/* Opportunity Detail View Modal */}

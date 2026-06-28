@@ -270,7 +270,8 @@ export const Copilot: React.FC = () => {
   const generalSessions = filteredSessions.filter(s => !s.pinned);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', minHeight: 'calc(100vh - 4.5rem)', background: 'var(--bg-main)', border: '1px solid #E2DACD', borderRadius: '4px', overflow: 'hidden' }}>
+    <div className="workspace-page" style={{ padding: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', height: '100%', background: 'var(--bg-main)', border: '1px solid #E2DACD', overflow: 'hidden' }}>
       
       {/* Session Navigation panel */}
       <div style={{ borderRight: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', background: '#FAF8F5' }}>
@@ -353,7 +354,7 @@ export const Copilot: React.FC = () => {
       </div>
 
       {/* Main chat client panel */}
-      <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-main)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', height: '100%', overflow: 'hidden' }}>
         
         {/* Chat Header controls */}
         {activeSession ? (
@@ -646,6 +647,7 @@ export const Copilot: React.FC = () => {
 
       </div>
 
+    </div>
     </div>
   );
 };

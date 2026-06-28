@@ -240,7 +240,8 @@ export const DeveloperConsole: React.FC = () => {
   );
 
   return (
-    <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left', fontFamily: 'var(--font-mono)' }}>
+    <div className="scrollable-page">
+      <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left', fontFamily: 'var(--font-mono)' }}>
       
       {/* Header operations center */}
       <div style={{ borderBottom: '1px solid #222', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
@@ -863,6 +864,7 @@ export const DeveloperConsole: React.FC = () => {
         </div>
       )}
 
+    </div>
     </div>
   );
 };

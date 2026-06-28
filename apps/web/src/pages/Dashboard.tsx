@@ -572,10 +572,10 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
+    <div className="workspace-page" style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
       
       {/* Editorial Header bar */}
-      <div style={{ 
+      <div className="workspace-header" style={{ 
         borderBottom: '1px solid #222222', 
         paddingBottom: '1.5rem', 
         marginBottom: '2.5rem',
@@ -610,7 +610,10 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <OnboardingChecklist 
+      <div className="workspace-body">
+        <div className="dashboard-workspace-grid" style={{ width: '100%' }}>
+          <div className="dashboard-workspace-main scrollable-panel" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', paddingRight: '1rem' }}>
+            <OnboardingChecklist 
         holdingsCount={holdings.length}
         watchlistCount={watchlistSummary.length}
         reportsCount={reportsCount}
@@ -782,10 +785,7 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="dashboard-grid">
-        
-        {/* Left Column: Metrics, Health, Ledger, Detailed Allocations */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+      {/* Left Column: Metrics, Health, Ledger, Detailed Allocations */}
           
           {/* Portfolio Metric Highlights */}
           <div className="metric-summary-grid">
@@ -1489,7 +1489,7 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Right Column: Editorial Sidebars (Concentration Risk, Winners/Losers, Watchlist Summary, Strategic Parameters) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+        <div className="dashboard-workspace-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           
           {/* Concentration Risk Card */}
           {analytics && holdings.length > 0 && (
@@ -1822,8 +1822,8 @@ export const Dashboard: React.FC = () => {
           </div>
 
         </div>
-
       </div>
+    </div>
 
       {/* Add/Edit Modal Dialog */}
       {isModalOpen && (

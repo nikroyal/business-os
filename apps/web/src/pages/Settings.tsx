@@ -300,7 +300,8 @@ export const Settings: React.FC = () => {
   });
 
   return (
-    <div style={{ animation: 'fadeIn 0.25s ease-out', maxWidth: '850px', margin: '0 auto', textAlign: 'left' }}>
+    <div className="scrollable-page">
+      <div style={{ animation: 'fadeIn 0.25s ease-out', maxWidth: '850px', margin: '0 auto', textAlign: 'left' }}>
       
       {/* Toast Alert Widget */}
       {toast && (
@@ -896,6 +897,7 @@ export const Settings: React.FC = () => {
         </div>
 
       </form>
+    </div>
     </div>
   );
 };

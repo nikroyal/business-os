@@ -237,10 +237,10 @@ export const Reports: React.FC = () => {
   };
 
   return (
-    <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
+    <div className="workspace-page" style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
       
       {/* Editorial Header bar */}
-      <div style={{ 
+      <div className="workspace-header" style={{ 
         borderBottom: '1px solid #222222', 
         paddingBottom: '1.5rem', 
         marginBottom: '2.5rem',
@@ -290,10 +290,10 @@ export const Reports: React.FC = () => {
         </div>
       )}
 
-      <div className="reports-grid-layout" style={{ alignItems: 'start' }}>
+      <div className="workspace-body reports-grid-layout" style={{ flexGrow: 1, overflow: 'hidden', height: '100%' }}>
         
         {/* Left Side: Report History Archive */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div className="scrollable-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%' }}>
           
           <button 
             onClick={handleGenerateReport} 
@@ -377,7 +377,7 @@ export const Reports: React.FC = () => {
         </div>
 
         {/* Right Side: Selected Report Detail */}
-        <div>
+        <div className="scrollable-panel" style={{ height: '100%', paddingRight: '0.5rem' }}>
           {generating ? (
             <div className="card" style={{ padding: '4rem 2rem', textAlign: 'center', border: '1px dashed #222' }}>
               <div style={{ 
@@ -738,7 +738,6 @@ export const Reports: React.FC = () => {
             </div>
           )}
         </div>
-
       </div>
 
       <style>{`

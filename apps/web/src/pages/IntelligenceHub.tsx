@@ -350,10 +350,10 @@ export const IntelligenceHub: React.FC = () => {
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#FDFCF7] text-[#1A1A1A] p-4 md:p-8 font-sans selection:bg-[#E5E2D9]">
+    <div className="workspace-page" style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
       
       {/* FT-Style Editorial Header */}
-      <header className="border-b-2 border-stone-800 pb-5 mb-8">
+      <header className="workspace-header border-b-2 border-stone-800 pb-5 mb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <div className="font-mono text-xs uppercase tracking-widest text-[#8c2a2a] mb-1 font-bold flex items-center gap-1.5">
@@ -461,10 +461,10 @@ export const IntelligenceHub: React.FC = () => {
           </section>
 
           {/* SPLIT PANE: DIRECTORY & WORKSPACE */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <div className="workspace-body company-workspace-grid lg:gap-8">
             
             {/* LEFT COLUMN: ACTIVE MONITORED ASSETS DIRECTORY */}
-            <div className="lg:col-span-1 flex flex-col gap-6">
+            <div className="lg:col-span-1 flex flex-col gap-6 scrollable-panel" style={{ paddingRight: '0.5rem' }}>
               <section className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm">
                 <div className="border-b border-stone-200 pb-3 mb-4">
                   <h2 className="font-serif text-xl font-normal text-[#1A1A1A]">
@@ -524,7 +524,7 @@ export const IntelligenceHub: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN: FLAGSHIP COMPANY WORKSPACE */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
               <section className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm">
                 
                 {!selectedAsset ? (
@@ -650,7 +650,7 @@ export const IntelligenceHub: React.FC = () => {
                     </div>
 
                     {/* Active Workspace View Rendering */}
-                    <div style={{ minHeight: '380px' }}>
+                    <div className="scrollable-panel" style={{ flexGrow: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 355px)', paddingRight: '0.5rem' }}>
                       
                       {/* TAB 1: OVERVIEW */}
                       {activeTab === 'overview' && (
