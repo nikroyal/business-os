@@ -189,7 +189,7 @@ export const ProtectedLayout: React.FC = () => {
         </header>
 
         {/* Workspace views slot */}
-        <main className="main-content" style={{ flexGrow: 1, overflowY: 'auto', background: 'var(--bg-main)', position: 'relative' }}>
+        <main className="main-content" style={{ flexGrow: 1, overflowY: 'hidden', background: 'var(--bg-main)', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Outlet />
         </main>
       </div>
