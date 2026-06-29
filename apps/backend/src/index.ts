@@ -2813,6 +2813,54 @@ app.post('/api/admin/ai-orchestrator/config', async (c) => {
   }
 });
 
+app.post('/api/admin/ai-orchestrator/health-test', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const apiKey = c.env.GEMINI_API_KEY;
+  if (!apiKey) return c.json({ error: 'Gemini API Key not configured' }, 500);
+  const { type, targetId } = await c.req.json();
+  try {
+    const result = await AIOrchestrator.triggerHealthTest(projectId, apiKey, type, targetId);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ error: 'Failed to run health test', details: err.message }, 500);
+  }
+});
+
+app.post('/api/admin/ai-orchestrator/flush-cooldowns', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  try {
+    await AIOrchestrator.flushCooldowns(projectId);
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: 'Failed to flush cooldowns', details: err.message }, 500);
+  }
+});
+
+app.post('/api/admin/ai-orchestrator/clear-telemetry', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  try {
+    await AIOrchestrator.clearTelemetry(projectId);
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: 'Failed to clear telemetry', details: err.message }, 500);
+  }
+});
+
+app.get('/api/admin/ai-orchestrator/export-csv', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  try {
+    const csv = await AIOrchestrator.getTelemetryCsv(projectId);
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="ai_telemetry_export.csv"'
+      }
+    });
+  } catch (err: any) {
+    return c.json({ error: 'Failed to export CSV', details: err.message }, 500);
+  }
+});
+
 // Fallback route
 
 app.all('*', (c) => {

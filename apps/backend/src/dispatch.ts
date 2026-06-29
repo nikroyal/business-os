@@ -3482,6 +3482,15 @@ export async function checkAndRunScheduled(env: {
     console.error('[Scheduler] Batch ingestion error:', batchErr);
   }
 
+  // Trigger daily telemetry logs cleanup (retention policy enforcement)
+  try {
+    const config = await AIOrchestrator.getOrchestratorConfig(env.FIREBASE_PROJECT_ID);
+    const retentionDays = config?.retentionDays || 30;
+    await AIOrchestrator.runTelemetryRetentionCleanup(env.FIREBASE_PROJECT_ID, retentionDays);
+  } catch (cleanupErr) {
+    console.error('[Scheduler] Telemetry retention cleanup error:', cleanupErr);
+  }
+
   const finnhub = new FinnhubClient((env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
   const gemini = new GeminiClient((env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
   const resend = new ResendClient((env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));

@@ -44,6 +44,7 @@ export interface OverviewStats {
   overallSuccessRate: number;
   averageLatencyMs: number;
   requestsToday: number;
+  requestsThisMonth?: number;
   tokensToday: number;
   estimatedDailyCost: number;
   estimatedMonthlyCost: number;
@@ -58,8 +59,17 @@ export interface QuotaStats {
   quotaUtilisationPercentage: number;
 }
 
+export interface ProviderStats {
+  id: string;
+  displayName: string;
+  health: 'operational' | 'degraded';
+  successRate: number;
+  averageLatencyMs: number;
+}
+
 export interface OrchestratorStats {
   overview: OverviewStats;
+  provider?: ProviderStats;
   models: ModelMetadataWithStats[];
   breakdowns: {
     featureCost: Record<string, number>;
@@ -90,6 +100,8 @@ export interface TelemetryRecord {
 
 export interface OrchestratorConfig {
   forcedModel: string | null;
+  maintenanceMode?: boolean;
+  retentionDays?: number;
   modelOverrides: Record<string, {
     enabled?: boolean;
     priority?: number;
@@ -137,6 +149,46 @@ class AIOrchestratorService {
     if (!res.ok) throw new Error(`Failed to save AI config: HTTP ${res.status}`);
     const data = await res.json() as any;
     return !!data.success;
+  }
+
+  async triggerHealthTest(type: 'provider' | 'model', targetId: string): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(buildApiUrl('api/admin/ai-orchestrator/health-test'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ type, targetId })
+    });
+    if (!res.ok) throw new Error(`Failed to run health test: HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  async flushCooldowns(): Promise<boolean> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(buildApiUrl('api/admin/ai-orchestrator/flush-cooldowns'), {
+      method: 'POST',
+      headers
+    });
+    if (!res.ok) throw new Error(`Failed to flush cooldowns: HTTP ${res.status}`);
+    const data = await res.json() as any;
+    return !!data.success;
+  }
+
+  async clearTelemetry(): Promise<boolean> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(buildApiUrl('api/admin/ai-orchestrator/clear-telemetry'), {
+      method: 'POST',
+      headers
+    });
+    if (!res.ok) throw new Error(`Failed to clear telemetry: HTTP ${res.status}`);
+    const data = await res.json() as any;
+    return !!data.success;
+  }
+
+  async exportTelemetryCsv(): Promise<string> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(buildApiUrl('api/admin/ai-orchestrator/export-csv'), { headers });
+    if (!res.ok) throw new Error(`Failed to export CSV: HTTP ${res.status}`);
+    return await res.text();
   }
 }
 

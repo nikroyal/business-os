@@ -11,25 +11,29 @@ import {
   AlertCircle, 
   CheckCircle2, 
   RefreshCw, 
-  Save, 
-  User, 
+  Trash2,
+  Save,
+  User,
   Briefcase,
-  Layers
+  Layers,
+  Download,
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 
 export const AIOrchestratorDashboard: React.FC = () => {
   const { profile } = useAuth();
   const isOwner = profile?.role === 'OWNER';
 
-  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Usage' | 'Timeline'>('Overview');
+  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Usage' | 'Timeline' | 'Controls'>('Overview');
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
-  const [config, setConfig] = useState<OrchestratorConfig>({ forcedModel: null, modelOverrides: {} });
+  const [config, setConfig] = useState<OrchestratorConfig>({ forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
+  const [testingHealth, setTestingHealth] = useState<string | null>(null);
 
-  // Stats fetching logic
   const loadData = async (showRefresher = false) => {
     if (showRefresher) setRefreshing(true);
     else setLoading(true);
@@ -42,7 +46,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
       ]);
       setStats(statsData);
       setTimeline(timelineData);
-      setConfig(configData || { forcedModel: null, modelOverrides: {} });
+      setConfig(configData || { forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
     } catch (e) {
       console.error('Failed to load AI Orchestrator data:', e);
     } finally {
@@ -53,13 +57,11 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    // Auto-refresh every 10 seconds to keep telemetry timeline and cooldown timers updated
     const interval = setInterval(() => loadData(true), 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Update Config options
-  const handleToggleModel = async (modelId: string, enabled: boolean) => {
+  const handleToggleModel = (modelId: string, enabled: boolean) => {
     if (!isOwner) return;
     const modelOverrides = { ...config.modelOverrides };
     modelOverrides[modelId] = {
@@ -78,8 +80,6 @@ export const AIOrchestratorDashboard: React.FC = () => {
     };
     setConfig({ ...config, modelOverrides });
   };
-
-
 
   const handleForceModelChange = (forcedModel: string | null) => {
     if (!isOwner) return;
@@ -104,6 +104,65 @@ export const AIOrchestratorDashboard: React.FC = () => {
     }
   };
 
+  // Health tests triggers
+  const handleHealthTest = async (type: 'provider' | 'model', targetId: string) => {
+    setTestingHealth(targetId);
+    try {
+      const result = await aiOrchestratorService.triggerHealthTest(type, targetId);
+      alert(`Health Test Result for ${targetId}:\nStatus: ${result.success ? '🟢 SUCCESS' : '🔴 FAILED'}\nLatency: ${result.latency}ms\nMessage: ${result.message}`);
+      loadData(true);
+    } catch (err: any) {
+      alert(`Test execution exception: ${err.message || err}`);
+    } finally {
+      setTestingHealth(null);
+    }
+  };
+
+  // Cooldown flushing
+  const handleFlushCooldowns = async () => {
+    if (!confirm('Are you sure you want to flush all active persistent cooldown states? Models will return to their default healthy status.')) return;
+    try {
+      const ok = await aiOrchestratorService.flushCooldowns();
+      if (ok) {
+        alert('All model cooldowns flushed successfully.');
+        loadData(true);
+      }
+    } catch (e: any) {
+      alert(`Flush error: ${e.message || e}`);
+    }
+  };
+
+  // Telemetry clear
+  const handleClearTelemetry = async () => {
+    if (!confirm('CRITICAL: Are you sure you want to purge all telemetry logs? This will erase usage history.')) return;
+    try {
+      const ok = await aiOrchestratorService.clearTelemetry();
+      if (ok) {
+        alert('Telemetry logs cleared successfully.');
+        loadData(true);
+      }
+    } catch (e: any) {
+      alert(`Clear telemetry error: ${e.message || e}`);
+    }
+  };
+
+  // CSV Exporter
+  const handleExportCsv = async () => {
+    try {
+      const csvContent = await aiOrchestratorService.exportTelemetryCsv();
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ai_telemetry_export_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e: any) {
+      alert(`CSV Export failed: ${e.message || e}`);
+    }
+  };
+
   if (loading && !stats) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: '#888', fontFamily: 'var(--font-mono)' }}>
@@ -113,7 +172,6 @@ export const AIOrchestratorDashboard: React.FC = () => {
     );
   }
 
-  // Derived dashboard details
   const overview = stats?.overview;
   const models = stats?.models || [];
   const activeForced = models.find(m => m.isForced);
@@ -123,6 +181,25 @@ export const AIOrchestratorDashboard: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', color: '#f3f4f6' }}>
       
+      {/* Maintenance Mode Banner */}
+      {config.maintenanceMode && (
+        <div style={{
+          backgroundColor: '#ef444415',
+          border: '1px solid #ef444455',
+          color: '#ef4444',
+          fontSize: '0.8rem',
+          padding: '0.6rem 1rem',
+          borderRadius: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontFamily: 'var(--font-mono)'
+        }}>
+          <AlertTriangle size={16} />
+          <span><b>MAINTENANCE MODE ACTIVE:</b> AI Orchestrator is offline. Client requests will be rejected.</span>
+        </div>
+      )}
+
       {/* Header bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', paddingBottom: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -154,61 +231,81 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Sub tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #1c1c1c', paddingBottom: '0.5rem' }}>
-        {(['Overview', 'Registry', 'Usage', 'Timeline'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveSubTab(tab)}
-            style={{
-              padding: '0.4rem 0.8rem',
-              fontSize: '0.75rem',
-              background: activeSubTab === tab ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
-              border: activeSubTab === tab ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid transparent',
-              color: activeSubTab === tab ? '#06b6d4' : '#888',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: activeSubTab === tab ? 600 : 400,
-              transition: 'all 0.2s ease'
-            }}
-          >
-            {tab}
-          </button>
-        ))}
+        {(['Overview', 'Registry', 'Usage', 'Timeline', 'Controls'] as const).map(tab => {
+          if (tab === 'Controls' && !isOwner) return null;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveSubTab(tab)}
+              style={{
+                padding: '0.4rem 0.8rem',
+                fontSize: '0.75rem',
+                background: activeSubTab === tab ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                border: activeSubTab === tab ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid transparent',
+                color: activeSubTab === tab ? '#06b6d4' : '#888',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: activeSubTab === tab ? 600 : 400,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {tab === 'Controls' ? '🔧 Developer Controls' : tab}
+            </button>
+          );
+        })}
       </div>
 
       {/* Subtab Content: Overview */}
       {activeSubTab === 'Overview' && overview && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Main stats counters */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+          
+          {/* Diagnostic overview status grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            
+            {/* Provider Health vs Model Health */}
+            {stats.provider && (
+              <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+                <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Provider Node Health</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.1rem', fontWeight: 600, color: stats.provider?.health === 'operational' ? '#10b981' : '#ef4444' }}>
+                  {stats.provider?.health === 'operational' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {stats.provider?.displayName}
+                </div>
+                <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Success Rate: {stats.provider?.successRate}% | Latency: {stats.provider?.averageLatencyMs}ms</div>
+                {isOwner && (
+                  <button
+                    onClick={() => handleHealthTest('provider', stats.provider?.id || '')}
+                    disabled={testingHealth !== null}
+                    style={{ fontSize: '0.55rem', background: '#222', color: '#aaa', border: '1px solid #333', padding: '2px 6px', borderRadius: '3px', marginTop: '0.5rem', cursor: 'pointer' }}
+                  >
+                    {testingHealth === stats.provider?.id ? 'Testing...' : 'Test Connection'}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Operational Status</div>
+              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Overall AI Health</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.25rem', fontWeight: 600, color: overview.overallHealth === 'healthy' ? '#10b981' : '#f59e0b' }}>
                 {overview.overallHealth === 'healthy' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                 {overview.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
               </div>
-              <div style={{ fontSize: '0.65rem', color: '#444', fontFamily: 'var(--font-mono)', marginTop: '0.25rem' }}>Active Provider: {overview.activeProvider}</div>
+              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Success Rate: {overview.overallSuccessRate}% | Failovers: {overview.totalFailovers}</div>
             </div>
 
             <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Success Rate</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-primary-text)' }}>{overview.overallSuccessRate}%</div>
-              <div style={{ fontSize: '0.65rem', color: '#444', fontFamily: 'var(--font-mono)', marginTop: '0.25rem' }}>Total Failovers: {overview.totalFailovers} | Retries: {overview.totalRetries}</div>
+              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Volume & Latency</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600 }}>{overview.averageLatencyMs} ms</div>
+              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday} | Monthly: {overview.requestsThisMonth || 0}</div>
             </div>
 
             <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Avg Latency</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>{overview.averageLatencyMs} ms</div>
-              <div style={{ fontSize: '0.65rem', color: '#444', fontFamily: 'var(--font-mono)', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday}</div>
-            </div>
-
-            <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Estimated Daily Cost</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#10b981' }}>${overview.estimatedDailyCost.toFixed(4)}</div>
-              <div style={{ fontSize: '0.65rem', color: '#444', fontFamily: 'var(--font-mono)', marginTop: '0.25rem' }}>Monthly Projection: ${overview.estimatedMonthlyCost.toFixed(2)}</div>
+              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Operational Cost Today</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#10b981' }}>${overview.estimatedDailyCost.toFixed(4)}</div>
+              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Monthly Projection: ${overview.estimatedMonthlyCost.toFixed(2)}</div>
             </div>
           </div>
 
-          {/* Active Chain Visualizer */}
+          {/* Fallback chain visualizer */}
           <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Active Fallback Chain</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
@@ -256,7 +353,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     </span>
                     <span style={{ fontSize: '0.8rem', color: m.cooldownRemaining > 0 ? '#ef4444' : '#f59e0b' }}>{m.displayName}</span>
                     {m.cooldownRemaining > 0 && (
-                      <span style={{ fontSize: '0.65rem', color: '#ef4444', fontFamily: 'var(--font-mono)' }}>({Math.ceil(m.cooldownRemaining / 1000)}s left)</span>
+                      <span style={{ fontSize: '0.65rem', color: '#ef4444', fontFamily: 'var(--font-mono)' }}>({Math.ceil(m.cooldownRemaining / 1000)}s remaining)</span>
                     )}
                   </div>
                 </React.Fragment>
@@ -264,26 +361,26 @@ export const AIOrchestratorDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Quota limit card */}
+          {/* Quota estimation widget */}
           {stats.quota && (
             <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               <div>
-                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Estimated Quota Usage</h3>
+                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Estimated Quota Limits</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#aaa' }}>Requests Today:</span>
+                    <span style={{ color: '#aaa' }}>Daily Requests:</span>
                     <span>{overview.requestsToday} / 1,500</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#aaa' }}>Estimated RPM (Average):</span>
-                    <span>{stats.quota.requestsPerMinute} requests / min</span>
+                    <span style={{ color: '#aaa' }}>RPM Average:</span>
+                    <span>{stats.quota.requestsPerMinute} reqs / min</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#aaa' }}>Tokens Today:</span>
+                    <span style={{ color: '#aaa' }}>Tokens Ingested Today:</span>
                     <span>{overview.tokensToday.toLocaleString()} tokens</span>
                   </div>
-                  <div style={{ fontSize: '0.65rem', color: '#555', fontStyle: 'italic', marginTop: '0.25rem' }}>
-                    * Values are BusinessOS estimates derived from telemetry logs.
+                  <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontStyle: 'italic', marginTop: '0.25rem' }}>
+                    ⚠️ Note: Displayed values are BusinessOS estimates derived from recorded telemetry, not provider-reported limits.
                   </div>
                 </div>
               </div>
@@ -294,7 +391,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     <span style={{ fontSize: '0.55rem', color: '#666', textTransform: 'uppercase' }}>Utilized</span>
                   </div>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.5rem' }}>{stats.quota.estimatedRemainingDailyRequests} requests remaining today</div>
+                <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.5rem' }}>{stats.quota.estimatedRemainingDailyRequests} requests estimated remaining</div>
               </div>
             </div>
           )}
@@ -304,7 +401,6 @@ export const AIOrchestratorDashboard: React.FC = () => {
       {/* Subtab Content: Registry */}
       {activeSubTab === 'Registry' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Forced Override Configuration */}
           {isOwner && (
             <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -332,18 +428,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Model Registry List Table */}
           <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #222', color: '#666' }}>
                   <th style={{ padding: '0.5rem 0.25rem' }}>Model Details</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Priority</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Category</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Scores (C/R/S)</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Active Status</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Success Rate</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'right' }}>Cooldown (Sec)</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Provider</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>C/R/S Scores</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Status</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Success/Failure Rate</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'right' }}>Cooldown</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Health Test</th>
                   {isOwner && <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Controls</th>}
                 </tr>
               </thead>
@@ -388,7 +484,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         )}
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                        <span style={{ fontSize: '0.65rem', border: '1px solid #333', padding: '1px 4px', borderRadius: '3px' }}>{model.category}</span>
+                        <span style={{ fontSize: '0.65rem', border: '1px solid #333', padding: '1px 4px', borderRadius: '3px', textTransform: 'uppercase' }}>{model.provider}</span>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <span style={{ color: '#06b6d4' }}>{model.capabilityScore}</span>
@@ -407,8 +503,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                        <div>{model.stats.successRate}%</div>
-                        <div style={{ fontSize: '0.55rem', color: '#555' }}>{model.stats.avgLatencyMs}ms | {model.stats.requests} reqs</div>
+                        <div>{model.stats.successRate}% S / {model.stats.failure > 0 ? `${model.stats.failure} F` : '0 F'}</div>
+                        <div style={{ fontSize: '0.55rem', color: '#555' }}>Avg Latency: {model.stats.avgLatencyMs}ms</div>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                         {model.cooldownRemaining > 0 ? (
@@ -416,6 +512,23 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         ) : (
                           <span style={{ color: '#666' }}>0s</span>
                         )}
+                      </td>
+                      <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleHealthTest('model', model.id)}
+                          disabled={testingHealth !== null}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid #333',
+                            color: '#aaa',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            fontSize: '0.65rem'
+                          }}
+                        >
+                          {testingHealth === model.id ? 'Testing...' : 'Test Run'}
+                        </button>
                       </td>
                       {isOwner && (
                         <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
@@ -450,7 +563,6 @@ export const AIOrchestratorDashboard: React.FC = () => {
       {activeSubTab === 'Usage' && stats && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
-            {/* Feature cost breakdown */}
             <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
               <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <Layers size={14} style={{ color: 'var(--color-primary)' }} /> Cost by Feature
@@ -463,12 +575,11 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   </div>
                 ))}
                 {Object.keys(stats.breakdowns.featureCost).length === 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage recorded.</div>
+                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage logs.</div>
                 )}
               </div>
             </div>
 
-            {/* Workspace cost breakdown */}
             <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
               <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <Briefcase size={14} style={{ color: '#a855f7' }} /> Cost by Workspace
@@ -481,12 +592,11 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   </div>
                 ))}
                 {Object.keys(stats.breakdowns.workspaceCost).length === 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage recorded.</div>
+                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage logs.</div>
                 )}
               </div>
             </div>
 
-            {/* User cost breakdown */}
             <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
               <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 <User size={14} style={{ color: '#f59e0b' }} /> Cost by User
@@ -499,7 +609,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   </div>
                 ))}
                 {Object.keys(stats.breakdowns.userCost).length === 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage recorded.</div>
+                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage logs.</div>
                 )}
               </div>
             </div>
@@ -510,7 +620,16 @@ export const AIOrchestratorDashboard: React.FC = () => {
       {/* Subtab Content: Timeline logs */}
       {activeSubTab === 'Timeline' && (
         <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-          <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Recent Execution Telemetry Feed</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Recent Execution Telemetry Feed</h3>
+            <button
+              onClick={handleExportCsv}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Download size={12} /> Export CSV
+            </button>
+          </div>
           
           {timeline.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
@@ -524,6 +643,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Tokens (P / C)</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Retries</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Latency</th>
+                    <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Cost</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'right' }}>Status</th>
                   </tr>
                 </thead>
@@ -553,6 +673,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         {record.latency}ms
                       </td>
+                      <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: '#10b981', fontFamily: 'var(--font-mono)' }}>
+                        ${record.estimatedCost.toFixed(5)}
+                      </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'right', fontWeight: 'bold' }}>
                         {record.success ? (
                           <span style={{ color: '#10b981' }}>SUCCESS</span>
@@ -572,6 +695,74 @@ export const AIOrchestratorDashboard: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Subtab Content: Controls (OWNER only) */}
+      {activeSubTab === 'Controls' && isOwner && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          
+          {/* Policy controls */}
+          <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Operational Policies</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={config.maintenanceMode || false}
+                  onChange={e => setConfig({ ...config, maintenanceMode: e.target.checked })}
+                  style={{ width: '14px', height: '14px' }}
+                />
+                <span>Enable Global Maintenance Mode (Temporarily disables orchestrator executions)</span>
+              </label>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                <span>Telemetry logs retention window:</span>
+                <select
+                  value={config.retentionDays || 30}
+                  onChange={e => setConfig({ ...config, retentionDays: parseInt(e.target.value) || 30 })}
+                  style={{
+                    background: '#222',
+                    border: '1px solid #333',
+                    color: '#fff',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  <option value={7}>7 Days</option>
+                  <option value={15}>15 Days</option>
+                  <option value={30}>30 Days</option>
+                  <option value={90}>90 Days</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Maintenance triggers */}
+          <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Maintenance Controls</h3>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleFlushCooldowns}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6' }}
+              >
+                <Zap size={14} /> Flush Active Cooldowns
+              </button>
+
+              <button
+                onClick={handleClearTelemetry}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444' }}
+              >
+                <Trash2 size={14} /> Clear Telemetry logs
+              </button>
+            </div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };

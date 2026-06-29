@@ -1,6 +1,16 @@
 export type LogicalModel = 'Latest Flash' | 'Latest Pro' | 'Automatic';
 export type Subsystem = 'Editorial Commentary' | 'Research Engine' | 'Business School' | 'Copilot';
 
+export type TaskType = 
+  | 'deep_research'
+  | 'copilot_conversation'
+  | 'market_summary'
+  | 'company_analysis'
+  | 'report_generation'
+  | 'daily_briefing'
+  | 'long_writing'
+  | 'short_summarization';
+
 export interface ModelMetadata {
   id: string;
   displayName: string;
@@ -27,6 +37,81 @@ export interface ModelMetadata {
   outputCostPer1M: number;
 }
 
+// Provider Adapter Interface
+export interface AIProviderAdapter {
+  id: string;
+  displayName: string;
+  executePrompt(
+    modelId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    apiKey: string,
+    timeoutMs: number
+  ): Promise<{
+    text: string;
+    rawResponse: any;
+    promptTokens?: number;
+    completionTokens?: number;
+  }>;
+}
+
+// Google Gemini API Provider Adapter
+export class GoogleGeminiAdapter implements AIProviderAdapter {
+  id = 'google';
+  displayName = 'Google AI Studio';
+
+  async executePrompt(
+    modelId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    apiKey: string,
+    timeoutMs: number
+  ): Promise<{ text: string; rawResponse: any; promptTokens?: number; completionTokens?: number }> {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+    const payload = {
+      contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+      generationConfig: { responseMimeType: 'application/json' }
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`Google API returned HTTP ${res.status}: ${text}`);
+      }
+
+      const data = JSON.parse(text);
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) throw new Error('Empty response from Google API');
+
+      // Use actual provider token counts when available
+      const promptTokens = data.usageMetadata?.promptTokenCount;
+      const completionTokens = data.usageMetadata?.candidatesTokenCount;
+
+      return {
+        text: rawText,
+        rawResponse: data,
+        promptTokens,
+        completionTokens
+      };
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      throw e;
+    }
+  }
+}
+
 export const GEMINI_MODEL_MAPPING = {
   'Latest Flash': 'gemini-3.5-flash',
   'Latest Pro': 'gemini-3.1-pro-preview'
@@ -39,11 +124,13 @@ export const SUBSYSTEM_AUTOMATIC_MAPPING: Record<Subsystem, keyof typeof GEMINI_
   'Copilot': 'Latest Pro'
 };
 
-// Global in-memory states for dynamic health tracking
-const modelCooldowns = new Map<string, number>();
-const modelStats = new Map<string, { requests: number; success: number; failure: number; totalLatencyMs: number; lastSuccess?: string; lastFailure?: string }>();
+// Global in-memory local cache for configs & stats
+const modelLocalStats = new Map<string, { requests: number; success: number; failure: number; totalLatencyMs: number; lastSuccess?: string; lastFailure?: string; lastFailureReason?: string }>();
+const providerLocalStats = new Map<string, { requests: number; success: number; failure: number; totalLatencyMs: number }>();
+let localCooldownCache: Record<string, number> = {};
+let localCooldownCacheExpiry = 0;
 
-// Simple Firestore REST helper
+// Simple Firestore REST helpers
 const firestoreUrl = (projectId: string, path: string) =>
   `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
 
@@ -101,6 +188,10 @@ function fromFirestoreValue(val: any): any {
 }
 
 export class AIOrchestrator {
+  private static adapters: Record<string, AIProviderAdapter> = {
+    'google': new GoogleGeminiAdapter()
+  };
+
   public static readonly DEFAULT_MODELS: ModelMetadata[] = [
     {
       id: 'gemini-3.5-flash',
@@ -112,7 +203,7 @@ export class AIOrchestrator {
       speedScore: 95,
       stabilityScore: 95,
       status: 'production',
-      provider: 'Google',
+      provider: 'google',
       supportsGrounding: true,
       supportsStructuredOutput: true,
       supportsLongContext: true,
@@ -137,7 +228,7 @@ export class AIOrchestrator {
       speedScore: 70,
       stabilityScore: 85,
       status: 'preview',
-      provider: 'Google',
+      provider: 'google',
       supportsGrounding: true,
       supportsStructuredOutput: true,
       supportsLongContext: true,
@@ -162,7 +253,7 @@ export class AIOrchestrator {
       speedScore: 75,
       stabilityScore: 92,
       status: 'production',
-      provider: 'Google',
+      provider: 'google',
       supportsGrounding: true,
       supportsStructuredOutput: true,
       supportsLongContext: true,
@@ -187,7 +278,7 @@ export class AIOrchestrator {
       speedScore: 92,
       stabilityScore: 94,
       status: 'production',
-      provider: 'Google',
+      provider: 'google',
       supportsGrounding: true,
       supportsStructuredOutput: true,
       supportsLongContext: true,
@@ -212,7 +303,7 @@ export class AIOrchestrator {
       speedScore: 90,
       stabilityScore: 90,
       status: 'production',
-      provider: 'Google',
+      provider: 'google',
       supportsGrounding: true,
       supportsStructuredOutput: true,
       supportsLongContext: true,
@@ -237,7 +328,7 @@ export class AIOrchestrator {
       speedScore: 72,
       stabilityScore: 90,
       status: 'production',
-      provider: 'Google',
+      provider: 'google',
       supportsGrounding: true,
       supportsStructuredOutput: true,
       supportsLongContext: true,
@@ -255,95 +346,54 @@ export class AIOrchestrator {
   ];
 
   private static cacheConfig: { data: any; timestamp: number } | null = null;
-  private static readonly CONFIG_CACHE_TTL_MS = 5000; // 5-second cache to limit Firestore reads
+  private static readonly CONFIG_CACHE_TTL_MS = 5000;
 
-  /**
-   * Fetches configuration overrides from Firestore.
-   */
-  public static async getOrchestratorConfig(projectId: string): Promise<any> {
-    const now = Date.now();
-    if (this.cacheConfig && (now - this.cacheConfig.timestamp < this.CONFIG_CACHE_TTL_MS)) {
-      return this.cacheConfig.data;
-    }
+  // --- TASK CLASSIFICATION MATRIX ---
+  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[]): string {
+    const active = models.filter(m => m.enabled);
+    if (active.length === 0) return 'gemini-3.5-flash';
 
-    try {
-      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestrator'));
-      if (res.ok) {
-        const raw = await res.json() as any;
-        const config = fromFirestoreDoc(raw);
-        this.cacheConfig = { data: config, timestamp: now };
-        return config;
-      }
-    } catch (e) {
-      console.warn('[AIOrchestrator] Failed to fetch config, using defaults:', e);
-    }
-    return null;
-  }
-
-  /**
-   * Saves configuration overrides to Firestore.
-   */
-  public static async saveOrchestratorConfig(projectId: string, config: any): Promise<boolean> {
-    try {
-      const doc = { fields: {} as any };
-      for (const [k, v] of Object.entries(config)) {
-        doc.fields[k] = toFirestoreValue(v);
-      }
-      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestrator'), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(doc)
-      });
-      if (res.ok) {
-        this.cacheConfig = { data: config, timestamp: Date.now() };
-        return true;
-      }
-    } catch (e) {
-      console.error('[AIOrchestrator] Error saving configuration:', e);
-    }
-    return false;
-  }
-
-  /**
-   * Saves request telemetry to Firestore.
-   */
-  public static async recordTelemetry(projectId: string, telemetry: any): Promise<void> {
-    try {
-      const docId = `telemetry_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      const doc = { fields: {} as any };
-      for (const [k, v] of Object.entries(telemetry)) {
-        doc.fields[k] = toFirestoreValue(v);
-      }
-      await fetch(firestoreUrl(projectId, `aiTelemetry/${docId}`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(doc)
-      });
-    } catch (e) {
-      console.error('[AIOrchestrator] Telemetry save failed:', e);
+    switch (task) {
+      case 'deep_research':
+        // Prefers highest reasoning and long context
+        return active.find(m => m.id === 'gemini-3.1-pro-preview')?.id || 
+               active.find(m => m.id === 'gemini-2.5-pro')?.id || 
+               active[0].id;
+      case 'copilot_conversation':
+        // Prefers low latency and high capability
+        return active.find(m => m.id === 'gemini-3.5-flash')?.id || 
+               active.find(m => m.id === 'gemini-2.5-flash')?.id || 
+               active[0].id;
+      case 'market_summary':
+      case 'short_summarization':
+      case 'daily_briefing':
+        // Prefers fastest response and lowest cost
+        return active.find(m => m.id === 'gemini-2.5-flash')?.id || 
+               active.find(m => m.id === 'gemini-3.5-flash')?.id || 
+               active[0].id;
+      case 'report_generation':
+      case 'long_writing':
+      case 'company_analysis':
+        // Prefers stability and structured output capabilities
+        return active.find(m => m.id === 'gemini-2.5-pro')?.id || 
+               active.find(m => m.id === 'gemini-3.1-pro-preview')?.id || 
+               active[0].id;
+      default:
+        return active[0].id;
     }
   }
 
-  /**
-   * Gets the list of available telemetry reports.
-   */
-  public static async getTelemetry(projectId: string): Promise<any[]> {
-    try {
-      const res = await fetch(firestoreUrl(projectId, 'aiTelemetry?pageSize=100'));
-      if (res.ok) {
-        const raw = await res.json() as any;
-        if (!raw.documents) return [];
-        return raw.documents.map((d: any) => fromFirestoreDoc(d)).filter(Boolean);
-      }
-    } catch (e) {
-      console.error('[AIOrchestrator] Telemetry retrieval failed:', e);
+  // --- STATUTORY SUB-SYSTEM MAPPING TO TASKS ---
+  private static mapSubsystemToTask(subsystem: Subsystem): TaskType {
+    switch (subsystem) {
+      case 'Research Engine': return 'deep_research';
+      case 'Copilot': return 'copilot_conversation';
+      case 'Editorial Commentary': return 'market_summary';
+      case 'Business School': return 'company_analysis';
+      default: return 'copilot_conversation';
     }
-    return [];
   }
 
-  /**
-   * Classifies error responses into BusinessOS normalized types.
-   */
   public static classifyError(status: number, bodyText: string): string {
     const text = bodyText.toLowerCase();
     if (status === 503 || text.includes('experiencing high demand') || text.includes('overloaded') || text.includes('service unavailable')) {
@@ -373,9 +423,154 @@ export class AIOrchestrator {
     return 'UNKNOWN_PROVIDER_ERROR';
   }
 
-  /**
-   * Executes a prompt with failure monitoring, retries, and dynamic model failovers.
-   */
+  public static async recordTelemetry(projectId: string, telemetry: any): Promise<void> {
+    try {
+      const docId = `telemetry_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const doc = { fields: {} as any };
+      for (const [k, v] of Object.entries(telemetry)) {
+        doc.fields[k] = toFirestoreValue(v);
+      }
+      await fetch(firestoreUrl(projectId, `aiTelemetry/${docId}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+    } catch (e) {
+      console.error('[AIOrchestrator] Telemetry save failed:', e);
+    }
+  }
+
+  // --- DYNAMIC PERSISTENT COOLDOWNS ---
+  private static async getPersistentCooldowns(projectId: string): Promise<Record<string, number>> {
+    const now = Date.now();
+    if (localCooldownCacheExpiry > now) {
+      return localCooldownCache;
+    }
+
+    try {
+      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestratorCooldowns'));
+      if (res.ok) {
+        const raw = await res.json() as any;
+        const data = fromFirestoreDoc(raw) || {};
+        const parsed: Record<string, number> = {};
+        for (const [k, v] of Object.entries(data)) {
+          if (typeof v === 'number' && v > now) {
+            parsed[k] = v;
+          }
+        }
+        localCooldownCache = parsed;
+        localCooldownCacheExpiry = now + 5000; // cache for 5 seconds
+        return parsed;
+      }
+    } catch (e) {
+      console.warn('[AIOrchestrator] Cooldown fetch failed, using local fallback:', e);
+    }
+    return localCooldownCache;
+  }
+
+  private static async setPersistentCooldown(projectId: string, modelId: string, until: number): Promise<void> {
+    localCooldownCache[modelId] = until;
+    try {
+      const doc = { fields: {} as any };
+      for (const [k, v] of Object.entries(localCooldownCache)) {
+        doc.fields[k] = toFirestoreValue(v);
+      }
+      await fetch(firestoreUrl(projectId, 'system/aiOrchestratorCooldowns'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+    } catch (e) {
+      console.error('[AIOrchestrator] Cooldown write failed:', e);
+    }
+  }
+
+  public static async flushCooldowns(projectId: string): Promise<void> {
+    localCooldownCache = {};
+    localCooldownCacheExpiry = 0;
+    try {
+      await fetch(firestoreUrl(projectId, 'system/aiOrchestratorCooldowns'), {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.error('[AIOrchestrator] Flush cooldowns failed:', e);
+    }
+  }
+
+  // --- RETENTION POLICY & CLEANUP ---
+  public static async runTelemetryRetentionCleanup(projectId: string, retentionDays = 30): Promise<void> {
+    try {
+      const threshold = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+      const telemetry = await this.getTelemetry(projectId);
+      const toDelete = telemetry.filter(record => new Date(record.timestamp).getTime() < threshold);
+      
+      console.log(`[AIOrchestrator] Retention Cleanup: deleting ${toDelete.length} legacy telemetry logs.`);
+      for (const record of toDelete) {
+        await fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
+          method: 'DELETE'
+        });
+      }
+    } catch (e) {
+      console.error('[AIOrchestrator] Telemetry cleanup failed:', e);
+    }
+  }
+
+  // --- GENERAL SYSTEM CONFIGS ---
+  public static async getOrchestratorConfig(projectId: string): Promise<any> {
+    const now = Date.now();
+    if (this.cacheConfig && (now - this.cacheConfig.timestamp < this.CONFIG_CACHE_TTL_MS)) {
+      return this.cacheConfig.data;
+    }
+
+    try {
+      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestrator'));
+      if (res.ok) {
+        const raw = await res.json() as any;
+        const config = fromFirestoreDoc(raw);
+        this.cacheConfig = { data: config, timestamp: now };
+        return config;
+      }
+    } catch (e) {
+      console.warn('[AIOrchestrator] Config fetch failed, using default registry overrides:', e);
+    }
+    return null;
+  }
+
+  public static async saveOrchestratorConfig(projectId: string, config: any): Promise<boolean> {
+    try {
+      const doc = { fields: {} as any };
+      for (const [k, v] of Object.entries(config)) {
+        doc.fields[k] = toFirestoreValue(v);
+      }
+      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestrator'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+      if (res.ok) {
+        this.cacheConfig = { data: config, timestamp: Date.now() };
+        return true;
+      }
+    } catch (e) {
+      console.error('[AIOrchestrator] Save configuration failed:', e);
+    }
+    return false;
+  }
+
+  public static async clearTelemetry(projectId: string): Promise<void> {
+    try {
+      const telemetry = await this.getTelemetry(projectId);
+      for (const record of telemetry) {
+        await fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
+          method: 'DELETE'
+        });
+      }
+    } catch (e) {
+      console.error('[AIOrchestrator] Clear telemetry failed:', e);
+    }
+  }
+
+  // --- EXECUTE PROMPTS VIA ADAPTERS ---
   public static async execute(
     subsystem: Subsystem,
     systemPrompt: string,
@@ -389,12 +584,20 @@ export class AIOrchestrator {
     const startTime = Date.now();
     let retriesCount = 0;
     
-    // Resolve dynamic settings from Firestore overrides
+    // 1. Fetch system configs and checks
     const config = await this.getOrchestratorConfig(projectId);
+    const maintenanceMode = config?.maintenanceMode || false;
+    if (maintenanceMode) {
+      throw new Error('AIOrchestrator: System is currently undergoing scheduled maintenance. Please try again shortly.');
+    }
+
     const forcedModel = config?.forcedModel || null;
     const modelOverrides = config?.modelOverrides || {};
 
-    // Build models list with applied overrides
+    // 2. Fetch shared persistent cooldown state
+    const persistentCooldowns = await this.getPersistentCooldowns(projectId);
+
+    // Build model objects mapping configurations
     const registryList = this.DEFAULT_MODELS.map(m => {
       const override = modelOverrides[m.id];
       return {
@@ -405,174 +608,161 @@ export class AIOrchestrator {
       };
     });
 
-    // Determine target selection category
-    const logicalChoice = preferredChoice || 'Automatic';
+    // 3. Task-Based model selection
+    const taskType = this.mapSubsystemToTask(subsystem);
+    const taskModelDefault = this.selectBestModelForTask(taskType, registryList);
+
     let targetModelId = '';
-    
+    const logicalChoice = preferredChoice || 'Automatic';
+
     if (forcedModel) {
       targetModelId = forcedModel;
+    } else if (logicalChoice === 'Automatic') {
+      targetModelId = taskModelDefault;
     } else if (logicalChoice.startsWith('gemini-') || logicalChoice.includes('-')) {
       targetModelId = logicalChoice;
     } else {
-      const resolvedMapping = LogicalModelResolve(logicalChoice, subsystem);
-      targetModelId = resolvedMapping;
+      targetModelId = LogicalModelResolve(logicalChoice, subsystem);
     }
 
     const requestedModel = targetModelId;
 
-    // Filter available models
+    // Filter and sort healthy active models
     const activeModels = registryList.filter(m => m.enabled);
-    
-    // Sort in order of capability priorities
     const sortedFallbackChain = [...activeModels].sort((a, b) => a.priority - b.priority);
 
-    // Build the final fallback chain
     const chain: typeof sortedFallbackChain = [];
-
-    // Check if the requested model is valid and enabled
-    const reqModelObj = activeModels.find(m => m.id === requestedModel);
-    
-    const now = Date.now();
     const isCooldowned = (id: string) => {
-      const until = modelCooldowns.get(id) || 0;
-      return now < until;
+      const until = persistentCooldowns[id] || 0;
+      return Date.now() < until;
     };
 
+    const reqModelObj = activeModels.find(m => m.id === requestedModel);
     if (reqModelObj && !isCooldowned(requestedModel)) {
       chain.push(reqModelObj);
     }
 
-    // Add other healthy fallback candidates
     for (const m of sortedFallbackChain) {
       if (m.id !== requestedModel && !isCooldowned(m.id)) {
         chain.push(m);
       }
     }
 
-    // If all target models are down/cooldowned, fallback to trying them anyway as last resort
+    // Force fallback if chain empty
     if (chain.length === 0) {
-      console.warn('[AIOrchestrator] All models in cooldown! Attempting anyway.');
-      if (reqModelObj) {
-        chain.push(reqModelObj);
-      }
+      console.warn('[AIOrchestrator] All registry models are in cooldown. Attempting fallback chain.');
+      if (reqModelObj) chain.push(reqModelObj);
       chain.push(...sortedFallbackChain.filter(m => m.id !== requestedModel));
     }
 
     let lastErrorType = 'UNKNOWN_PROVIDER_ERROR';
-    let lastErrorMsg = 'No models available in chain';
-    let finalData: any = null;
+    let lastErrorMsg = 'All models are down';
+    let finalPayload: any = null;
     let finalModelId = '';
     let fallbackUsed = false;
+    let finalPromptTokens = 0;
+    let finalCompletionTokens = 0;
 
-    // Execute through the chain
+    // 4. Try models in fallback chain
     for (let i = 0; i < chain.length; i++) {
       const model = chain[i];
       finalModelId = model.id;
       fallbackUsed = model.id !== requestedModel;
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${apiKey}`;
-      const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=HIDDEN`;
-      const payload = {
-        contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      };
+      const adapter = this.adapters[model.provider];
+      if (!adapter) {
+        console.error(`[AIOrchestrator] Unsupported provider adapter: ${model.provider}`);
+        continue;
+      }
 
-      const reqHeaders = { 'Content-Type': 'application/json' };
-      
+      // Track model request
+      const modelStats = modelLocalStats.get(model.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+      modelStats.requests++;
+
+      // Track provider request
+      const provStats = providerLocalStats.get(model.provider) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+      provStats.requests++;
+
       let attemptSuccess = false;
-      let attemptStatus = 0;
+      let attemptStatus = 200;
       let attemptBody = '';
-      
-      // Update dynamic states
-      const stats = modelStats.get(model.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
-      stats.requests++;
+      const modelStartTime = Date.now();
 
-      // Execute with retries
       const maxRetries = model.retryCount || 1;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         if (attempt > 0) retriesCount++;
-        
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), model.defaultTimeoutMs);
-          
-          console.log(`[AIOrchestrator] Fetching: ${cleanEndpoint} (Model: ${model.id}, Attempt: ${attempt + 1}/${maxRetries + 1})`);
-          
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: reqHeaders,
-            body: JSON.stringify(payload),
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          attemptStatus = res.status;
-          attemptBody = await res.text();
 
-          if (res.ok) {
-            finalData = JSON.parse(attemptBody);
-            attemptSuccess = true;
-            break;
-          } else {
-            console.warn(`[AIOrchestrator] Attempt failed: HTTP ${res.status} - ${attemptBody}`);
-          }
-        } catch (fetchErr: any) {
-          attemptStatus = 0;
-          attemptBody = fetchErr.message || String(fetchErr);
-          console.warn(`[AIOrchestrator] Fetch exception: ${attemptBody}`);
+        try {
+          const result = await adapter.executePrompt(
+            model.id,
+            systemPrompt,
+            userPrompt,
+            apiKey,
+            model.defaultTimeoutMs
+          );
+
+          finalPayload = result.rawResponse;
+          attemptSuccess = true;
+          
+          // Capture provider token counts when available
+          finalPromptTokens = result.promptTokens || Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+          finalCompletionTokens = result.completionTokens || Math.ceil((result.text.length) / 4);
+          break;
+        } catch (e: any) {
+          attemptStatus = e.status || 500;
+          attemptBody = e.message || String(e);
+          console.warn(`[AIOrchestrator] Execution failed (Attempt ${attempt + 1}): ${attemptBody}`);
         }
 
         if (attempt < maxRetries) {
-          // Short delay before retrying
           await new Promise(r => setTimeout(r, 1000));
         }
       }
 
+      const modelLatency = Date.now() - modelStartTime;
+
       if (attemptSuccess) {
-        stats.success++;
-        stats.lastSuccess = new Date().toISOString();
-        stats.totalLatencyMs += (Date.now() - startTime);
-        modelStats.set(model.id, stats);
-        break; // Success! Exit model chain
+        modelStats.success++;
+        modelStats.lastSuccess = new Date().toISOString();
+        modelStats.totalLatencyMs += modelLatency;
+        modelLocalStats.set(model.id, modelStats);
+
+        provStats.success++;
+        provStats.totalLatencyMs += modelLatency;
+        providerLocalStats.set(model.provider, provStats);
+        break;
       } else {
-        // Classify the failure and mark cooldown
-        stats.failure++;
-        stats.lastFailure = new Date().toISOString();
-        modelStats.set(model.id, stats);
+        modelStats.failure++;
+        modelStats.lastFailure = new Date().toISOString();
+        modelStats.lastFailureReason = lastErrorType;
+        modelLocalStats.set(model.id, modelStats);
+
+        provStats.failure++;
+        providerLocalStats.set(model.provider, provStats);
 
         lastErrorType = this.classifyError(attemptStatus, attemptBody);
         lastErrorMsg = attemptBody;
-        
+
         if (['MODEL_OVERLOADED', 'DAILY_QUOTA_EXCEEDED', 'RATE_LIMITED'].includes(lastErrorType)) {
-          const duration = model.cooldownDurationMs;
-          console.warn(`[AIOrchestrator] Placing ${model.id} into cooldown for ${duration}ms due to error type ${lastErrorType}`);
-          modelCooldowns.set(model.id, Date.now() + duration);
+          const cooldownExpiry = Date.now() + model.cooldownDurationMs;
+          await this.setPersistentCooldown(projectId, model.id, cooldownExpiry);
         }
       }
     }
 
-    const latency = Date.now() - startTime;
-    
-    // Character-based token estimations
-    const promptChars = systemPrompt.length + userPrompt.length;
-    const promptTokens = Math.ceil(promptChars / 4);
-    
-    let completionTokens = 0;
-    let success = false;
+    const totalLatency = Date.now() - startTime;
+    let totalTokens = finalPromptTokens + finalCompletionTokens;
     let cost = 0.0;
-
-    if (finalData) {
-      success = true;
-      const completionText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      completionTokens = Math.ceil(completionText.length / 4);
-      
-      const matchedModel = registryList.find(m => m.id === finalModelId);
-      if (matchedModel) {
-        cost = ((promptTokens / 1000000) * matchedModel.inputCostPer1M) +
-               ((completionTokens / 1000000) * matchedModel.outputCostPer1M);
+    
+    if (finalPayload) {
+      const matched = registryList.find(m => m.id === finalModelId);
+      if (matched) {
+        cost = ((finalPromptTokens / 1000000) * matched.inputCostPer1M) +
+               ((finalCompletionTokens / 1000000) * matched.outputCostPer1M);
       }
     }
 
+    // 5. Telemetry
     const telemetry = {
       timestamp: new Date().toISOString(),
       user: userId,
@@ -580,26 +770,25 @@ export class AIOrchestrator {
       feature: subsystem,
       selectedModel: requestedModel,
       fallbackModel: fallbackUsed ? finalModelId : '',
-      promptTokens,
-      completionTokens,
-      totalTokens: promptTokens + completionTokens,
-      latency,
-      success,
-      errorClassification: success ? '' : lastErrorType,
+      promptTokens: finalPromptTokens,
+      completionTokens: finalCompletionTokens,
+      totalTokens,
+      latency: totalLatency,
+      success: !!finalPayload,
+      errorClassification: finalPayload ? '' : lastErrorType,
       retryCount: retriesCount,
       estimatedCost: cost,
       cachedResponse: false
     };
 
-    // Record Telemetry asynchronously
-    this.recordTelemetry(projectId, telemetry).catch(e => console.error('[AIOrchestrator] Async telemetry save failed:', e));
+    this.recordTelemetry(projectId, telemetry).catch((e: any) => console.error('[AIOrchestrator] Async telemetry save failed:', e));
 
-    if (!success) {
-      throw new Error(`AIOrchestrator: All models in chain failed. Last Error: ${lastErrorType} - ${lastErrorMsg}`);
+    if (!finalPayload) {
+      throw new Error(`AIOrchestrator: Request failed. Error Class: ${lastErrorType} - ${lastErrorMsg}`);
     }
 
     return {
-      data: finalData,
+      data: finalPayload,
       originalModel: requestedModel,
       actualModel: finalModelId,
       retries: retriesCount,
@@ -608,9 +797,6 @@ export class AIOrchestrator {
     };
   }
 
-  /**
-   * Convenience wrapper to execute commentary prompts with backwards compatibility.
-   */
   public static async executeCommentary(
     systemPrompt: string,
     userPrompt: string,
@@ -646,51 +832,88 @@ export class AIOrchestrator {
     return parsed;
   }
 
-  /**
-   * Aggregates dynamic in-memory metadata with static registry info.
-   */
-  public static getModelsStatus(configOverrides: any): any[] {
-    const modelOverrides = configOverrides?.modelOverrides || {};
-    const forcedModel = configOverrides?.forcedModel || null;
-    const now = Date.now();
-
-    return this.DEFAULT_MODELS.map(m => {
-      const override = modelOverrides[m.id];
-      const stats = modelStats.get(m.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
-      const cd = modelCooldowns.get(m.id) || 0;
-      const cooldownRemaining = Math.max(0, cd - now);
-
-      const successRate = stats.requests > 0 ? (stats.success / stats.requests) * 100 : 100;
-      const avgLatency = stats.success > 0 ? stats.totalLatencyMs / stats.requests : 0;
-
-      return {
-        ...m,
-        enabled: override && override.enabled !== undefined ? override.enabled : m.enabled,
-        priority: override && override.priority !== undefined ? override.priority : m.priority,
-        cooldownDurationMs: override && override.cooldownDurationMs !== undefined ? override.cooldownDurationMs : m.cooldownDurationMs,
-        isForced: forcedModel === m.id,
-        cooldownRemaining,
-        stats: {
-          requests: stats.requests,
-          success: stats.success,
-          failure: stats.failure,
-          avgLatencyMs: Math.round(avgLatency),
-          successRate: Math.round(successRate),
-          lastSuccess: stats.lastSuccess || '',
-          lastFailure: stats.lastFailure || ''
-        }
-      };
-    });
+  // --- TELEMETRY EXPORT HELPER ---
+  public static async getTelemetryCsv(projectId: string): Promise<string> {
+    const telemetry = await this.getTelemetry(projectId);
+    const headers = ['Timestamp', 'User', 'Workspace', 'Feature', 'Requested Model', 'Fallback Model', 'Prompt Tokens', 'Completion Tokens', 'Latency (ms)', 'Success', 'Error Class', 'Estimated Cost ($)'];
+    let csv = headers.join(',') + '\n';
+    
+    for (const r of telemetry) {
+      const row = [
+        r.timestamp,
+        r.user,
+        r.workspace,
+        r.feature,
+        r.selectedModel,
+        r.fallbackModel || 'None',
+        r.promptTokens,
+        r.completionTokens,
+        r.latency,
+        r.success ? 'TRUE' : 'FALSE',
+        r.errorClassification || 'None',
+        r.estimatedCost
+      ];
+      csv += row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',') + '\n';
+    }
+    return csv;
   }
 
-  /**
-   * Compiles complete aggregation statistics from telemetry records.
-   */
+  // --- PROVIDER & MODEL HEALTH TESTS ---
+  public static async triggerHealthTest(_projectId: string, apiKey: string, type: 'provider' | 'model', targetId: string): Promise<any> {
+    const startTime = Date.now();
+    const systemPrompt = 'Health test verification';
+    const userPrompt = 'Return json: {"status": "ok"}';
+    const timeout = 10000;
+
+    if (type === 'provider') {
+      // Test Google Gemini provider status
+      const adapter = this.adapters.google;
+      try {
+        await adapter.executePrompt('gemini-3.5-flash', systemPrompt, userPrompt, apiKey, timeout);
+        return { success: true, latency: Date.now() - startTime, message: 'Provider connection is fully active' };
+      } catch (e: any) {
+        return { success: false, latency: Date.now() - startTime, message: `Provider test failed: ${e.message || e}` };
+      }
+    } else {
+      // Test individual model status
+      const model = this.DEFAULT_MODELS.find(m => m.id === targetId);
+      if (!model) return { success: false, message: `Model ${targetId} not found` };
+      
+      const adapter = this.adapters[model.provider];
+      try {
+        await adapter.executePrompt(model.id, systemPrompt, userPrompt, apiKey, timeout);
+        return { success: true, latency: Date.now() - startTime, message: `Model ${model.id} is healthy` };
+      } catch (e: any) {
+        return { success: false, latency: Date.now() - startTime, message: `Model test failed: ${e.message || e}` };
+      }
+    }
+  }
+
+  // --- TELEMETRY READ LOGS ---
+  public static async getTelemetry(projectId: string): Promise<any[]> {
+    try {
+      const res = await fetch(firestoreUrl(projectId, 'aiTelemetry?pageSize=100'));
+      if (res.ok) {
+        const raw = await res.json() as any;
+        if (!raw.documents) return [];
+        return raw.documents.map((d: any) => fromFirestoreDoc(d)).filter(Boolean);
+      }
+    } catch (e) {
+      console.error('[AIOrchestrator] Telemetry fetch failed:', e);
+    }
+    return [];
+  }
+
+  // --- COMPILE DETAILED OPERATIONAL METRICS ---
   public static async getOperationalStats(projectId: string): Promise<any> {
     const config = await this.getOrchestratorConfig(projectId);
-    const models = this.getModelsStatus(config);
-    const telemetry = await this.getTelemetry(projectId);
+    const forcedModel = config?.forcedModel || null;
+    const modelOverrides = config?.modelOverrides || {};
+    const maintenanceMode = config?.maintenanceMode || false;
+    const retentionDays = config?.retentionDays || 30;
 
+    const persistentCooldowns = await this.getPersistentCooldowns(projectId);
+    const telemetry = await this.getTelemetry(projectId);
     const now = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
     const startOfToday = now - oneDayMs;
@@ -702,6 +925,7 @@ export class AIOrchestrator {
     let totalRetries = 0;
     let totalLatencyMs = 0;
     let successCount = 0;
+    let cachedResponses = 0; // future cache aggregates placeholder
 
     const featureCost: Record<string, number> = {};
     const workspaceCost: Record<string, number> = {};
@@ -717,16 +941,13 @@ export class AIOrchestrator {
         costToday += (record.estimatedCost || 0);
       }
 
-      if (record.success) {
-        successCount++;
-      }
+      if (record.success) successCount++;
       totalLatencyMs += (record.latency || 0);
       totalRetries += (record.retryCount || 0);
       if (record.fallbackModel && record.fallbackModel !== '') {
         totalFailovers++;
       }
 
-      // Cost breakdowns
       const feat = record.feature || 'Unknown';
       featureCost[feat] = (featureCost[feat] || 0) + (record.estimatedCost || 0);
 
@@ -741,8 +962,50 @@ export class AIOrchestrator {
     const overallSuccessRate = totalRequests > 0 ? (successCount / totalRequests) * 100 : 100;
     const avgLatency = successCount > 0 ? totalLatencyMs / successCount : 0;
 
-    // Quota Monitor estimations
-    const requestsPerMinute = requestsToday / 1440; // simple average
+    // Provider Aggregates
+    const googleProvStats = providerLocalStats.get('google') || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+    const googleSuccessRate = googleProvStats.requests > 0 ? (googleProvStats.success / googleProvStats.requests) * 100 : 100;
+    const googleLatency = googleProvStats.success > 0 ? googleProvStats.totalLatencyMs / googleProvStats.success : 0;
+
+    const providerStatus = {
+      id: 'google',
+      displayName: 'Google AI Studio',
+      health: googleSuccessRate > 90 ? 'operational' : 'degraded',
+      successRate: Math.round(googleSuccessRate),
+      averageLatencyMs: Math.round(googleLatency)
+    };
+
+    // Models Aggregates
+    const models = this.DEFAULT_MODELS.map(m => {
+      const override = modelOverrides[m.id];
+      const stats = modelLocalStats.get(m.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0, lastSuccess: '', lastFailure: '', lastFailureReason: '' };
+      const cd = persistentCooldowns[m.id] || 0;
+      const cooldownRemaining = Math.max(0, cd - now);
+
+      const successRate = stats.requests > 0 ? (stats.success / stats.requests) * 100 : 100;
+      const avgModelLatency = stats.success > 0 ? stats.totalLatencyMs / stats.requests : 0;
+
+      return {
+        ...m,
+        enabled: override && override.enabled !== undefined ? override.enabled : m.enabled,
+        priority: override && override.priority !== undefined ? override.priority : m.priority,
+        cooldownDurationMs: override && override.cooldownDurationMs !== undefined ? override.cooldownDurationMs : m.cooldownDurationMs,
+        isForced: forcedModel === m.id,
+        cooldownRemaining,
+        stats: {
+          requests: stats.requests,
+          success: stats.success,
+          failure: stats.failure,
+          avgLatencyMs: Math.round(avgModelLatency),
+          successRate: Math.round(successRate),
+          lastSuccess: stats.lastSuccess || '',
+          lastFailure: stats.lastFailure || '',
+          lastFailureReason: stats.lastFailureReason || ''
+        }
+      };
+    });
+
+    const requestsPerMinute = requestsToday / 1440;
     const tokensPerMinute = tokensToday / 1440;
 
     return {
@@ -752,12 +1015,19 @@ export class AIOrchestrator {
         overallSuccessRate: Math.round(overallSuccessRate),
         averageLatencyMs: Math.round(avgLatency),
         requestsToday,
+        requestsThisMonth: totalRequests,
         tokensToday,
         estimatedDailyCost: costToday,
         estimatedMonthlyCost: costToday * 30,
         totalFailovers,
-        totalRetries
+        totalRetries,
+        maintenanceMode,
+        retentionDays,
+        cachedResponses,
+        cacheHitRate: 0,
+        estimatedCostSavings: 0
       },
+      provider: providerStatus,
       models,
       breakdowns: {
         featureCost,
@@ -767,7 +1037,7 @@ export class AIOrchestrator {
       quota: {
         requestsPerMinute: Math.round(requestsPerMinute * 10) / 10,
         tokensPerMinute: Math.round(tokensPerMinute),
-        estimatedRemainingDailyRequests: Math.max(0, 1500 - requestsToday), // default free tier is 1500
+        estimatedRemainingDailyRequests: Math.max(0, 1500 - requestsToday),
         quotaUtilisationPercentage: Math.round(Math.min(100, (requestsToday / 1500) * 100))
       }
     };
