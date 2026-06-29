@@ -2326,27 +2326,44 @@ export class GeminiClient {
 
   async generateCommentary(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<any> {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json'
+    const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=HIDDEN`;
+    const payload = {
+      contents: [
+        {
+          parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
         }
-      })
-    });
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json'
+      }
+    };
+
+    console.log(`[Gemini Trace] 1. Exact endpoint: ${cleanEndpoint}`);
+    console.log(`[Gemini Trace] 2. Resolved model name: ${model}`);
+    console.log(`[Gemini Trace] 3. Request payload: ${JSON.stringify(payload)}`);
+
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (fetchErr: any) {
+      console.error(`[Gemini Trace] Fetch failed: ${fetchErr.message || fetchErr}`);
+      throw fetchErr;
+    }
+
+    const txt = await res.text();
+    console.log(`[Gemini Trace] 4. Response status: ${res.status}`);
+    console.log(`[Gemini Trace] 4. Full response body: ${txt}`);
 
     if (!res.ok) {
-      const txt = await res.text();
+      console.log(`[Gemini Trace] 5. Reason for failure: HTTP ${res.status} - ${txt}`);
       throw new Error(`Gemini API returned HTTP ${res.status}: ${txt}`);
     }
 
-    const data = await res.json() as any;
+    const data = JSON.parse(txt);
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) {
       throw new Error('Empty response from Gemini');

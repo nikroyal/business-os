@@ -287,19 +287,34 @@ app.get('/api/health/services', async (c) => {
   } else {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
+      const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=HIDDEN`;
+      const payload = {
+        contents: [{ parts: [{ text: 'say ok' }] }]
+      };
+      console.log(`[Gemini Health Trace] 1. Exact endpoint: ${cleanEndpoint}`);
+      console.log(`[Gemini Health Trace] 2. Resolved model name: gemini-3.5-flash`);
+      console.log(`[Gemini Health Trace] 3. Request payload: ${JSON.stringify(payload)}`);
+
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'say ok' }] }]
-        })
+        body: JSON.stringify(payload)
       });
+      
+      const txt = await res.text();
+      console.log(`[Gemini Health Trace] 4. Response status: ${res.status}`);
+      console.log(`[Gemini Health Trace] 4. Full response body: ${txt}`);
+
       if (!res.ok) {
-        results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}` };
+        console.log(`[Gemini Health Trace] 5. Reason for failure: HTTP ${res.status} - ${txt}`);
+        results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}: ${txt}` };
+      } else {
+        results.gemini = { status: 'operational', description: 'Gemini API is operational' };
       }
     } catch (err: any) {
+      console.log(`[Gemini Health Trace] 5. Reason for failure: Unreachable - ${err.message || err}`);
       results.gemini = { status: 'failure', description: `Gemini is unreachable: ${err.message || err}` };
     }
   }
