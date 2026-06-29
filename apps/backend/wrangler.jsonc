@@ -25,7 +25,7 @@
 	"keep_vars": true,
 	"vars": {
 		"ENVIRONMENT": "production",
-		"FIREBASE_PROJECT_ID": "business-os"
+		"FIREBASE_PROJECT_ID": "businessos-0001a"
 	}
 	/**
 	 * Smart Placement

@@ -14,8 +14,8 @@ These variables must be configured in your Cloudflare Pages dashboard. In a loca
 | Variable Key | Purpose | Example Value |
 | :--- | :--- | :--- |
 | `VITE_FIREBASE_API_KEY` | Firebase API Connection Key | `"AIzaSyA..."` |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Authentication Domain | `"business-os.firebaseapp.com"` |
-| `VITE_FIREBASE_PROJECT_ID` | Firestore Project ID reference | `"business-os"` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Authentication Domain | `"businessos-0001a.firebaseapp.com"` |
+| `VITE_FIREBASE_PROJECT_ID` | Firestore Project ID reference | `"businessos-0001a"` |
 | `VITE_FIREBASE_APP_ID` | Firebase Web App ID | `"1:12345:web:abcd"` |
 | `VITE_API_URL` | Endpoint of the deployed Hono Worker API | `"https://backend.business-os.workers.dev"` |
 
@@ -27,7 +27,7 @@ These variables are set in wrangler or defined in the Cloudflare Workers dashboa
 | Key | Type | Purpose | Example Value |
 | :--- | :--- | :--- | :--- |
 | `ENVIRONMENT` | Plain Variable | Runtime context | `"production"` |
-| `FIREBASE_PROJECT_ID` | Plain Variable | Firestore target project | `"business-os"` |
+| `FIREBASE_PROJECT_ID` | Plain Variable | Firestore target project | `"businessos-0001a"` |
 | `GEMINI_API_KEY` | Secret | Access key for Google Gemini LLM | *(Secret)* |
 | `FINNHUB_API_KEY` | Secret | Quote and market data API access | *(Secret)* |
 | `RESEND_API_KEY` | Secret | Email delivery service API key | *(Secret)* |

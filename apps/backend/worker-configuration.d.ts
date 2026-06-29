@@ -3,7 +3,7 @@
 // Runtime types generated with workerd@1.20260617.1 2026-06-22 global_fetch_strictly_public,nodejs_compat
 interface __BaseEnv_Env {
 	ENVIRONMENT: "production";
-	FIREBASE_PROJECT_ID: "business-os";
+	FIREBASE_PROJECT_ID: "businessos-0001a";
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

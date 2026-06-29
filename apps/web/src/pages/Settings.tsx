@@ -98,7 +98,7 @@ export const Settings: React.FC = () => {
         try {
           const { authService } = await import('../services/firebase');
           const token = await authService.getIdToken();
-          const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'business-os-dev';
+          const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'businessos-0001a';
           const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${profile.uid}/copilotUsage/${todayStr}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });

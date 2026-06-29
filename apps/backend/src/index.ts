@@ -47,37 +47,57 @@ const lastGeminiCallTimes = new Map<string, number>();
 
 // Middleware to authenticate Firebase JWT
 async function authenticateUser(c: any, next: any) {
+  console.log(`[Auth Trace] 1. Request reached Worker. URL: ${c.req.url}, Method: ${c.req.method}`);
+  
   const authHeader = c.req.header('Authorization');
+  console.log(`[Auth Trace] 2. Authorization header: ${authHeader ? 'Present' : 'Missing'} (${authHeader})`);
+  
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('[Auth Trace] 9. Failure: Missing or invalid Authorization header format (returning 401 at line 52)');
     return c.json({ error: 'Unauthorized: Missing Authorization token' }, 401);
   }
 
   const token = authHeader.substring(7);
+  console.log(`[Auth Trace] 3. Firebase ID token present: ${!!token}`);
 
   // Allow mock tokens in local development / fallback modes
   if (token.startsWith('mock_')) {
+    console.log(`[Auth Trace] Bypassing verification for mock token: ${token}`);
     c.set('userId', token);
+    console.log('[Auth Trace] 8. Mock request passing to next handler');
     return await next();
   }
 
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
+      console.log('[Auth Trace] 9. Failure: Invalid JWT format (returning 401 at line 66)');
       return c.json({ error: 'Unauthorized: Invalid JWT format' }, 401);
     }
 
-    const header = JSON.parse(atob(parts[0]));
-    const payload = JSON.parse(atob(parts[1]));
+    let header: any;
+    let payload: any;
+    try {
+      header = JSON.parse(atob(parts[0]));
+      payload = JSON.parse(atob(parts[1]));
+      console.log(`[Auth Trace] 4. Token parsed successfully. Header: ${JSON.stringify(header)}, Payload keys: ${Object.keys(payload).join(', ')}`);
+    } catch (parseErr: any) {
+      console.log(`[Auth Trace] 4. Token parsing failed: ${parseErr.message}`);
+      throw parseErr;
+    }
 
     // Validate expiration
     const nowSec = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < nowSec) {
+      console.log(`[Auth Trace] 9. Failure: Token expired. Expiration: ${payload.exp}, Now: ${nowSec} (returning 401 at line 75)`);
       return c.json({ error: 'Unauthorized: Token expired' }, 401);
     }
 
     // Validate Issuer & Audience if project ID is configured
     const expectedProjectId = c.env.FIREBASE_PROJECT_ID || payload.aud; // fallback to payload's aud
+    console.log(`[Auth Trace] 7. Firebase project ID check. Env FIREBASE_PROJECT_ID: ${c.env.FIREBASE_PROJECT_ID}, Expected Project ID: ${expectedProjectId}, Payload aud: ${payload.aud}, Payload iss: ${payload.iss}`);
     if (payload.iss !== `https://securetoken.google.com/${expectedProjectId}` || payload.aud !== expectedProjectId) {
+      console.log(`[Auth Trace] 9. Failure: Invalid token issuer or audience. Expected project: ${expectedProjectId}, got iss=${payload.iss}, aud=${payload.aud} (returning 401 at line 81)`);
       return c.json({ error: 'Unauthorized: Invalid token issuer or audience' }, 401);
     }
 
@@ -85,10 +105,13 @@ async function authenticateUser(c: any, next: any) {
     let keys: any[] = [];
     const nowMs = Date.now();
     if (cachedGoogleCerts && nowMs < cachedGoogleCertsExpires) {
+      console.log('[Auth Trace] 5. Google public certificates retrieved from cache.');
       keys = cachedGoogleCerts;
     } else {
+      console.log('[Auth Trace] 5. Cache miss or expired. Fetching Google public certificates from securetoken endpoint...');
       const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
       if (!certsRes.ok) {
+        console.log(`[Auth Trace] 5. Failed to fetch Google public certificates: HTTP ${certsRes.status}`);
         throw new Error('Failed to fetch Google public certificates');
       }
       
@@ -113,14 +136,17 @@ async function authenticateUser(c: any, next: any) {
       keys = body.keys || [];
       cachedGoogleCerts = keys;
       cachedGoogleCertsExpires = nowMs + (ttlSeconds * 1000);
+      console.log(`[Auth Trace] 5. Downloaded Google signing certificates successfully. Count: ${keys.length}`);
     }
 
     const jwk = keys.find((k: any) => k.kid === header.kid);
     if (!jwk) {
+      console.log(`[Auth Trace] 9. Failure: Unknown key ID (kid) ${header.kid} (returning 401 at line 120)`);
       return c.json({ error: 'Unauthorized: Unknown key ID (kid)' }, 401);
     }
 
     // Verify cryptographic signature
+    console.log('[Auth Trace] 6. Verifying cryptographic signature...');
     const key = await crypto.subtle.importKey(
       'jwk',
       jwk,
@@ -140,14 +166,17 @@ async function authenticateUser(c: any, next: any) {
     );
 
     if (!isValid) {
+      console.log('[Auth Trace] 9. Failure: Invalid cryptographic signature (returning 401 at line 143)');
       return c.json({ error: 'Unauthorized: Invalid cryptographic signature' }, 401);
     }
+
+    console.log('[Auth Trace] 6. Cryptographic signature verified successfully.');
 
     // Set user context
     c.set('userId', payload.sub);
     return await next();
   } catch (err: any) {
-    console.error('JWT validation error:', err);
+    console.error('[Auth Trace] JWT validation error exception:', err);
     return c.json({ error: 'Unauthorized: Token verification failed', details: err.message }, 401);
   }
 }
@@ -187,11 +216,12 @@ app.use('/api/system/*', authenticateUser);
 
 // Services Health Check Endpoint
 app.get('/api/health/services', async (c) => {
+  console.log(`[Auth Trace] 8. Request reached service health code. User ID: ${c.var.userId}`);
   const finnhubKey = (c.env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const geminiKey = (c.env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const resendKey = (c.env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   // Default results mapping
@@ -601,7 +631,7 @@ class FREDDataService {
   private static readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
   public static async getMacroIndicators(env: Bindings): Promise<any[]> {
-    const projectId = env.FIREBASE_PROJECT_ID || 'business-os-dev';
+    const projectId = env.FIREBASE_PROJECT_ID || 'businessos-0001a';
     const apiKey = env.FRED_API_KEY;
     const now = Date.now();
 
@@ -754,7 +784,7 @@ app.get('/api/intelligence/company', async (c) => {
     return c.json({ error: 'Symbol parameter is required' }, 400);
   }
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
 
@@ -794,7 +824,7 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
   }
   const ex = exchange || 'NASDAQ';
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -843,7 +873,7 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
 // 3. Get all User Conviction Scores
 app.get('/api/intelligence/convictions', async (c) => {
   const userId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -865,7 +895,7 @@ app.get('/api/intelligence/business-school/case', async (c) => {
     return c.json({ error: 'conceptId and symbol parameters are required' }, 400);
   }
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   const CONCEPTS: Record<string, { name: string; definition: string; equation: string }> = {
@@ -955,7 +985,7 @@ app.use('/api/market-intelligence', authenticateUser);
 // Market Intelligence Endpoint
 app.get('/api/market-intelligence', async (c) => {
   const userId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
 
@@ -1367,7 +1397,7 @@ app.get('/api/market-data/news', async (c) => {
     return c.json({ error: 'Finnhub API key not configured' }, 500);
   }
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -1391,7 +1421,7 @@ app.get('/api/market-intelligence/sec-facts', async (c) => {
     return c.json(null);
   }
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -1458,7 +1488,7 @@ app.get('/api/market-data/ir-disclosures', async (c) => {
     return c.json(null);
   }
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -1484,7 +1514,7 @@ app.post('/api/market-data/compile-research', async (c) => {
   const { ticker, exchange, version, secData, irData, newsArticles } = await c.req.json();
   const dateStr = new Date().toISOString().split('T')[0];
 
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -1573,7 +1603,7 @@ app.post('/api/market-data/compile-research', async (c) => {
 
 // 5. Data Quality Monitoring Endpoint
 app.get('/api/system/data-quality', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
   const fredKey = c.env.FRED_API_KEY;
   
@@ -1703,7 +1733,7 @@ app.get('/api/system/data-quality', async (c) => {
 
 // Manual FRED Cache Refresh Endpoint
 app.post('/api/system/fred/refresh', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const firestore = new FirestoreClient(projectId);
 
@@ -1719,7 +1749,7 @@ app.post('/api/system/fred/refresh', async (c) => {
 
 // Manual SEC EDGAR Ingestion Trigger Endpoint
 app.post('/api/system/sec/ingest', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
 
   try {
@@ -1947,7 +1977,7 @@ async function logAuditEvent(
 // Enforce OWNER or ADMIN access Middleware
 async function restrictToAdmin(c: any, next: any) {
   const userId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const { role } = await getUserRoleProfile(userId, projectId);
   
   if (role !== 'OWNER' && role !== 'ADMIN') {
@@ -1968,7 +1998,7 @@ app.use('/api/copilot', authenticateUser);
 // 1. List Sessions
 app.get('/api/copilot/sessions', async (c) => {
   const userId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   try {
     const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${userId}/copilotSessions`);
     if (res.ok) {
@@ -1986,7 +2016,7 @@ app.get('/api/copilot/sessions', async (c) => {
 // 2. Create Session
 app.post('/api/copilot/sessions', async (c) => {
   const userId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const { prompt, mode } = await c.req.json();
   
   if (!prompt || !mode) {
@@ -2033,7 +2063,7 @@ app.post('/api/copilot/sessions', async (c) => {
 app.patch('/api/copilot/sessions/:sessionId', async (c) => {
   const userId = c.get('userId');
   const sessionId = c.req.param('sessionId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const updates = await c.req.json();
 
   try {
@@ -2059,7 +2089,7 @@ app.patch('/api/copilot/sessions/:sessionId', async (c) => {
 app.delete('/api/copilot/sessions/:sessionId', async (c) => {
   const userId = c.get('userId');
   const sessionId = c.req.param('sessionId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
 
   try {
     const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
@@ -2086,7 +2116,7 @@ app.delete('/api/copilot/sessions/:sessionId', async (c) => {
 app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
   const userId = c.get('userId');
   const sessionId = c.req.param('sessionId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
 
   try {
     const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
@@ -2117,7 +2147,7 @@ app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
 // 6. Core Chat Engine with Guardrails, Rate Limits, and Storage Chunking
 app.post('/api/copilot/chat', async (c) => {
   const userId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const geminiKey = c.env.GEMINI_API_KEY;
 
   if (!geminiKey) {
@@ -2411,7 +2441,7 @@ CRITICAL INSTRUCTIONS:
 
 // 1. Audit Logs Endpoint
 app.get('/api/admin/audit-logs', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   try {
     const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/auditLog`);
     if (res.ok) {
@@ -2428,7 +2458,7 @@ app.get('/api/admin/audit-logs', async (c) => {
 
 // 2. User Search and Lists
 app.get('/api/admin/users', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const firestore = new FirestoreClient(projectId);
   try {
     const list = await firestore.listUsers();
@@ -2441,7 +2471,7 @@ app.get('/api/admin/users', async (c) => {
 // 3. User Detailed Management Profile View
 app.get('/api/admin/users/:userId', async (c) => {
   const targetId = c.req.param('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const todayStr = new Date().toISOString().split('T')[0];
 
   try {
@@ -2496,7 +2526,7 @@ app.get('/api/admin/users/:userId', async (c) => {
 app.patch('/api/admin/users/:userId', async (c) => {
   const adminId = c.get('userId');
   const targetId = c.req.param('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const { role, subscriptionTier, customLimits, featureFlags, suspended, resetUsage, forceLogout, reason } = await c.req.json();
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -2549,7 +2579,7 @@ app.patch('/api/admin/users/:userId', async (c) => {
 
 // 5. System Stats, API Analytics, Health check Operational metrics
 app.get('/api/admin/system-stats', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
   const firestoreClient = new FirestoreClient(projectId);
@@ -2662,7 +2692,7 @@ app.get('/api/admin/system-stats', async (c) => {
 
 // 6. Global Feature Flags endpoints
 app.get('/api/admin/feature-flags/global', async (c) => {
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   try {
     const doc = await getFirestoreDoc(projectId, 'system/featureFlags');
     return c.json(doc || ROLE_DEFAULT_FLAGS.FREE);
@@ -2673,7 +2703,7 @@ app.get('/api/admin/feature-flags/global', async (c) => {
 
 app.post('/api/admin/feature-flags/global', async (c) => {
   const adminId = c.get('userId');
-  const projectId = c.env.FIREBASE_PROJECT_ID || 'business-os-dev';
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const flags = await c.req.json();
 
   try {
