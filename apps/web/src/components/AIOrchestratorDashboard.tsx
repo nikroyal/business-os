@@ -179,17 +179,16 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const fallbackChain = models.filter(m => m.enabled && m.id !== primaryModel?.id);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', color: '#f3f4f6' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', color: 'var(--text-primary)' }}>
       
       {/* Maintenance Mode Banner */}
       {config.maintenanceMode && (
         <div style={{
-          backgroundColor: '#ef444415',
-          border: '1px solid #ef444455',
-          color: '#ef4444',
+          backgroundColor: 'var(--color-danger-bg)',
+          border: '1px solid var(--color-danger-border)',
+          color: 'var(--color-danger-text)',
           fontSize: '0.8rem',
-          padding: '0.6rem 1rem',
-          borderRadius: '4px',
+          padding: '0.75rem 1.25rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.5rem',
@@ -201,18 +200,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Header bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #222', paddingBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Cpu style={{ color: 'var(--color-primary)' }} />
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600, textTransform: 'uppercase', margin: 0, letterSpacing: '0.05em' }}>AI Operations Center</h2>
-          <span style={{ fontSize: '0.65rem', background: '#06b6d422', border: '1px solid #06b6d444', color: '#06b6d4', padding: '1px 6px', borderRadius: '4px', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Orchestrator Active</span>
+          <Cpu style={{ color: 'var(--color-accent)' }} />
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 'bold', textTransform: 'uppercase', margin: 0, letterSpacing: '0.05em', color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}>AI Operations Center</h2>
+          <span style={{ fontSize: '0.65rem', background: 'var(--color-success-bg)', border: '1px solid var(--color-success-border)', color: 'var(--color-success-text)', padding: '1px 6px', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>Orchestrator Active</span>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button 
             onClick={() => loadData(true)} 
             disabled={refreshing}
             className="btn btn-secondary btn-sm"
-            style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', height: '28px' }}
+            style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', height: '28px' }}
           >
             <RefreshCw size={12} className={refreshing ? 'spin-animation' : ''} /> Refresh
           </button>
@@ -221,7 +220,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
               onClick={handleSaveConfig} 
               disabled={saving}
               className="btn btn-primary btn-sm"
-              style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', height: '28px' }}
+              style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', height: '28px' }}
             >
               <Save size={12} /> {saving ? 'Saving...' : 'Commit Settings'}
             </button>
@@ -230,23 +229,27 @@ export const AIOrchestratorDashboard: React.FC = () => {
       </div>
 
       {/* Sub tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #1c1c1c', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto' }}>
         {(['Overview', 'Registry', 'Usage', 'Timeline', 'Controls'] as const).map(tab => {
           if (tab === 'Controls' && !isOwner) return null;
+          const isTabActive = activeSubTab === tab;
           return (
             <button
               key={tab}
               onClick={() => setActiveSubTab(tab)}
               style={{
-                padding: '0.4rem 0.8rem',
+                padding: '0.5rem 0.75rem',
                 fontSize: '0.75rem',
-                background: activeSubTab === tab ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
-                border: activeSubTab === tab ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid transparent',
-                color: activeSubTab === tab ? '#06b6d4' : '#888',
-                borderRadius: '4px',
+                fontFamily: 'var(--font-sans)',
+                fontWeight: isTabActive ? 'bold' : 500,
+                background: isTabActive ? '#FAF8F5' : 'transparent',
+                border: '1px solid transparent',
+                borderBottom: 'none',
+                borderColor: isTabActive ? '#E2DACD' : 'transparent',
+                color: isTabActive ? 'var(--color-accent)' : 'var(--text-secondary)',
                 cursor: 'pointer',
-                fontWeight: activeSubTab === tab ? 600 : 400,
-                transition: 'all 0.2s ease'
+                transition: 'all 0.15s ease-in-out',
+                whiteSpace: 'nowrap'
               }}
             >
               {tab === 'Controls' ? '🔧 Developer Controls' : tab}
@@ -264,18 +267,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
             
             {/* Provider Health vs Model Health */}
             {stats.provider && (
-              <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-                <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Provider Node Health</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.1rem', fontWeight: 600, color: stats.provider?.health === 'operational' ? '#10b981' : '#ef4444' }}>
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Provider Node Health</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: stats.provider?.health === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
                   {stats.provider?.health === 'operational' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                   {stats.provider?.displayName}
                 </div>
-                <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Success Rate: {stats.provider?.successRate}% | Latency: {stats.provider?.averageLatencyMs}ms</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {stats.provider?.successRate}% | Latency: {stats.provider?.averageLatencyMs}ms</div>
                 {isOwner && (
                   <button
                     onClick={() => handleHealthTest('provider', stats.provider?.id || '')}
                     disabled={testingHealth !== null}
-                    style={{ fontSize: '0.55rem', background: '#222', color: '#aaa', border: '1px solid #333', padding: '2px 6px', borderRadius: '3px', marginTop: '0.5rem', cursor: 'pointer' }}
+                    style={{ fontSize: '0.65rem', background: '#FCFAF6', color: 'var(--text-secondary)', border: '1px solid #C4B9A7', padding: '2px 8px', marginTop: '0.5rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
                   >
                     {testingHealth === stats.provider?.id ? 'Testing...' : 'Test Connection'}
                   </button>
@@ -283,83 +286,80 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Overall AI Health</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.25rem', fontWeight: 600, color: overview.overallHealth === 'healthy' ? '#10b981' : '#f59e0b' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Overall AI Health</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: overview.overallHealth === 'healthy' ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>
                 {overview.overallHealth === 'healthy' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                 {overview.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
               </div>
-              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Success Rate: {overview.overallSuccessRate}% | Failovers: {overview.totalFailovers}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {overview.overallSuccessRate}% | Failovers: {overview.totalFailovers}</div>
             </div>
 
-            <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Volume & Latency</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600 }}>{overview.averageLatencyMs} ms</div>
-              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday} | Monthly: {overview.requestsThisMonth || 0}</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Volume & Latency</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>{overview.averageLatencyMs} ms</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday} | Monthly: {overview.requestsThisMonth || 0}</div>
             </div>
 
-            <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Operational Cost Today</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#10b981' }}>${overview.estimatedDailyCost.toFixed(4)}</div>
-              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Monthly Projection: ${overview.estimatedMonthlyCost.toFixed(2)}</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Operational Cost Today</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-success-text)' }}>${overview.estimatedDailyCost.toFixed(4)}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Monthly Projection: ${overview.estimatedMonthlyCost.toFixed(2)}</div>
             </div>
 
-            <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Cache Performance</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#f59e0b' }}>{overview.cacheHitRate || 0}%</div>
-              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached | Saved ${(overview.estimatedCostSavings || 0).toFixed(4)}</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cache Performance</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text)' }}>{overview.cacheHitRate || 0}%</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached | Saved ${(overview.estimatedCostSavings || 0).toFixed(4)}</div>
             </div>
           </div>
 
           {/* Fallback chain visualizer */}
-          <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Active Fallback Chain</h3>
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Active Fallback Chain</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
               {primaryModel ? (
                 <div style={{
-                  background: 'rgba(16, 185, 129, 0.05)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  background: 'var(--color-success-bg)',
+                  border: '1px solid var(--color-success-border)',
                   padding: '0.5rem 0.75rem',
-                  borderRadius: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem'
                 }}>
-                  <span style={{ fontSize: '0.6rem', background: '#10b981', color: '#000', fontWeight: 'bold', padding: '1px 4px', borderRadius: '2px', textTransform: 'uppercase' }}>Primary</span>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#10b981' }}>{primaryModel.displayName}</span>
-                  <span style={{ fontSize: '0.65rem', color: '#888', fontFamily: 'var(--font-mono)' }}>({primaryModel.id})</span>
+                  <span style={{ fontSize: '0.6rem', background: 'var(--color-success-text)', color: '#fff', fontWeight: 'bold', padding: '2px 4px', textTransform: 'uppercase' }}>Primary</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--color-success-text)' }}>{primaryModel.displayName}</span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>({primaryModel.id})</span>
                 </div>
               ) : (
-                <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>No healthy primary model selected!</div>
+                <div style={{ color: 'var(--color-danger-text)', fontSize: '0.8rem' }}>No healthy primary model selected!</div>
               )}
 
               {fallbackChain.map((m, idx) => (
                 <React.Fragment key={m.id}>
-                  <div style={{ color: '#555', fontSize: '0.8rem' }}>&rarr;</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>&rarr;</div>
                   <div style={{
-                    background: m.cooldownRemaining > 0 ? 'rgba(239, 68, 68, 0.05)' : 'rgba(245, 158, 11, 0.05)',
-                    border: m.cooldownRemaining > 0 ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                    background: m.cooldownRemaining > 0 ? 'var(--color-danger-bg)' : 'var(--color-warning-bg)',
+                    border: m.cooldownRemaining > 0 ? '1px solid var(--color-danger-border)' : '1px solid var(--color-warning-border)',
                     padding: '0.5rem 0.75rem',
-                    borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    opacity: m.cooldownRemaining > 0 ? 0.5 : 1
+                    opacity: m.cooldownRemaining > 0 ? 0.6 : 1
                   }}>
                     <span style={{
                       fontSize: '0.6rem',
-                      background: m.cooldownRemaining > 0 ? '#ef4444' : '#f59e0b',
-                      color: '#000',
+                      background: m.cooldownRemaining > 0 ? 'var(--color-danger-text)' : 'var(--color-warning-text)',
+                      color: '#fff',
                       fontWeight: 'bold',
-                      padding: '1px 4px',
-                      borderRadius: '2px',
+                      padding: '2px 4px',
                       textTransform: 'uppercase'
                     }}>
                       {m.cooldownRemaining > 0 ? 'Cooldown' : `Fallback ${idx + 1}`}
                     </span>
-                    <span style={{ fontSize: '0.8rem', color: m.cooldownRemaining > 0 ? '#ef4444' : '#f59e0b' }}>{m.displayName}</span>
+                    <span style={{ fontSize: '0.8rem', color: m.cooldownRemaining > 0 ? 'var(--color-danger-text)' : 'var(--color-warning-text)' }}>{m.displayName}</span>
                     {m.cooldownRemaining > 0 && (
-                      <span style={{ fontSize: '0.65rem', color: '#ef4444', fontFamily: 'var(--font-mono)' }}>({Math.ceil(m.cooldownRemaining / 1000)}s remaining)</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--color-danger-text)', fontFamily: 'var(--font-mono)' }}>({Math.ceil(m.cooldownRemaining / 1000)}s remaining)</span>
                     )}
                   </div>
                 </React.Fragment>
@@ -369,35 +369,35 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
           {/* Quota estimation widget */}
           {stats.quota && (
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div>
-                <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Estimated Quota Limits</h3>
+                <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#aaa' }}>Daily Requests:</span>
-                    <span>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Daily Requests:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#aaa' }}>RPM Average:</span>
-                    <span>{stats.quota.requestsPerMinute} reqs / min</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>RPM Average:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{stats.quota.requestsPerMinute} reqs / min</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#aaa' }}>Tokens Ingested Today:</span>
-                    <span>{overview.tokensToday.toLocaleString()} tokens</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Tokens Ingested Today:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{overview.tokensToday.toLocaleString()} tokens</strong>
                   </div>
-                  <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontStyle: 'italic', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--color-warning-text)', fontStyle: 'italic', marginTop: '0.25rem' }}>
                     ⚠️ Note: Displayed values are BusinessOS estimates derived from recorded telemetry, not provider-reported limits.
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', borderLeft: '1px solid #222', paddingLeft: '1.5rem' }}>
-                <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', background: 'conic-gradient(var(--color-primary) ' + stats.quota.quotaUtilisationPercentage + '%, #222 0)' }}>
-                  <div style={{ position: 'absolute', width: '74px', height: '74px', borderRadius: '50%', background: '#111', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{stats.quota.quotaUtilisationPercentage}%</span>
-                    <span style={{ fontSize: '0.55rem', color: '#666', textTransform: 'uppercase' }}>Utilized</span>
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', borderLeft: '1px solid #E2DACD', paddingLeft: '1.5rem' }}>
+                <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', background: 'conic-gradient(var(--color-accent) ' + stats.quota.quotaUtilisationPercentage + '%, #E2DACD 0)' }}>
+                  <div style={{ position: 'absolute', width: '74px', height: '74px', borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{stats.quota.quotaUtilisationPercentage}%</span>
+                    <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Utilized</span>
                   </div>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '0.5rem' }}>{stats.quota.estimatedRemainingDailyRequests} requests estimated remaining</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontFamily: 'var(--font-sans)' }}>{stats.quota.estimatedRemainingDailyRequests} requests estimated remaining</div>
               </div>
             </div>
           )}
@@ -406,23 +406,22 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Subtab Content: Registry */}
       {activeSubTab === 'Registry' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {isOwner && (
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'var(--shadow-subtle)' }}>
               <div>
-                <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#fff' }}>Force Preferred Model Override</h4>
-                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.7rem', color: '#aaa' }}>If enabled, all client prompt queries will bypass failover logic and target this selected model.</p>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Force Preferred Model Override</h4>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>If enabled, all client prompt queries will bypass failover logic and target this selected model.</p>
               </div>
               <select
                 value={config.forcedModel || ''}
                 onChange={e => handleForceModelChange(e.target.value === '' ? null : e.target.value)}
                 style={{
-                  background: '#222',
-                  color: '#fff',
-                  border: '1px solid #333',
+                  background: '#FCFAF6',
+                  color: 'var(--text-primary)',
+                  border: '1px solid #C4B9A7',
                   padding: '0.35rem 0.6rem',
                   fontSize: '0.75rem',
-                  borderRadius: '4px',
                   outline: 'none'
                 }}
               >
@@ -434,16 +433,16 @@ export const AIOrchestratorDashboard: React.FC = () => {
             </div>
           )}
 
-          <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px', overflowX: 'auto' }}>
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', overflowX: 'auto', boxShadow: 'var(--shadow-subtle)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #222', color: '#666' }}>
+                <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
                   <th style={{ padding: '0.5rem 0.25rem' }}>Model Details</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Priority</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Provider</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>C/R/S Scores</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>C / R / S Scores</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Status</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Success/Failure Rate</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Success / Failure Rate</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'right' }}>Cooldown</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Health Test</th>
                   {isOwner && <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Controls</th>}
@@ -456,15 +455,15 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   const currentPriority = mConfig.priority !== undefined ? mConfig.priority : model.priority;
 
                   return (
-                    <tr key={model.id} style={{ borderBottom: '1px solid #1c1c1c', opacity: isModelEnabled ? 1 : 0.5 }}>
+                    <tr key={model.id} style={{ borderBottom: '1px solid #E2DACD', opacity: isModelEnabled ? 1 : 0.5 }}>
                       <td style={{ padding: '0.6rem 0.25rem' }}>
-                        <div style={{ fontWeight: 'bold', color: model.cooldownRemaining > 0 ? '#ef4444' : '#fff' }}>
+                        <div style={{ fontWeight: 'bold', color: model.cooldownRemaining > 0 ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
                           {model.displayName}
                           {model.status === 'preview' && (
-                            <span style={{ fontSize: '0.55rem', background: '#a855f722', border: '1px solid #a855f744', color: '#a855f7', padding: '1px 3px', borderRadius: '3px', marginLeft: '4px', textTransform: 'uppercase' }}>Preview</span>
+                            <span style={{ fontSize: '0.55rem', background: '#a855f722', border: '1px solid #a855f744', color: '#a855f7', padding: '1px 3px', marginLeft: '4px', textTransform: 'uppercase' }}>Preview</span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.6rem', color: '#666', fontFamily: 'var(--font-mono)' }}>{model.id}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{model.id}</div>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
                         {isOwner ? (
@@ -475,13 +474,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
                             value={currentPriority}
                             onChange={e => handlePriorityChange(model.id, parseInt(e.target.value) || 1)}
                             style={{
-                              background: '#222',
-                              border: '1px solid #333',
-                              color: '#fff',
+                              background: '#FCFAF6',
+                              border: '1px solid #C4B9A7',
+                              color: 'var(--text-primary)',
                               width: '45px',
                               padding: '2px',
                               textAlign: 'center',
-                              borderRadius: '3px',
                               fontSize: '0.75rem'
                             }}
                           />
@@ -490,18 +488,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         )}
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                        <span style={{ fontSize: '0.65rem', border: '1px solid #333', padding: '1px 4px', borderRadius: '3px', textTransform: 'uppercase' }}>{model.provider}</span>
+                        <span style={{ fontSize: '0.65rem', border: '1px solid #C4B9A7', background: '#FCFAF6', padding: '1px 6px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{model.provider}</span>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <span style={{ color: '#06b6d4' }}>{model.capabilityScore}</span>
-                        <span style={{ color: '#444' }}>/</span>
+                        <span style={{ color: 'var(--text-muted)' }}>/</span>
                         <span style={{ color: '#a855f7' }}>{model.reasoningScore}</span>
-                        <span style={{ color: '#444' }}>/</span>
-                        <span style={{ color: '#10b981' }}>{model.speedScore}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>/</span>
+                        <span style={{ color: 'var(--color-success-text)' }}>{model.speedScore}</span>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
                         <span style={{
-                          color: !isModelEnabled ? '#666' : model.cooldownRemaining > 0 ? '#ef4444' : '#10b981',
+                          color: !isModelEnabled ? 'var(--text-muted)' : model.cooldownRemaining > 0 ? 'var(--color-danger-text)' : 'var(--color-success-text)',
                           fontWeight: 'bold',
                           fontSize: '0.65rem'
                         }}>
@@ -510,26 +508,26 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <div>{model.stats.successRate}% S / {model.stats.failure > 0 ? `${model.stats.failure} F` : '0 F'}</div>
-                        <div style={{ fontSize: '0.55rem', color: '#555' }}>Avg Latency: {model.stats.avgLatencyMs}ms</div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-secondary)' }}>Avg Latency: {model.stats.avgLatencyMs}ms</div>
                         {model.stats.lastSuccess && (
-                          <div style={{ fontSize: '0.5rem', color: '#10b98180', marginTop: '2px' }} title={`Last success: ${model.stats.lastSuccess}`}>
+                          <div style={{ fontSize: '0.5rem', color: 'var(--color-success-text)', marginTop: '2px' }} title={`Last success: ${model.stats.lastSuccess}`}>
                             ✓ {new Date(model.stats.lastSuccess).toLocaleTimeString()}
                           </div>
                         )}
                         {model.stats.lastFailure && (
-                          <div style={{ fontSize: '0.5rem', color: '#ef444480', marginTop: '1px' }} title={model.stats.lastFailureReason || 'Unknown error'}>
+                          <div style={{ fontSize: '0.5rem', color: 'var(--color-danger-text)', marginTop: '1px' }} title={model.stats.lastFailureReason || 'Unknown error'}>
                             ✗ {new Date(model.stats.lastFailure).toLocaleTimeString()}
                             {model.stats.lastFailureReason && (
-                              <span style={{ marginLeft: '2px', color: '#ef444460' }}>({model.stats.lastFailureReason})</span>
+                              <span style={{ marginLeft: '2px', color: 'var(--color-danger-text)', opacity: 0.7 }}>({model.stats.lastFailureReason})</span>
                             )}
                           </div>
                         )}
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                         {model.cooldownRemaining > 0 ? (
-                          <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{Math.ceil(model.cooldownRemaining / 1000)}s</span>
+                          <span style={{ color: 'var(--color-danger-text)', fontWeight: 'bold' }}>{Math.ceil(model.cooldownRemaining / 1000)}s</span>
                         ) : (
-                          <span style={{ color: '#666' }}>0s</span>
+                          <span style={{ color: 'var(--text-muted)' }}>0s</span>
                         )}
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
@@ -537,11 +535,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                           onClick={() => handleHealthTest('model', model.id)}
                           disabled={testingHealth !== null}
                           style={{
-                            background: 'transparent',
-                            border: '1px solid #333',
-                            color: '#aaa',
-                            padding: '2px 6px',
-                            borderRadius: '3px',
+                            background: '#FCFAF6',
+                            border: '1px solid #C4B9A7',
+                            color: 'var(--text-secondary)',
+                            padding: '2px 8px',
                             cursor: 'pointer',
                             fontSize: '0.65rem'
                           }}
@@ -554,15 +551,14 @@ export const AIOrchestratorDashboard: React.FC = () => {
                           <button
                             onClick={() => handleToggleModel(model.id, !isModelEnabled)}
                             style={{
-                              background: isModelEnabled ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                              border: isModelEnabled ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                              color: isModelEnabled ? '#ef4444' : '#10b981',
+                              background: isModelEnabled ? 'var(--color-danger-bg)' : 'var(--color-success-bg)',
+                              border: isModelEnabled ? '1px solid var(--color-danger-border)' : '1px solid var(--color-success-border)',
+                              color: isModelEnabled ? 'var(--color-danger-text)' : 'var(--color-success-text)',
                               padding: '2px 8px',
-                              borderRadius: '3px',
                               cursor: 'pointer',
                               fontSize: '0.65rem',
-                              fontWeight: 600,
-                              width: '64px'
+                              fontWeight: 'bold',
+                              width: '68px'
                             }}
                           >
                             {isModelEnabled ? 'Disable' : 'Enable'}
@@ -583,76 +579,76 @@ export const AIOrchestratorDashboard: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Summary stats row: token split + cache metrics */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Prompt Tokens Today</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#06b6d4', fontFamily: 'var(--font-mono)' }}>{(overview?.promptTokensToday || 0).toLocaleString()}</div>
-              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Input to AI models</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Prompt Tokens Today</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>{(overview?.promptTokensToday || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Input to AI models</div>
             </div>
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Completion Tokens Today</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#a855f7', fontFamily: 'var(--font-mono)' }}>{(overview?.completionTokensToday || 0).toLocaleString()}</div>
-              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Output from AI models</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Completion Tokens Today</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#a855f7', fontFamily: 'var(--font-mono)' }}>{(overview?.completionTokensToday || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Output from AI models</div>
             </div>
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Cached Responses Today</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f59e0b', fontFamily: 'var(--font-mono)' }}>{overview?.cachedResponses || 0}</div>
-              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Cache hit rate: {overview?.cacheHitRate || 0}%</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cached Responses Today</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-warning-text)', fontFamily: 'var(--font-mono)' }}>{overview?.cachedResponses || 0}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Cache hit rate: {overview?.cacheHitRate || 0}%</div>
             </div>
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Est. Cost Savings (Cache)</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#10b981', fontFamily: 'var(--font-mono)' }}>${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
-              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Avoided via cached responses</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Est. Cost Savings (Cache)</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Avoided via cached responses</div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Layers size={14} style={{ color: 'var(--color-primary)' }} /> Cost by Feature
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                <Layers size={14} style={{ color: 'var(--color-accent)' }} /> Cost by Feature
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {Object.entries(stats.breakdowns.featureCost).map(([feat, cost]) => (
-                  <div key={feat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #1c1c1c', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: '#aaa' }}>{feat}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: '#10b981' }}>${cost.toFixed(5)}</span>
+                  <div key={feat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{feat}</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${cost.toFixed(5)}</strong>
                   </div>
                 ))}
                 {Object.keys(stats.breakdowns.featureCost).length === 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage logs.</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
             </div>
 
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
                 <Briefcase size={14} style={{ color: '#a855f7' }} /> Cost by Workspace
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {Object.entries(stats.breakdowns.workspaceCost).map(([ws, cost]) => (
-                  <div key={ws} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #1c1c1c', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: '#aaa', wordBreak: 'break-all' }}>{ws}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: '#10b981' }}>${cost.toFixed(5)}</span>
+                  <div key={ws} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
+                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{ws}</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${cost.toFixed(5)}</strong>
                   </div>
                 ))}
                 {Object.keys(stats.breakdowns.workspaceCost).length === 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage logs.</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
             </div>
 
-            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <User size={14} style={{ color: '#f59e0b' }} /> Cost by User
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                <User size={14} style={{ color: 'var(--color-warning-text)' }} /> Cost by User
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {Object.entries(stats.breakdowns.userCost).map(([usr, cost]) => (
-                  <div key={usr} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #1c1c1c', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: '#aaa', wordBreak: 'break-all' }}>{usr.substring(0, 16)}{usr.length > 16 && '...'}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: '#10b981' }}>${cost.toFixed(5)}</span>
+                  <div key={usr} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
+                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{usr.substring(0, 16)}{usr.length > 16 && '...'}</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${cost.toFixed(5)}</strong>
                   </div>
                 ))}
                 {Object.keys(stats.breakdowns.userCost).length === 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#555', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No usage logs.</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
             </div>
@@ -662,13 +658,13 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Subtab Content: Timeline logs */}
       {activeSubTab === 'Timeline' && (
-        <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+        <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Recent Execution Telemetry Feed</h3>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Recent Execution Telemetry Feed</h3>
             <button
               onClick={handleExportCsv}
               className="btn btn-secondary btn-sm"
-              style={{ fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               <Download size={12} /> Export CSV
             </button>
@@ -693,47 +689,47 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 </thead>
                 <tbody>
                   {timeline.map(record => (
-                    <tr key={record.id} style={{ borderBottom: '1px solid #1c1c1c' }}>
-                      <td style={{ padding: '0.5rem 0.25rem', color: '#666', fontFamily: 'var(--font-mono)' }}>{new Date(record.timestamp).toLocaleTimeString()}</td>
+                    <tr key={record.id} style={{ borderBottom: '1px solid #E2DACD' }}>
+                      <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(record.timestamp).toLocaleTimeString()}</td>
                       <td style={{ padding: '0.5rem 0.25rem', fontWeight: 'bold' }}>{record.feature}</td>
-                      <td style={{ padding: '0.5rem 0.25rem', color: '#aaa', fontFamily: 'var(--font-mono)' }}>{record.user.substring(0, 8)}...</td>
-                      <td style={{ padding: '0.5rem 0.25rem', color: '#888', fontFamily: 'var(--font-mono)', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={record.workspace}>
+                      <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{record.user.substring(0, 8)}...</td>
+                      <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={record.workspace}>
                         {record.workspace || '—'}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem' }}>
-                        <span style={{ color: '#888' }}>{record.selectedModel}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{record.selectedModel}</span>
                         {record.fallbackModel && record.fallbackModel !== record.selectedModel && (
                           <>
-                            <span style={{ color: '#ef4444', margin: '0 4px' }}>&rarr;</span>
-                            <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>{record.fallbackModel}</span>
+                            <span style={{ color: 'var(--color-danger-text)', margin: '0 4px' }}>&rarr;</span>
+                            <span style={{ color: 'var(--color-warning-text)', fontWeight: 'bold' }}>{record.fallbackModel}</span>
                           </>
                         )}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                        <span style={{ color: '#888' }}>{record.promptTokens}</span>
-                        <span style={{ color: '#444' }}>/</span>
-                        <span style={{ color: '#aaa' }}>{record.completionTokens}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{record.promptTokens}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>/</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{record.completionTokens}</span>
                         {record.tokenCountSource === 'estimated' && (
-                          <span style={{ display: 'block', fontSize: '0.45rem', color: '#666', fontStyle: 'italic' }} title="Estimated via character count; provider did not return usage data">~est</span>
+                          <span style={{ display: 'block', fontSize: '0.45rem', color: 'var(--text-muted)', fontStyle: 'italic' }} title="Estimated via character count; provider did not return usage data">~est</span>
                         )}
                       </td>
-                      <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: record.retryCount > 0 ? '#f59e0b' : '#666', fontFamily: 'var(--font-mono)' }}>
+                      <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: record.retryCount > 0 ? 'var(--color-warning-text)' : 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
                         {record.retryCount}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         {record.latency}ms
                       </td>
-                      <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: '#10b981', fontFamily: 'var(--font-mono)' }}>
+                      <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>
                         ${record.estimatedCost.toFixed(5)}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'right', fontWeight: 'bold' }}>
                         {record.cachedResponse && (
-                          <span style={{ display: 'block', fontSize: '0.5rem', background: '#f59e0b22', border: '1px solid #f59e0b44', color: '#f59e0b', padding: '1px 4px', borderRadius: '3px', marginBottom: '2px', textTransform: 'uppercase' }}>Cached</span>
+                          <span style={{ display: 'block', fontSize: '0.5rem', background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-border)', color: 'var(--color-warning-text)', padding: '1px 4px', marginBottom: '2px', textTransform: 'uppercase' }}>Cached</span>
                         )}
                         {record.success ? (
-                          <span style={{ color: '#10b981' }}>SUCCESS</span>
+                          <span style={{ color: 'var(--color-success-text)' }}>SUCCESS</span>
                         ) : (
-                          <span style={{ color: '#ef4444', fontSize: '0.6rem' }} title={record.errorClassification}>
+                          <span style={{ color: 'var(--color-danger-text)', fontSize: '0.6rem' }} title={record.errorClassification}>
                             {record.errorClassification || 'FAILED'}
                           </span>
                         )}
@@ -744,7 +740,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </table>
             </div>
           ) : (
-            <div style={{ padding: '3rem', textAlign: 'center', color: '#555', fontFamily: 'var(--font-mono)' }}>No telemetry has been recorded yet.</div>
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No telemetry has been recorded yet.</div>
           )}
         </div>
       )}
@@ -754,11 +750,11 @@ export const AIOrchestratorDashboard: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           {/* Policy controls */}
-          <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Operational Policies</h3>
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Operational Policies</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
                 <input
                   type="checkbox"
                   checked={config.maintenanceMode || false}
@@ -768,18 +764,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <span>Enable Global Maintenance Mode (Temporarily disables orchestrator executions)</span>
               </label>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', marginTop: '0.25rem', color: 'var(--text-primary)' }}>
                 <span>Telemetry logs retention window:</span>
                 <select
                   value={config.retentionDays || 30}
                   onChange={e => setConfig({ ...config, retentionDays: parseInt(e.target.value) || 30 })}
                   style={{
-                    background: '#222',
-                    border: '1px solid #333',
-                    color: '#fff',
+                    background: '#FCFAF6',
+                    border: '1px solid #C4B9A7',
+                    color: 'var(--text-primary)',
                     padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem'
+                    fontSize: '0.75rem',
+                    outline: 'none'
                   }}
                 >
                   <option value={7}>7 Days</option>
@@ -789,7 +785,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 </select>
               </div>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-primary)' }}>
                 <span>Daily request quota limit (BusinessOS estimate baseline):</span>
                 <input
                   type="number"
@@ -799,38 +795,46 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   value={config.dailyQuotaLimit || 1500}
                   onChange={e => setConfig({ ...config, dailyQuotaLimit: parseInt(e.target.value) || 1500 })}
                   style={{
-                    background: '#222',
-                    border: '1px solid #333',
-                    color: '#fff',
+                    background: '#FCFAF6',
+                    border: '1px solid #C4B9A7',
+                    color: 'var(--text-primary)',
                     padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
                     fontSize: '0.75rem',
-                    width: '100px'
+                    width: '100px',
+                    outline: 'none'
                   }}
                 />
-                <span style={{ fontSize: '0.65rem', color: '#555' }}>reqs/day (not provider-reported)</span>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>reqs/day (not provider-reported)</span>
               </div>
             </div>
           </div>
 
           {/* Maintenance triggers */}
-          <div style={{ background: '#111', border: '1px solid #222', padding: '1.25rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#fff', textTransform: 'uppercase' }}>Maintenance Controls</h3>
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Maintenance Controls</h3>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <button
                 onClick={handleFlushCooldowns}
                 className="btn btn-secondary"
-                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#3b82f615', border: '1px solid #3b82f640', color: '#3b82f6' }}
+                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#FCFAF6', border: '1px solid #C4B9A7' }}
               >
-                <Zap size={14} /> Flush Active Cooldowns
+                <Zap size={14} style={{ color: 'var(--color-warning-text)' }} /> Flush Active Cooldowns
               </button>
 
               <button
                 onClick={handleClearTelemetry}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#ef444415', border: '1px solid #ef444440', color: '#ef4444' }}
+                className="btn btn-danger"
+                style={{ 
+                  fontSize: '0.75rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.35rem', 
+                  background: 'var(--color-danger-bg)', 
+                  border: '1px solid var(--color-danger-border)', 
+                  color: 'var(--color-danger-text)' 
+                }}
               >
-                <Trash2 size={14} /> Clear Telemetry logs
+                <Trash2 size={14} /> Clear Telemetry Logs
               </button>
             </div>
           </div>

@@ -243,57 +243,57 @@ export const DeveloperConsole: React.FC = () => {
 
   return (
     <div className="scrollable-page">
-      <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left', fontFamily: 'var(--font-mono)' }}>
+      <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
       
       {/* Header operations center */}
-      <div style={{ borderBottom: '1px solid #222', paddingBottom: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ borderBottom: '2px solid var(--color-primary)', paddingBottom: '1.25rem', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <span style={{ color: 'var(--color-danger-text)', fontSize: '0.65rem', border: '1px solid var(--color-danger-text)', padding: '2px 6px', display: 'inline-block', marginBottom: '0.5rem' }}>
-            OPERATIONS SECURE INTERFACE (OWNER/ADMIN ONLY)
+          <span style={{ color: 'var(--color-accent)', fontSize: '0.65rem', border: '1px solid var(--color-accent)', padding: '2px 6px', display: 'inline-block', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
+            OPERATIONS SECURE INTERFACE (OWNER / ADMIN ONLY)
           </span>
-          <h1 style={{ border: 'none', margin: 0, padding: 0, fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
-            <Terminal size={24} style={{ color: 'var(--color-danger-text)' }} /> BusinessOS Operations Console
+          <h1 style={{ border: 'none', margin: 0, padding: 0, fontSize: '2.5rem', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+            <Terminal size={28} style={{ color: 'var(--color-accent)' }} /> Operations Console
           </h1>
         </div>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={() => { loadStats(); loadUsers(); loadAuditLogs(); }} className="btn btn-sm btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem' }}>
+          <button onClick={() => { loadStats(); loadUsers(); loadAuditLogs(); }} className="btn btn-sm btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
             <RefreshCw size={12} /> Sync Operational Logs
           </button>
-          <span style={{ fontSize: '0.7rem', color: '#666' }}>MODE: {isMockMode ? 'MOCK LOCAL' : 'CLOUDFLARE EDGE'}</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>MODE: {isMockMode ? 'MOCK LOCAL' : 'CLOUDFLARE EDGE'}</span>
         </div>
       </div>
 
       {/* Stats Quick-Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div style={{ background: '#111', padding: '0.75rem 1rem', border: '1px solid #222' }}>
-          <span style={{ fontSize: '0.6rem', color: '#666', display: 'block' }}>FIRESTORE LATENCY</span>
-          <strong style={{ fontSize: '1.2rem', color: health?.firestore.status === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Firestore Latency</span>
+          <strong style={{ fontSize: '1.5rem', color: health?.firestore.status === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {health?.firestore.latency || 0} ms
           </strong>
         </div>
-        <div style={{ background: '#111', padding: '0.75rem 1rem', border: '1px solid #222' }}>
-          <span style={{ fontSize: '0.6rem', color: '#666', display: 'block' }}>GEMINI DAILY TOKENS</span>
-          <strong style={{ fontSize: '1.2rem', color: 'var(--color-primary-light)' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Gemini Daily Tokens</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {(apiAnalytics?.gemini.totalTokens || 0).toLocaleString()}
           </strong>
         </div>
-        <div style={{ background: '#111', padding: '0.75rem 1rem', border: '1px solid #222' }}>
-          <span style={{ fontSize: '0.6rem', color: '#666', display: 'block' }}>FINNHUB REQUESTS</span>
-          <strong style={{ fontSize: '1.2rem', color: '#fff' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Finnhub Requests</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {apiAnalytics?.finnhub.requestsToday || 0} / 3000
           </strong>
         </div>
-        <div style={{ background: '#111', padding: '0.75rem 1rem', border: '1px solid #222' }}>
-          <span style={{ fontSize: '0.6rem', color: '#666', display: 'block' }}>QUEUE HEALTH</span>
-          <strong style={{ fontSize: '1.2rem', color: 'var(--color-success-text)' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Queue Health</span>
+          <strong style={{ fontSize: '1.5rem', color: 'var(--color-success-text)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {apiAnalytics?.sec.queueHealth.toUpperCase() || 'HEALTHY'}
           </strong>
         </div>
       </div>
 
       {/* Tab selection menu */}
-      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #222', paddingBottom: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', marginBottom: '2rem', flexWrap: 'wrap', overflowX: 'auto' }}>
         {([
           { id: 'Health', label: 'Platform Health', icon: Activity },
           { id: 'Queues', label: 'Background Jobs', icon: Clock },
@@ -301,21 +301,39 @@ export const DeveloperConsole: React.FC = () => {
           { id: 'FeatureFlags', label: 'Global Flags', icon: Sliders },
           { id: 'AuditLogs', label: 'Audit Trail Logs', icon: Shield },
           { id: 'AIOrchestrator', label: 'AI Operations Center', icon: Cpu }
-        ] as const).map(tab => (
-          <button 
-            key={tab.id} 
-            onClick={() => setActiveTab(tab.id)} 
-            className={`btn btn-sm ${activeTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase' }}
-          >
-            <tab.icon size={12} /> {tab.label}
-          </button>
-        ))}
+        ] as const).map(tab => {
+          const isTabActive = activeTab === tab.id;
+          return (
+            <button 
+              key={tab.id} 
+              onClick={() => setActiveTab(tab.id)} 
+              style={{
+                padding: '0.65rem 1rem',
+                border: '1px solid transparent',
+                borderBottom: 'none',
+                fontFamily: 'var(--font-sans)',
+                fontWeight: isTabActive ? 'bold' : 500,
+                fontSize: '0.8rem',
+                background: isTabActive ? '#FAF8F5' : 'transparent',
+                borderColor: isTabActive ? '#E2DACD' : 'transparent',
+                color: isTabActive ? 'var(--color-accent)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease-in-out',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <tab.icon size={13} style={{ color: isTabActive ? 'var(--color-accent)' : 'var(--text-muted)' }} /> {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Loading bar */}
       {loadingStats && activeTab === 'Health' && (
-        <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>Querying operational console nodes...</div>
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Querying operational console nodes...</div>
       )}
 
       {/* Tab 1: Health Diagnostics */}
@@ -323,11 +341,11 @@ export const DeveloperConsole: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '1.5rem' }}>
           
           {/* Diagnostic latency logs */}
-          <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ margin: 0, padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Service Status Latency Ratios</h3>
+          <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Service Status Latency Ratios</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #222', color: '#666', textAlign: 'left' }}>
+                <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', textAlign: 'left' }}>
                   <th style={{ padding: '0.5rem' }}>Service Node</th>
                   <th style={{ padding: '0.5rem' }}>Operational Status</th>
                   <th style={{ padding: '0.5rem' }}>Response Latency</th>
@@ -348,14 +366,14 @@ export const DeveloperConsole: React.FC = () => {
                         : 'var(--color-danger-text)';
                   
                   return (
-                    <tr key={node} style={{ borderBottom: '1px solid #1c1c1c' }}>
-                      <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{node.toUpperCase()}</td>
-                      <td style={{ padding: '0.5rem' }}>
-                        <span style={{ color }}>
+                    <tr key={node} style={{ borderBottom: '1px solid #E2DACD' }}>
+                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{node.toUpperCase()}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <span style={{ color, fontWeight: 'bold' }}>
                           ● {detail.status.toUpperCase().replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td style={{ padding: '0.5rem' }}>{detail.latency} ms</td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{detail.latency} ms</td>
                     </tr>
                   );
                 })}
@@ -366,24 +384,24 @@ export const DeveloperConsole: React.FC = () => {
           {/* Token Costs summaries */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             
-            <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{ margin: 0, padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Gemini Cost Tracking</h3>
+            <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Gemini Cost Tracking</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Flash API Calls:</span> <strong>{apiAnalytics.gemini.flashRequests}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Pro API Calls:</span> <strong>{apiAnalytics.gemini.proRequests}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Total Token Overhead:</span> <strong>{apiAnalytics.gemini.totalTokens.toLocaleString()}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Daily Cost Estimate:</span> <strong style={{ color: 'var(--color-warning-text)' }}>${apiAnalytics.gemini.dailyCost.toFixed(2)}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Prompt Cache Hit Ratio:</span> <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics.gemini.hitRate}%</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Flash API Calls:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini.flashRequests}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Pro API Calls:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini.proRequests}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Total Token Overhead:</span> <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{apiAnalytics.gemini.totalTokens.toLocaleString()}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Daily Cost Estimate:</span> <strong style={{ color: 'var(--color-success-text)' }}>${apiAnalytics.gemini.dailyCost.toFixed(2)}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio:</span> <strong style={{ color: 'var(--color-warning-text)' }}>{apiAnalytics.gemini.hitRate}%</strong></div>
               </div>
             </div>
 
-            <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{ margin: 0, padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Data Quality Metrics</h3>
+            <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Data Quality Metrics</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>FRED Cached Indicators:</span> <strong>{apiAnalytics.fred.cachedIndicators}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>SEC Edgar Companies:</span> <strong>{apiAnalytics.sec.companiesCached}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>SEC Edgar Filings:</span> <strong>{apiAnalytics.sec.filingsCached}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Finnhub 429 Errors:</span> <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics.finnhub.count429}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>FRED Cached Indicators:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.fred.cachedIndicators}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Companies:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.sec.companiesCached}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Filings:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.sec.filingsCached}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Finnhub 429 Errors:</span> <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics.finnhub.count429}</strong></div>
               </div>
             </div>
 
@@ -394,35 +412,52 @@ export const DeveloperConsole: React.FC = () => {
 
       {/* Tab 2: System Queue status */}
       {activeTab === 'Queues' && queues && (
-        <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222' }}>
-          <h3 style={{ margin: '0 0 1rem 0', padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>System Job Queue Dashboard</h3>
+        <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', boxShadow: 'var(--shadow-subtle)' }}>
+          <h3 style={{ margin: '0 0 1.25rem 0', padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>System Job Queue Dashboard</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #222', color: '#666', textAlign: 'left' }}>
+              <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', textAlign: 'left', fontWeight: 'bold' }}>
                 <th style={{ padding: '0.5rem' }}>Job Name</th>
                 <th style={{ padding: '0.5rem' }}>Current Status</th>
                 <th style={{ padding: '0.5rem' }}>Last Run</th>
+                <th style={{ padding: '0.5rem' }}>Next Run</th>
                 <th style={{ padding: '0.5rem' }}>Duration (s)</th>
-                <th style={{ padding: '0.5rem' }}>Pending</th>
+                <th style={{ padding: '0.5rem' }}>Queue Depth</th>
                 <th style={{ padding: '0.5rem' }}>Failures</th>
                 <th style={{ padding: '0.5rem' }}>Retries</th>
               </tr>
             </thead>
             <tbody>
-              {Object.entries(queues || {}).map(([key, q]: any) => (
-                <tr key={key} style={{ borderBottom: '1px solid #1c1c1c' }}>
-                  <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</td>
-                  <td style={{ padding: '0.5rem' }}><span style={{ color: 'var(--color-success-text)' }}>{q.status.toUpperCase()}</span></td>
-                  <td style={{ padding: '0.5rem' }}>{q.lastExecution ? new Date(q.lastExecution).toLocaleTimeString() : '—'}</td>
-                  <td style={{ padding: '0.5rem' }}>{q.duration}s</td>
-                  <td style={{ padding: '0.5rem' }}>{q.pending}</td>
-                  <td style={{ padding: '0.5rem', color: q.failures > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{q.failures}</td>
-                  <td style={{ padding: '0.5rem' }}>{q.retries}</td>
-                </tr>
-              ))}
+              {Object.entries(queues || {}).map(([key, q]: any) => {
+                let nextExecution = '—';
+                if (q.lastExecution) {
+                  const lastTime = new Date(q.lastExecution).getTime();
+                  if (key === 'secIngestion') {
+                    nextExecution = new Date(lastTime + 30 * 60 * 1000).toLocaleTimeString();
+                  } else if (key === 'fredRefresh') {
+                    nextExecution = new Date(lastTime + 24 * 60 * 60 * 1000).toLocaleString();
+                  } else if (key === 'newsIngestion') {
+                    nextExecution = new Date(lastTime + 60 * 60 * 1000).toLocaleTimeString();
+                  } else {
+                    nextExecution = new Date(lastTime + 15 * 60 * 1000).toLocaleTimeString();
+                  }
+                }
+                return (
+                  <tr key={key} style={{ borderBottom: '1px solid #E2DACD' }}>
+                    <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}><span style={{ color: 'var(--color-success-text)', fontWeight: 'bold' }}>{q.status.toUpperCase()}</span></td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.lastExecution ? new Date(q.lastExecution).toLocaleTimeString() : '—'}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{nextExecution}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.duration}s</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{q.pending}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: q.failures > 0 ? 'var(--color-danger-text)' : 'inherit', fontFamily: 'var(--font-mono)' }}>{q.failures}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.retries}</td>
+                  </tr>
+                );
+              })}
               {(!queues || Object.keys(queues).length === 0) && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: '#666', fontFamily: 'var(--font-mono)' }}>
+                  <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No background jobs have executed.
                   </td>
                 </tr>
@@ -437,25 +472,25 @@ export const DeveloperConsole: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
           
           {/* List Users panel */}
-          <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Registered Accounts</h3>
+              <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Registered Accounts</h3>
               <div style={{ position: 'relative' }}>
                 <input 
                   type="text" 
                   placeholder="Filter users..." 
                   value={userSearch}
                   onChange={e => setUserSearch(e.target.value)}
-                  style={{ padding: '0.25rem 0.5rem 0.25rem 1.5rem', fontSize: '0.7rem', background: '#181818', border: '1px solid #333', color: '#fff' }}
+                  style={{ padding: '0.35rem 0.5rem 0.35rem 1.5rem', fontSize: '0.75rem', background: '#FCFAF6', border: '1px solid #E2DACD', color: 'var(--text-primary)', outline: 'none' }}
                 />
-                <Search size={10} style={{ position: 'absolute', left: '0.5rem', top: '0.45rem', color: '#888' }} />
+                <Search size={12} style={{ position: 'absolute', left: '0.5rem', top: '0.55rem', color: 'var(--text-muted)' }} />
               </div>
             </div>
 
-            <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
+            <div style={{ overflowY: 'auto', maxHeight: '420px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #222', color: '#666' }}>
+                  <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
                     <th style={{ padding: '0.5rem' }}>Email / Name</th>
                     <th style={{ padding: '0.5rem' }}>Role</th>
                     <th style={{ padding: '0.5rem' }}>Plan</th>
@@ -467,27 +502,27 @@ export const DeveloperConsole: React.FC = () => {
                       key={u.uid} 
                       onClick={() => handleSelectUser(u)}
                       style={{ 
-                        borderBottom: '1px solid #1c1c1c', 
+                        borderBottom: '1px solid #E2DACD', 
                         cursor: 'pointer', 
-                        background: selectedUser?.uid === u.uid ? '#1c2236' : 'transparent' 
+                        background: selectedUser?.uid === u.uid ? '#FAF8F5' : 'transparent' 
                       }}
                     >
                       <td style={{ padding: '0.5rem' }}>
-                        <strong style={{ display: 'block', color: u.suspended ? 'var(--color-danger-text)' : '#fff' }}>{u.displayName || 'Unnamed User'}</strong>
-                        <span style={{ fontSize: '0.65rem', color: '#666' }}>{u.email}</span>
+                        <strong style={{ display: 'block', color: u.suspended ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>{u.displayName || 'Unnamed User'}</strong>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{u.email}</span>
                       </td>
                       <td style={{ padding: '0.5rem' }}>
-                        <span className="mono-tag" style={{ fontSize: '0.6rem' }}>{u.role || 'FREE'}</span>
+                        <span style={{ fontSize: '0.65rem', border: '1px solid #C4B9A7', background: '#FCFAF6', padding: '1px 6px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>{u.role || 'FREE'}</span>
                       </td>
                       <td style={{ padding: '0.5rem' }}>
-                        <span style={{ textTransform: 'uppercase' }}>{u.subscriptionTier || 'free'}</span>
+                        <span style={{ textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{u.subscriptionTier || 'free'}</span>
                       </td>
                     </tr>
                   ))}
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: '2rem', textAlign: 'center', color: '#666', fontFamily: 'var(--font-mono)' }}>
-                        No users found.
+                      <td colSpan={3} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No users have signed into BusinessOS yet.
                       </td>
                     </tr>
                   )}
@@ -497,41 +532,41 @@ export const DeveloperConsole: React.FC = () => {
           </div>
 
           {/* User management Profile View panel */}
-          <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222' }}>
-            <h3 style={{ margin: '0 0 1rem 0', padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Account Control Console</h3>
+          <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Account Control Console</h3>
             
             {loadingUser ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>Querying Firestore record...</div>
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Querying Firestore record...</div>
             ) : userDetails ? (
               <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem' }}>
                 
                 {/* Account details metadata grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: '#181818', padding: '0.75rem', border: '1px solid #222' }}>
-                  <div><span>Name:</span> <strong style={{ color: '#fff' }}>{userDetails.profile.displayName || 'N/A'}</strong></div>
-                  <div><span>Email:</span> <strong style={{ color: '#fff' }}>{userDetails.profile.email}</strong></div>
-                  <div><span>UID:</span> <strong style={{ fontSize: '0.65rem' }}>{userDetails.profile.uid}</strong></div>
-                  <div><span>Created:</span> <strong>{new Date(userDetails.profile.createdAt || '').toLocaleDateString()}</strong></div>
-                  <div><span>Last Login:</span> <strong>{userDetails.profile.lastLoginAt ? new Date(userDetails.profile.lastLoginAt).toLocaleString() : 'N/A'}</strong></div>
-                  <div><span>Current Role:</span> <strong style={{ color: 'var(--color-accent)' }}>{userDetails.profile.role || 'FREE'}</strong></div>
-                  <div><span>Subscription:</span> <strong style={{ textTransform: 'uppercase' }}>{userDetails.profile.subscriptionTier || 'free'}</strong></div>
-                  <div><span>Copilot Sessions:</span> <strong>{userDetails.sessionsCount}</strong></div>
-                  <div><span>Reports Compiled:</span> <strong>{userDetails.reportsCount || 0}</strong></div>
-                  <div><span>Dispatch Status:</span> <strong>{userDetails.dispatchStatus || 'Inactive'}</strong></div>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <span>Usage Today:</span> <strong style={{ color: 'var(--color-primary-light)' }}>{userDetails.usage.businessosCount} MI | {userDetails.usage.liveCount} Web | {userDetails.usage.deepCount || 0} Deep</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', background: '#FCFAF6', padding: '1rem', border: '1px solid #E2DACD' }}>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Name:</span> <strong>{userDetails.profile.displayName || 'N/A'}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Email:</span> <strong>{userDetails.profile.email}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>UID:</span> <strong style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)' }}>{userDetails.profile.uid}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Created:</span> <strong>{new Date(userDetails.profile.createdAt || '').toLocaleDateString()}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Last Login:</span> <strong>{userDetails.profile.lastLoginAt ? new Date(userDetails.profile.lastLoginAt).toLocaleString() : 'N/A'}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Current Role:</span> <strong style={{ color: 'var(--color-accent)' }}>{userDetails.profile.role || 'FREE'}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Subscription:</span> <strong style={{ textTransform: 'uppercase' }}>{userDetails.profile.subscriptionTier || 'free'}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Copilot Sessions:</span> <strong>{userDetails.sessionsCount}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Reports Compiled:</span> <strong>{userDetails.reportsCount || 0}</strong></div>
+                  <div style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--text-secondary)' }}>Dispatch Status:</span> <strong>{userDetails.dispatchStatus || 'Inactive'}</strong></div>
+                  <div style={{ gridColumn: 'span 2', color: 'var(--text-primary)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Usage Today:</span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{userDetails.usage.businessosCount} MI | {userDetails.usage.liveCount} Web | {userDetails.usage.deepCount || 0} Deep</strong>
                   </div>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <span>Suspended:</span> <strong style={{ color: userDetails.profile.suspended ? 'var(--color-danger-text)' : 'var(--color-success-text)' }}>{userDetails.profile.suspended ? 'YES' : 'NO'}</strong>
+                  <div style={{ gridColumn: 'span 2', color: 'var(--text-primary)' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Suspended:</span> <strong style={{ color: userDetails.profile.suspended ? 'var(--color-danger-text)' : 'var(--color-success-text)' }}>{userDetails.profile.suspended ? 'YES' : 'NO'}</strong>
                   </div>
-                  <div style={{ gridColumn: 'span 2', borderTop: '1px dashed #333', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                    <span style={{ display: 'block', fontSize: '0.7rem', color: '#888', marginBottom: '0.25rem', fontWeight: 'bold' }}>RESOLVED FEATURE FLAGS:</span>
+                  <div style={{ gridColumn: 'span 2', borderTop: '1px dashed #C4B9A7', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.25rem', fontWeight: 'bold' }}>RESOLVED FEATURE FLAGS:</span>
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                       {userDetails.resolvedFlags ? (
                         Object.entries(userDetails.resolvedFlags).map(([k, val]) => (
                           <span key={k} style={{
-                            background: val ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: val ? '#4ade80' : '#f87171',
-                            border: `1px solid ${val ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                            background: val ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+                            color: val ? 'var(--color-success-text)' : 'var(--color-danger-text)',
+                            border: `1px solid ${val ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
                             fontSize: '0.65rem',
                             padding: '1px 4px',
                             fontFamily: 'var(--font-mono)'
@@ -540,7 +575,7 @@ export const DeveloperConsole: React.FC = () => {
                           </span>
                         ))
                       ) : (
-                        <span style={{ color: '#666' }}>None resolved</span>
+                        <span style={{ color: 'var(--text-muted)' }}>None resolved</span>
                       )}
                     </div>
                   </div>
@@ -548,11 +583,11 @@ export const DeveloperConsole: React.FC = () => {
 
                 {/* Promote/Demote Role selector */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Modify System Role:</label>
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Modify System Role:</label>
                   <select 
                     value={editRole} 
                     onChange={e => setEditRole(e.target.value as UserRole)}
-                    style={{ padding: '0.4rem', background: '#111', border: '1px solid #333', color: '#fff' }}
+                    style={{ padding: '0.4rem', background: '#FCFAF6', border: '1px solid #C4B9A7', color: 'var(--text-primary)', outline: 'none' }}
                   >
                     <option value="OWNER">OWNER</option>
                     <option value="ADMIN">ADMIN</option>
@@ -564,11 +599,11 @@ export const DeveloperConsole: React.FC = () => {
 
                 {/* Subscription plan selector */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Subscription Plan Tier:</label>
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Subscription Plan Tier:</label>
                   <select 
                     value={editTier} 
                     onChange={e => setEditTier(e.target.value)}
-                    style={{ padding: '0.4rem', background: '#111', border: '1px solid #333', color: '#fff' }}
+                    style={{ padding: '0.4rem', background: '#FCFAF6', border: '1px solid #C4B9A7', color: 'var(--text-primary)', outline: 'none' }}
                   >
                     <option value="pro">Pro Plan</option>
                     <option value="free">Free Plan</option>
@@ -577,50 +612,50 @@ export const DeveloperConsole: React.FC = () => {
                 </div>
 
                 {/* Custom limits overrides */}
-                <div style={{ border: '1px solid #222', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <span style={{ fontWeight: 'bold', display: 'block' }}>Custom Daily Limits Overrides (value or "unlimited"):</span>
+                <div style={{ border: '1px solid #E2DACD', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#FCFAF6' }}>
+                  <span style={{ fontWeight: 'bold', display: 'block', color: 'var(--text-primary)' }}>Custom Daily Limits Overrides (value or "unlimited"):</span>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
                     <div>
-                      <label style={{ fontSize: '0.65rem', display: 'block' }}>BusinessOS</label>
+                      <label style={{ fontSize: '0.65rem', display: 'block', color: 'var(--text-secondary)' }}>BusinessOS</label>
                       <input 
                         type="text" 
                         value={editLimitBusinessOS} 
                         onChange={e => setEditLimitBusinessOS(e.target.value)}
                         placeholder="e.g. 50"
-                        style={{ width: '100%', padding: '0.25rem', background: '#111', border: '1px solid #333', color: '#fff' }}
+                        style={{ width: '100%', padding: '0.25rem', background: '#fff', border: '1px solid #C4B9A7', color: 'var(--text-primary)', outline: 'none' }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: '0.65rem', display: 'block' }}>Live Web</label>
+                      <label style={{ fontSize: '0.65rem', display: 'block', color: 'var(--text-secondary)' }}>Live Web</label>
                       <input 
                         type="text" 
                         value={editLimitLive} 
                         onChange={e => setEditLimitLive(e.target.value)}
                         placeholder="e.g. 10"
-                        style={{ width: '100%', padding: '0.25rem', background: '#111', border: '1px solid #333', color: '#fff' }}
+                        style={{ width: '100%', padding: '0.25rem', background: '#fff', border: '1px solid #C4B9A7', color: 'var(--text-primary)', outline: 'none' }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: '0.65rem', display: 'block' }}>Deep Research</label>
+                      <label style={{ fontSize: '0.65rem', display: 'block', color: 'var(--text-secondary)' }}>Deep Research</label>
                       <input 
                         type="text" 
                         value={editLimitDeep} 
                         onChange={e => setEditLimitDeep(e.target.value)}
                         placeholder="e.g. 2"
-                        style={{ width: '100%', padding: '0.25rem', background: '#111', border: '1px solid #333', color: '#fff' }}
+                        style={{ width: '100%', padding: '0.25rem', background: '#fff', border: '1px solid #C4B9A7', color: 'var(--text-primary)', outline: 'none' }}
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Individual feature flag overrides */}
-                <div style={{ border: '1px solid #222', padding: '0.5rem' }}>
-                  <span style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>Individual Flag Overrides:</span>
+                <div style={{ border: '1px solid #E2DACD', padding: '0.75rem', background: '#FCFAF6' }}>
+                  <span style={{ fontWeight: 'bold', display: 'block', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>Individual Flag Overrides:</span>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.7rem' }}>
                     {['copilot', 'quickMode', 'businessOSMode', 'liveWebMode', 'deepResearchMode', 'developerPanel', 'exportReports', 'betaFeatures', 'marketIntelligence', 'intelligenceHub'].map(flag => {
                       const isChecked = editFeatureFlags[flag] !== undefined ? editFeatureFlags[flag] : false;
                       return (
-                        <label key={flag} style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', cursor: 'pointer' }}>
+                        <label key={flag} style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', cursor: 'pointer', color: 'var(--text-primary)' }}>
                           <input 
                             type="checkbox" 
                             checked={isChecked}
@@ -634,7 +669,7 @@ export const DeveloperConsole: React.FC = () => {
                 </div>
 
                 {/* Administrative control checkboxes */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', border: '1px solid #222', padding: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', border: '1px solid #E2DACD', padding: '0.75rem', background: '#FCFAF6' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <input 
                       type="checkbox" 
@@ -642,7 +677,7 @@ export const DeveloperConsole: React.FC = () => {
                       checked={editSuspended} 
                       onChange={e => setEditSuspended(e.target.checked)}
                     />
-                    <label htmlFor="editSuspended" style={{ color: editSuspended ? 'var(--color-danger-text)' : 'inherit', cursor: 'pointer' }}>
+                    <label htmlFor="editSuspended" style={{ color: editSuspended ? 'var(--color-danger-text)' : 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}>
                       Suspend account (Revoke access)
                     </label>
                   </div>
@@ -654,7 +689,7 @@ export const DeveloperConsole: React.FC = () => {
                       checked={editResetUsage} 
                       onChange={e => setEditResetUsage(e.target.checked)}
                     />
-                    <label htmlFor="editResetUsage" style={{ cursor: 'pointer' }}>
+                    <label htmlFor="editResetUsage" style={{ cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 500 }}>
                       Reset today's usage counters to zero
                     </label>
                   </div>
@@ -666,22 +701,22 @@ export const DeveloperConsole: React.FC = () => {
                       checked={editForceLogout} 
                       onChange={e => setEditForceLogout(e.target.checked)}
                     />
-                    <label htmlFor="editForceLogout" style={{ cursor: 'pointer' }}>
-                      Force logout from all devices (future-ready JWT revoke)
+                    <label htmlFor="editForceLogout" style={{ cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 500 }}>
+                      Force logout from all devices
                     </label>
                   </div>
                 </div>
 
                 {/* Reason check */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Audit Reason (Required):</label>
+                  <label style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Audit Reason (Required):</label>
                   <input 
                     type="text" 
                     placeholder="Enter reason for audit record compliance..." 
                     value={editReason}
                     onChange={e => setEditReason(e.target.value)}
                     required
-                    style={{ padding: '0.4rem', background: '#181818', border: '1px solid #333', color: '#fff' }}
+                    style={{ padding: '0.4rem', background: '#FCFAF6', border: '1px solid #C4B9A7', color: 'var(--text-primary)', outline: 'none' }}
                   />
                 </div>
 
@@ -690,7 +725,7 @@ export const DeveloperConsole: React.FC = () => {
                 </button>
               </form>
             ) : (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#555', border: '1px dashed #333' }}>
+              <div style={{ padding: '4rem 1rem', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed #C4B9A7', background: '#FCFAF6' }}>
                 Select an account from the left directory column to adjust settings
               </div>
             )}
@@ -702,18 +737,18 @@ export const DeveloperConsole: React.FC = () => {
 
       {/* Tab 4: Feature Flags toggles */}
       {activeTab === 'FeatureFlags' && globalFlags && (
-        <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+        <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1.2rem', boxShadow: 'var(--shadow-subtle)' }}>
           <div>
-            <h3 style={{ margin: 0, padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Global Feature Flag Gates</h3>
-            <span style={{ fontSize: '0.75rem', color: '#666' }}>Toggle BusinessOS platform components globally for all users</span>
+            <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Global Feature Flag Gates</h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Toggle BusinessOS platform components globally for all users</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             {Object.entries(globalFlags).filter(([k]) => !k.includes('_')).map(([key, val]: [string, any]) => (
-              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', background: '#181818', border: '1px solid #222' }}>
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', background: '#FCFAF6', border: '1px solid #E2DACD' }}>
                 <div>
-                  <strong style={{ fontSize: '0.8rem', color: '#fff' }}>{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</strong>
-                  <span style={{ display: 'block', fontSize: '0.65rem', color: '#666' }}>Controlled by FeatureFlags resolver system</span>
+                  <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</strong>
+                  <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)' }}>Controlled by FeatureFlags resolver system</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
@@ -737,26 +772,26 @@ export const DeveloperConsole: React.FC = () => {
           </div>
 
           {/* Section: Staged Role Default Overrides */}
-          <div style={{ borderTop: '1px dashed #333', paddingTop: '1.2rem', marginTop: '0.8rem' }}>
-            <h3 style={{ margin: '0 0 0.25rem 0', padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Role-Specific Default Overrides</h3>
-            <span style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginBottom: '1rem' }}>
+          <div style={{ borderTop: '1px dashed #C4B9A7', paddingTop: '1.2rem', marginTop: '0.8rem' }}>
+            <h3 style={{ margin: '0 0 0.25rem 0', padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Role-Specific Default Overrides</h3>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '1rem' }}>
               Define defaults for entire user groups. These take precedence over Global Gates but fall back to User Overrides.
             </span>
 
             {/* Existing overrides list */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem', marginBottom: '1.2rem' }}>
               {Object.entries(globalFlags).filter(([k]) => k.includes('_')).map(([key, val]: [string, any]) => {
                 const parts = key.split('_');
                 const r = parts[0];
                 const f = parts.slice(1).join('_');
                 return (
-                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#141414', border: '1px solid #222', fontSize: '0.75rem' }}>
+                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#FCFAF6', border: '1px solid #E2DACD', fontSize: '0.75rem' }}>
                     <div>
-                      <span style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#a78bfa', padding: '2px 4px', marginRight: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.6rem' }}>{r}</span>
-                      <strong style={{ color: '#fff' }}>{f.replace(/([A-Z])/g, ' $1').toUpperCase()}</strong>
+                      <span style={{ background: 'var(--color-accent)', color: '#fff', padding: '2px 6px', marginRight: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.6rem', fontWeight: 'bold' }}>{r}</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{f.replace(/([A-Z])/g, ' $1').toUpperCase()}</strong>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <span style={{ color: val ? '#4ade80' : '#f87171', fontWeight: 'bold' }}>{val ? 'ON' : 'OFF'}</span>
+                      <span style={{ color: val ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontWeight: 'bold' }}>{val ? 'ON' : 'OFF'}</span>
                       <button 
                         onClick={() => handleDeleteRoleOverride(key)}
                         style={{ background: 'none', border: 'none', color: 'var(--color-danger-text)', cursor: 'pointer', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 'bold' }}
@@ -770,13 +805,13 @@ export const DeveloperConsole: React.FC = () => {
             </div>
 
             {/* Add new override form */}
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', background: '#151515', padding: '1rem', border: '1px solid #222', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', background: '#FCFAF6', padding: '1.25rem', border: '1px solid #E2DACD', alignItems: 'flex-end' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 'bold' }}>Target Role:</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Target Role:</span>
                 <select 
                   value={overrideRole}
                   onChange={e => setOverrideRole(e.target.value as UserRole)}
-                  style={{ padding: '0.4rem', background: '#111', border: '1px solid #333', color: '#fff', fontSize: '0.75rem', minWidth: '120px' }}
+                  style={{ padding: '0.4rem', background: '#fff', border: '1px solid #C4B9A7', color: 'var(--text-primary)', fontSize: '0.75rem', minWidth: '120px', outline: 'none' }}
                 >
                   <option value="OWNER">OWNER</option>
                   <option value="ADMIN">ADMIN</option>
@@ -787,11 +822,11 @@ export const DeveloperConsole: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 'bold' }}>Feature Gate:</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Feature Gate:</span>
                 <select 
                   value={overrideFlag}
                   onChange={e => setOverrideFlag(e.target.value)}
-                  style={{ padding: '0.4rem', background: '#111', border: '1px solid #333', color: '#fff', fontSize: '0.75rem', minWidth: '180px' }}
+                  style={{ padding: '0.4rem', background: '#fff', border: '1px solid #C4B9A7', color: 'var(--text-primary)', fontSize: '0.75rem', minWidth: '180px', outline: 'none' }}
                 >
                   {['copilot', 'quickMode', 'businessOSMode', 'liveWebMode', 'deepResearchMode', 'developerPanel', 'exportReports', 'betaFeatures', 'marketIntelligence', 'intelligenceHub'].map(f => (
                     <option key={f} value={f}>{f.replace(/([A-Z])/g, ' $1').toUpperCase()}</option>
@@ -800,11 +835,11 @@ export const DeveloperConsole: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 'bold' }}>Default State:</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Default State:</span>
                 <select 
                   value={overrideValue ? 'true' : 'false'}
                   onChange={e => setOverrideValue(e.target.value === 'true')}
-                  style={{ padding: '0.4rem', background: '#111', border: '1px solid #333', color: '#fff', fontSize: '0.75rem', minWidth: '120px' }}
+                  style={{ padding: '0.4rem', background: '#fff', border: '1px solid #C4B9A7', color: 'var(--text-primary)', fontSize: '0.75rem', minWidth: '120px', outline: 'none' }}
                 >
                   <option value="true">ON (Enabled)</option>
                   <option value="false">OFF (Disabled)</option>
@@ -825,11 +860,11 @@ export const DeveloperConsole: React.FC = () => {
 
       {/* Tab 5: Immutable Audit Logs */}
       {activeTab === 'AuditLogs' && (
-        <div style={{ background: '#111', padding: '1.25rem', border: '1px solid #222', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h3 style={{ margin: 0, padding: 0, border: 'none', color: '#fff', fontSize: '0.9rem', textTransform: 'uppercase' }}>Immutable Administrative Audit Logs</h3>
-              <span style={{ fontSize: '0.75rem', color: '#666' }}>Tracking role updates and feature flags modifications</span>
+              <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Immutable Administrative Audit Logs</h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Tracking role updates and feature flags modifications</span>
             </div>
             
             <div style={{ position: 'relative' }}>
@@ -838,46 +873,51 @@ export const DeveloperConsole: React.FC = () => {
                 placeholder="Search audit trail..." 
                 value={auditFilter}
                 onChange={e => setAuditFilter(e.target.value)}
-                style={{ padding: '0.25rem 0.5rem 0.25rem 1.5rem', fontSize: '0.7rem', background: '#181818', border: '1px solid #333', color: '#fff' }}
+                style={{ padding: '0.35rem 0.5rem 0.35rem 1.5rem', fontSize: '0.75rem', background: '#FCFAF6', border: '1px solid #E2DACD', color: 'var(--text-primary)', outline: 'none' }}
               />
-              <Search size={10} style={{ position: 'absolute', left: '0.5rem', top: '0.45rem', color: '#888' }} />
+              <Search size={12} style={{ position: 'absolute', left: '0.5rem', top: '0.55rem', color: 'var(--text-muted)' }} />
             </div>
           </div>
 
-          <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
+          <div style={{ overflowY: 'auto', maxHeight: '420px' }}>
             {loadingLogs ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>Querying audit logs...</div>
-            ) : filteredLogs.length > 0 ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Querying audit logs...</div>
+            ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #222', color: '#666' }}>
+                  <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
                     <th style={{ padding: '0.5rem' }}>Timestamp</th>
-                    <th style={{ padding: '0.5rem' }}>Admin Email</th>
-                    <th style={{ padding: '0.5rem' }}>Action</th>
+                    <th style={{ padding: '0.5rem' }}>Event</th>
+                    <th style={{ padding: '0.5rem' }}>User</th>
                     <th style={{ padding: '0.5rem' }}>Target</th>
-                    <th style={{ padding: '0.5rem' }}>Reason</th>
+                    <th style={{ padding: '0.5rem' }}>Status</th>
+                    <th style={{ padding: '0.5rem' }}>Details</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredLogs.map(log => (
-                    <tr key={log.id} style={{ borderBottom: '1px solid #1c1c1c' }}>
-                      <td style={{ padding: '0.5rem', whiteSpace: 'nowrap', color: '#aaa' }}>{new Date(log.timestamp).toLocaleString()}</td>
-                      <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{log.adminEmail}</td>
-                      <td style={{ padding: '0.5rem' }}>
-                        <span className="mono-tag" style={{ fontSize: '0.6rem', color: 'var(--color-warning-text)', background: 'rgba(245, 158, 11, 0.1)' }}>
-                          {log.action}
+                    <tr key={log.id} style={{ borderBottom: '1px solid #E2DACD' }}>
+                      <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(log.timestamp).toLocaleString()}</td>
+                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{log.action}</td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{log.adminEmail}</td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem' }}>{log.targetUserId}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <span style={{ background: 'var(--color-success-bg)', color: 'var(--color-success-text)', border: '1px solid var(--color-success-border)', fontSize: '0.65rem', padding: '1px 6px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                          COMMITTED
                         </span>
                       </td>
-                      <td style={{ padding: '0.5rem', fontSize: '0.65rem' }}>{log.targetUserId}</td>
-                      <td style={{ padding: '0.5rem', color: '#888', fontStyle: 'italic' }}>"{log.reason}"</td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>"{log.reason}"</td>
                     </tr>
                   ))}
+                  {filteredLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No audit events have been recorded.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
-            ) : (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#555', fontFamily: 'var(--font-mono)' }}>
-                {auditFilter ? 'No audit trail entries matched criteria' : 'No audit events yet.'}
-              </div>
             )}
           </div>
         </div>
@@ -885,7 +925,7 @@ export const DeveloperConsole: React.FC = () => {
 
       {activeTab === 'AIOrchestrator' && (
         <AIOrchestratorDashboard />
-      )}
+      )}  )}
 
     </div>
     </div>
