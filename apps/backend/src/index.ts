@@ -47,6 +47,9 @@ const lastGeminiCallTimes = new Map<string, number>();
 
 // Middleware to authenticate Firebase JWT
 async function authenticateUser(c: any, next: any) {
+  if (c.req.method === 'OPTIONS') {
+    return await next();
+  }
   console.log(`[Auth Trace] 1. Request reached Worker. URL: ${c.req.url}, Method: ${c.req.method}`);
   
   const authHeader = c.req.header('Authorization');
@@ -2030,6 +2033,9 @@ async function logAuditEvent(
 
 // Enforce OWNER or ADMIN access Middleware
 async function restrictToAdmin(c: any, next: any) {
+  if (c.req.method === 'OPTIONS') {
+    return await next();
+  }
   const userId = c.get('userId');
   const userEmail = c.get('userEmail');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';

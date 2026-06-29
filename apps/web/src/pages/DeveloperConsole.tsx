@@ -17,6 +17,30 @@ import {
 } from 'lucide-react';
 import { AIOrchestratorDashboard } from '../components/AIOrchestratorDashboard';
 
+const ApiErrorDisplay: React.FC<{
+  endpoint: string;
+  error: { status: string; message: string } | null;
+  onRetry: () => void;
+}> = ({ endpoint, error, onRetry }) => {
+  if (!error) return null;
+  return (
+    <div className="card" style={{ padding: '2rem', border: '1px solid var(--color-danger-border)', background: 'var(--color-danger-bg)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center', margin: '1.5rem 0', boxShadow: 'var(--shadow-subtle)' }}>
+      <strong style={{ color: 'var(--color-danger-text)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)' }}>API Connection Error</strong>
+      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+        Unable to load platform data.
+      </p>
+      <div style={{ background: '#fff', border: '1px solid #E2DACD', padding: '0.75rem 1rem', width: '100%', maxWidth: '400px', fontSize: '0.75rem', textAlign: 'left', fontFamily: 'var(--font-mono)' }}>
+        <div><strong>Endpoint:</strong> {endpoint}</div>
+        <div><strong>Status:</strong> {error.status}</div>
+        <div style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}><strong>Error Message:</strong> {error.message}</div>
+      </div>
+      <button onClick={onRetry} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#FCFAF6', border: '1px solid #C4B9A7' }}>
+        <RefreshCw size={12} /> Retry Request
+      </button>
+    </div>
+  );
+};
+
 export const DeveloperConsole: React.FC = () => {
   const { profile, isMockMode } = useAuth();
   const [activeTab, setActiveTab] = useState<'Health' | 'Queues' | 'Users' | 'FeatureFlags' | 'AuditLogs' | 'AIOrchestrator'>('Health');
@@ -59,45 +83,73 @@ export const DeveloperConsole: React.FC = () => {
   const [auditFilter, setAuditFilter] = useState('');
   const [loadingLogs, setLoadingLogs] = useState(false);
 
+  // API Connection Errors (Phase 3 Requirement)
+  const [statsError, setStatsError] = useState<{ status: string; message: string } | null>(null);
+  const [usersError, setUsersError] = useState<{ status: string; message: string } | null>(null);
+  const [flagsError, setFlagsError] = useState<{ status: string; message: string } | null>(null);
+  const [logsError, setLogsError] = useState<{ status: string; message: string } | null>(null);
+
+  const parseApiError = (e: any) => {
+    let status = "HTTP 500 Internal Error";
+    let msg = e.message || String(e);
+    if (msg.includes("HTTP ")) {
+      const parts = msg.split("HTTP ");
+      if (parts[1]) {
+        status = "HTTP " + parts[1].trim();
+      }
+    } else if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+      status = "Network Error (CORS Blocked)";
+    }
+    return { status, message: msg };
+  };
+
   const loadStats = async () => {
     setLoadingStats(true);
+    setStatsError(null);
     try {
       const data = await AdminService.getSystemStats(isMockMode);
       setHealth(data.health);
       setApiAnalytics(data.apiAnalytics);
       setQueues(data.queues);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setStatsError(parseApiError(e));
     } finally {
       setLoadingStats(false);
     }
   };
 
   const loadUsers = async () => {
+    setUsersError(null);
     try {
       const data = await AdminService.listUsers(isMockMode);
       setUsersList(data);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setUsersError(parseApiError(e));
     }
   };
 
   const loadGlobalFlags = async () => {
+    setFlagsError(null);
     try {
       const flags = await AdminService.getGlobalFeatureFlags(isMockMode);
       setGlobalFlags(flags);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setFlagsError(parseApiError(e));
     }
   };
 
   const loadAuditLogs = async () => {
     setLoadingLogs(true);
+    setLogsError(null);
     try {
       const logs = await AdminService.getAuditLogs(isMockMode);
       setAuditLogs(logs);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setLogsError(parseApiError(e));
     } finally {
       setLoadingLogs(false);
     }
@@ -337,7 +389,10 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 1: Health Diagnostics */}
-      {activeTab === 'Health' && health && apiAnalytics && (
+      {activeTab === 'Health' && statsError && (
+        <ApiErrorDisplay endpoint="/api/admin/system-stats" error={statsError} onRetry={loadStats} />
+      )}
+      {activeTab === 'Health' && !statsError && health && apiAnalytics && (
         <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '1.5rem' }}>
           
           {/* Diagnostic latency logs */}
@@ -411,7 +466,10 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 2: System Queue status */}
-      {activeTab === 'Queues' && queues && (
+      {activeTab === 'Queues' && statsError && (
+        <ApiErrorDisplay endpoint="/api/admin/system-stats" error={statsError} onRetry={loadStats} />
+      )}
+      {activeTab === 'Queues' && !statsError && queues && (
         <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', boxShadow: 'var(--shadow-subtle)' }}>
           <h3 style={{ margin: '0 0 1.25rem 0', padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>System Job Queue Dashboard</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -468,7 +526,10 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 3: User Administration Directories */}
-      {activeTab === 'Users' && (
+      {activeTab === 'Users' && usersError && (
+        <ApiErrorDisplay endpoint="/api/admin/users" error={usersError} onRetry={loadUsers} />
+      )}
+      {activeTab === 'Users' && !usersError && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
           
           {/* List Users panel */}
@@ -736,7 +797,10 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 4: Feature Flags toggles */}
-      {activeTab === 'FeatureFlags' && globalFlags && (
+      {activeTab === 'FeatureFlags' && flagsError && (
+        <ApiErrorDisplay endpoint="/api/admin/feature-flags/global" error={flagsError} onRetry={loadGlobalFlags} />
+      )}
+      {activeTab === 'FeatureFlags' && !flagsError && globalFlags && (
         <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1.2rem', boxShadow: 'var(--shadow-subtle)' }}>
           <div>
             <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Global Feature Flag Gates</h3>
@@ -859,7 +923,10 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 5: Immutable Audit Logs */}
-      {activeTab === 'AuditLogs' && (
+      {activeTab === 'AuditLogs' && logsError && (
+        <ApiErrorDisplay endpoint="/api/admin/audit-logs" error={logsError} onRetry={loadAuditLogs} />
+      )}
+      {activeTab === 'AuditLogs' && !logsError && (
         <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>

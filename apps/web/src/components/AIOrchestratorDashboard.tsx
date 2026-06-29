@@ -33,10 +33,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [testingHealth, setTestingHealth] = useState<string | null>(null);
+  const [error, setError] = useState<{ status: string; message: string } | null>(null);
 
   const loadData = async (showRefresher = false) => {
     if (showRefresher) setRefreshing(true);
     else setLoading(true);
+    setError(null);
 
     try {
       const [statsData, timelineData, configData] = await Promise.all([
@@ -47,8 +49,19 @@ export const AIOrchestratorDashboard: React.FC = () => {
       setStats(statsData);
       setTimeline(timelineData);
       setConfig(configData || { forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to load AI Orchestrator data:', e);
+      let status = "HTTP 500 Internal Error";
+      let msg = e.message || String(e);
+      if (msg.includes("HTTP ")) {
+        const parts = msg.split("HTTP ");
+        if (parts[1]) {
+          status = "HTTP " + parts[1].trim();
+        }
+      } else if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        status = "Network Error (CORS Blocked)";
+      }
+      setError({ status, message: msg });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -162,6 +175,25 @@ export const AIOrchestratorDashboard: React.FC = () => {
       alert(`CSV Export failed: ${e.message || e}`);
     }
   };
+
+  if (error) {
+    return (
+      <div className="card" style={{ padding: '2rem', border: '1px solid var(--color-danger-border)', background: 'var(--color-danger-bg)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center', margin: '2rem 0', boxShadow: 'var(--shadow-subtle)' }}>
+        <strong style={{ color: 'var(--color-danger-text)', fontSize: '1.2rem', fontFamily: 'var(--font-serif)' }}>API Connection Error</strong>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+          Unable to load AI Operations data.
+        </p>
+        <div style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', width: '100%', maxWidth: '450px', fontSize: '0.8rem', textAlign: 'left', fontFamily: 'var(--font-mono)' }}>
+          <div><strong>Endpoint:</strong> /api/admin/ai-orchestrator/stats</div>
+          <div><strong>Status:</strong> {error.status}</div>
+          <div style={{ marginTop: '0.5rem', color: 'var(--text-secondary)' }}><strong>Error Message:</strong> {error.message}</div>
+        </div>
+        <button onClick={() => loadData()} className="btn btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', background: '#FCFAF6', border: '1px solid #C4B9A7' }}>
+          <RefreshCw size={14} /> Retry Connection
+        </button>
+      </div>
+    );
+  }
 
   if (loading && !stats) {
     return (
