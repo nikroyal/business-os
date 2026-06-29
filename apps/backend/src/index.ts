@@ -616,7 +616,9 @@ app.post('/api/commentary/generate', async (c) => {
     }
 
     const modelName = AIModelRegistry.resolveModel(model, 'Editorial Commentary');
-    const gemini = new GeminiClient(apiKey);
+    const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+    const userId = c.get('userId') || 'system';
+    const gemini = new GeminiClient(apiKey, projectId, userId);
     const { data, fallbackUsed, actualModel } = await gemini.generateContentWithFailover(systemPrompt, userPrompt, modelName);
 
     // If fallback was used, surface the informational message by injecting it into candidate text
@@ -656,7 +658,7 @@ import {
   NewsDataService,
   InvestorRelationsService
 } from './dispatch';
-import { AIModelRegistry } from './aiModelRegistry';
+import { AIModelRegistry, AIOrchestrator } from './aiModelRegistry';
 
 class FREDDataService {
   private static readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -825,7 +827,7 @@ app.get('/api/intelligence/company', async (c) => {
 
   const firestore = new FirestoreClient(projectId);
   const finnhub = new FinnhubClient(finnhubKey);
-  const gemini = new GeminiClient(geminiKey || '');
+  const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
 
   try {
     const key = `${symbol.toUpperCase()}:${exchange.toUpperCase()}`;
@@ -866,7 +868,7 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
       const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
       const finnhub = new FinnhubClient(finnhubKey);
-      const gemini = new GeminiClient(geminiKey || '');
+      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
       intel = await IntelligenceService.generateCompanyIntelligence(ticker, ex, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
     }
@@ -964,7 +966,8 @@ app.get('/api/intelligence/business-school/case', async (c) => {
       const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
       const finnhub = new FinnhubClient(finnhubKey);
-      const gemini = new GeminiClient(geminiKey || '');
+      const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
       intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
     }
@@ -1022,7 +1025,7 @@ app.get('/api/market-intelligence', async (c) => {
 
   const firestore = new FirestoreClient(projectId);
   const finnhub = new FinnhubClient(finnhubKey || '');
-  const gemini = new GeminiClient(geminiKey || '');
+  const gemini = new GeminiClient(geminiKey || '', projectId, userId);
 
   try {
     const timestamp = new Date().toISOString();
@@ -1575,7 +1578,9 @@ app.post('/api/market-data/compile-research', async (c) => {
     Filing Facts: ${JSON.stringify(secData || irData || {})}
     Latest News: ${JSON.stringify(newsArticles)}`;
 
-    const gemini = new GeminiClient(apiKey);
+    const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+    const userId = c.get('userId') || 'system';
+    const gemini = new GeminiClient(apiKey, projectId, userId);
     const result = await gemini.generateCommentary(systemPrompt, userPrompt);
 
     // Calculate alerts and trends on backend deterministically
@@ -2361,7 +2366,7 @@ CRITICAL INSTRUCTIONS:
     `;
 
     const resolvedModel = AIModelRegistry.resolveModel(modelCopilot || geminiModel, 'Copilot');
-    const gemini = new GeminiClient(geminiKey);
+    const gemini = new GeminiClient(geminiKey, projectId, userId || 'system');
     const geminiResult = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
 
     // Cost Tier Indicator Calculation
@@ -2384,7 +2389,11 @@ CRITICAL INSTRUCTIONS:
       executionCost: costVal,
       costLevel,
       subsystemsUsed,
-      usedSources
+      usedSources,
+      fallbackModelUsed: geminiResult._metadata?.fallbackModelUsed || false,
+      requestedModel: geminiResult._metadata?.requestedModel || '',
+      actualModel: geminiResult._metadata?.actualModel || '',
+      infoMessage: geminiResult._metadata?.infoMessage || ''
     };
 
     const copilotMessage = {
@@ -2758,6 +2767,49 @@ app.post('/api/admin/feature-flags/global', async (c) => {
     return c.json({ success: true, flags });
   } catch (err: any) {
     return c.json({ error: 'Global flag update failed', details: err.message }, 500);
+  }
+});
+
+// AI Orchestrator Stats, Timeline and Config endpoints
+app.get('/api/admin/ai-orchestrator/stats', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  try {
+    const stats = await AIOrchestrator.getOperationalStats(projectId);
+    return c.json(stats);
+  } catch (err: any) {
+    return c.json({ error: 'Failed to retrieve AI stats', details: err.message }, 500);
+  }
+});
+
+app.get('/api/admin/ai-orchestrator/timeline', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  try {
+    const telemetry = await AIOrchestrator.getTelemetry(projectId);
+    const sorted = telemetry.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return c.json(sorted);
+  } catch (err: any) {
+    return c.json({ error: 'Failed to retrieve timeline', details: err.message }, 500);
+  }
+});
+
+app.get('/api/admin/ai-orchestrator/config', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  try {
+    const config = await AIOrchestrator.getOrchestratorConfig(projectId);
+    return c.json(config || { forcedModel: null, modelOverrides: {} });
+  } catch (err: any) {
+    return c.json({ error: 'Failed to load config', details: err.message }, 500);
+  }
+});
+
+app.post('/api/admin/ai-orchestrator/config', async (c) => {
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const config = await c.req.json();
+  try {
+    const success = await AIOrchestrator.saveOrchestratorConfig(projectId, config);
+    return c.json({ success, config });
+  } catch (err: any) {
+    return c.json({ error: 'Failed to save config', details: err.message }, 500);
   }
 });
 

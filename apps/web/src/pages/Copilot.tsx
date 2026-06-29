@@ -467,6 +467,25 @@ export const Copilot: React.FC = () => {
                     {msg.metadata && (
                       <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.75rem', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         
+                        {msg.metadata.fallbackModelUsed && (
+                          <div style={{
+                            fontSize: '0.75rem',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                            color: '#b45309',
+                            padding: '0.4rem 0.6rem',
+                            borderRadius: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontFamily: 'var(--font-mono)',
+                            marginBottom: '0.25rem'
+                          }}>
+                            <span style={{ fontWeight: 'bold' }}>⚠️ FAILOVER NOTICE:</span>
+                            <span>{msg.metadata.infoMessage || 'Fallback model used due to high demand.'}</span>
+                          </div>
+                        )}
+                        
                         {/* Cost & Freshness bar */}
                         <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
                           <span>

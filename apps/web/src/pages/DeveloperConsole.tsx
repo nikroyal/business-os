@@ -12,12 +12,14 @@ import {
   Search, 
   Lock, 
   Clock, 
-  Sliders 
+  Sliders,
+  Cpu
 } from 'lucide-react';
+import { AIOrchestratorDashboard } from '../components/AIOrchestratorDashboard';
 
 export const DeveloperConsole: React.FC = () => {
   const { profile, isMockMode } = useAuth();
-  const [activeTab, setActiveTab] = useState<'Health' | 'Queues' | 'Users' | 'FeatureFlags' | 'AuditLogs'>('Health');
+  const [activeTab, setActiveTab] = useState<'Health' | 'Queues' | 'Users' | 'FeatureFlags' | 'AuditLogs' | 'AIOrchestrator'>('Health');
   
   // Dashboard Metrics
   const [health, setHealth] = useState<PlatformHealthStatus | null>(null);
@@ -297,7 +299,8 @@ export const DeveloperConsole: React.FC = () => {
           { id: 'Queues', label: 'Background Jobs', icon: Clock },
           { id: 'Users', label: 'User Directory', icon: Users },
           { id: 'FeatureFlags', label: 'Global Flags', icon: Sliders },
-          { id: 'AuditLogs', label: 'Audit Trail Logs', icon: Shield }
+          { id: 'AuditLogs', label: 'Audit Trail Logs', icon: Shield },
+          { id: 'AIOrchestrator', label: 'AI Operations Center', icon: Cpu }
         ] as const).map(tab => (
           <button 
             key={tab.id} 
@@ -862,6 +865,10 @@ export const DeveloperConsole: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {activeTab === 'AIOrchestrator' && (
+        <AIOrchestratorDashboard />
       )}
 
     </div>

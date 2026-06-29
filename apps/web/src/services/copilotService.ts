@@ -8,6 +8,10 @@ export interface CopilotMessageMetadata {
   costLevel: 'Very Low' | 'Medium' | 'High';
   subsystemsUsed: string[];
   usedSources: { name: string; url?: string; timestamp?: string }[];
+  fallbackModelUsed?: boolean;
+  requestedModel?: string;
+  actualModel?: string;
+  infoMessage?: string;
 }
 
 export interface CopilotMessage {

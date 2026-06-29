@@ -1,4 +1,4 @@
-import { AIModelRegistry } from './aiModelRegistry';
+import { AIModelRegistry, AIOrchestrator } from './aiModelRegistry';
 
 // ==========================================
 // TYPE DEFINITIONS
@@ -2317,112 +2317,39 @@ export class FinnhubClient {
 // GEMINI EDITORIAL INTELLIGENCE CLIENT
 // ==========================================
 
-let gemini35FlashOverloadedUntil = 0;
-
 export class GeminiClient {
   private apiKey: string;
+  private projectId: string;
+  private userId: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system') {
     this.apiKey = apiKey;
+    this.projectId = projectId;
+    this.userId = userId;
   }
 
   async generateContentWithFailover(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<{ data: any; fallbackUsed: boolean; actualModel: string }> {
-    let targetModel = model;
-    let fallbackUsed = false;
-
-    // Check if we need to bypass gemini-3.5-flash due to cached overload
-    if (targetModel === 'gemini-3.5-flash' && Date.now() < gemini35FlashOverloadedUntil) {
-      console.warn(`[Gemini Failover] gemini-3.5-flash is temporarily marked as overloaded. Falling back directly to gemini-2.5-flash.`);
-      targetModel = 'gemini-2.5-flash';
-      fallbackUsed = true;
-    }
-
-    const executeRequest = async (currentModel: string) => {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${this.apiKey}`;
-      const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=HIDDEN`;
-      const payload = {
-        contents: [
-          {
-            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json'
-        }
-      };
-
-      const reqHeaders = { 'Content-Type': 'application/json' };
-      console.log(`[Gemini Trace] Exact request URL: ${cleanEndpoint}`);
-      console.log(`[Gemini Trace] HTTP method: POST`);
-      console.log(`[Gemini Trace] Request headers: ${JSON.stringify(reqHeaders)}`);
-      console.log(`[Gemini Trace] Request body: ${JSON.stringify(payload)}`);
-      console.log(`[Gemini Trace] Resolved model name: ${currentModel}`);
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: reqHeaders,
-        body: JSON.stringify(payload)
-      });
-
-      const txt = await res.text();
-      const resHeaders = Array.from(res.headers.entries());
-      console.log(`[Gemini Trace] Response status: ${res.status}`);
-      console.log(`[Gemini Trace] Response headers: ${JSON.stringify(resHeaders)}`);
-      console.log(`[Gemini Trace] Full raw Google response body: ${txt}`);
-
-      return { status: res.status, text: txt, ok: res.ok };
-    };
-
-    let result = await executeRequest(targetModel);
-
-    // If target is gemini-3.5-flash and it fails with 503, retry once
-    if (targetModel === 'gemini-3.5-flash' && result.status === 503) {
-      console.warn(`[Gemini Failover] gemini-3.5-flash returned 503. Retrying in 1 second...`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      result = await executeRequest(targetModel);
-
-      // If it still fails with 503, cache the overload state and trigger fallback
-      if (result.status === 503) {
-        console.warn(`[Gemini Failover] gemini-3.5-flash failed retry with 503. Marking as overloaded for 5 minutes.`);
-        gemini35FlashOverloadedUntil = Date.now() + 300000; // cache overload state for 5 minutes
-        targetModel = 'gemini-2.5-flash';
-        fallbackUsed = true;
-        console.warn(`[Gemini Failover] Falling back to gemini-2.5-flash...`);
-        result = await executeRequest(targetModel);
-      }
-    }
-
-    if (!result.ok) {
-      console.log(`[Gemini Trace] Exact reason for HTTP status error: HTTP ${result.status} - ${result.text}`);
-      throw new Error(`Gemini API returned HTTP ${result.status}: ${result.text}`);
-    }
-
-    const data = JSON.parse(result.text);
-    return { data, fallbackUsed, actualModel: targetModel };
+    const { data, fallbackUsed, actualModel } = await AIOrchestrator.execute(
+      'Editorial Commentary',
+      systemPrompt,
+      userPrompt,
+      model,
+      this.projectId,
+      this.apiKey,
+      this.userId
+    );
+    return { data, fallbackUsed, actualModel };
   }
 
   async generateCommentary(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<any> {
-    const { data, fallbackUsed, actualModel } = await this.generateContentWithFailover(systemPrompt, userPrompt, model);
-    
-    // Parse the inner text
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      throw new Error('Empty response from Gemini');
-    }
-    
-    let parsedText = JSON.parse(rawText.trim());
-    
-    // Surface informational message in returned JSON object if fallback was used
-    if (fallbackUsed) {
-      parsedText._metadata = {
-        fallbackModelUsed: true,
-        requestedModel: model,
-        actualModel: actualModel,
-        infoMessage: `Temporarily switched to ${actualModel} due to high demand on ${model}.`
-      };
-    }
-    
-    return parsedText;
+    return await AIOrchestrator.executeCommentary(
+      systemPrompt,
+      userPrompt,
+      model,
+      this.projectId,
+      this.apiKey,
+      this.userId
+    );
   }
 }
 
