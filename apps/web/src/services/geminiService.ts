@@ -2,6 +2,7 @@ import { dbService, authService } from './firebase';
 import type { UserProfile, DailyReport, Opportunity, AICommentary } from './firebase';
 import type { PortfolioAnalytics } from './portfolioAnalyticsService';
 import { AIModelRegistry } from './aiModelRegistry';
+import { buildApiUrl } from './urlBuilder';
 
 export class GeminiService {
   private static lastCallTime = 0;
@@ -122,9 +123,7 @@ Quantitative Dataset:
 Output JSON format exactly:`;
 
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-      const cleanApiBaseUrl = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
-      const endpoint = `${cleanApiBaseUrl}/api/commentary/generate`;
+      const endpoint = buildApiUrl('api/commentary/generate');
       
       const token = await authService.getIdToken();
       const response = await fetch(endpoint, {
@@ -161,7 +160,9 @@ Output JSON format exactly:`;
         opportunityCommentary: cleanJson.opportunityCommentary || 'No opportunities scan analysis.',
         marketContext: cleanJson.marketContext || 'No global market contextualization.',
         generatedTimestamp: new Date().toISOString(),
-        inputHash: currentHash
+        inputHash: currentHash,
+        fallbackModelUsed: cleanJson._metadata?.fallbackModelUsed,
+        infoMessage: cleanJson._metadata?.infoMessage
       };
 
       // Store in DB

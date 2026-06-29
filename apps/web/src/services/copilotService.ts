@@ -1,4 +1,5 @@
 import { authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 
 export interface CopilotMessageMetadata {
   confidenceScore: number;
@@ -43,9 +44,8 @@ export class CopilotService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/copilot/sessions`, {
+      const res = await fetch(buildApiUrl('api/copilot/sessions'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -85,9 +85,8 @@ export class CopilotService {
       return newSession;
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/copilot/sessions`, {
+    const res = await fetch(buildApiUrl('api/copilot/sessions'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,9 +120,8 @@ export class CopilotService {
       throw new Error('Session not found');
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/copilot/sessions/${sessionId}`, {
+    const res = await fetch(buildApiUrl(`api/copilot/sessions/${sessionId}`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -153,9 +151,8 @@ export class CopilotService {
       return;
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/copilot/sessions/${sessionId}`, {
+    const res = await fetch(buildApiUrl(`api/copilot/sessions/${sessionId}`), {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -181,9 +178,8 @@ export class CopilotService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/copilot/sessions/${sessionId}/history`, {
+      const res = await fetch(buildApiUrl(`api/copilot/sessions/${sessionId}/history`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -315,9 +311,8 @@ Please specify if you would like me to compile details regarding your holdings, 
       return copilotMsg;
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/copilot/chat`, {
+    const res = await fetch(buildApiUrl('api/copilot/chat'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

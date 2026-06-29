@@ -1,4 +1,5 @@
 import { authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 
 export interface AssetMetadata {
   ticker: string;
@@ -130,18 +131,13 @@ export class FinnhubProvider implements MarketDataProvider {
   /**
    * Retrieves the backend api base URL
    */
-  private getApiBaseUrl(): string {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-    return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  }
-
-  private async fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+  private async fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
     const token = await authService.getIdToken();
     const headers = {
       ...(init?.headers || {}),
       'Authorization': `Bearer ${token}`
     };
-    return fetch(url, {
+    return fetch(buildApiUrl(path), {
       ...(init || {}),
       headers
     });
@@ -150,25 +146,25 @@ export class FinnhubProvider implements MarketDataProvider {
   /**
    * Centralized fetch method using the concurrency queue & robust 429 retry logic
    */
-  private async fetchWithQueue(url: string, init?: RequestInit, retries = 3, delay = 1500): Promise<Response> {
+  private async fetchWithQueue(path: string, init?: RequestInit, retries = 3, delay = 1500): Promise<Response> {
     return this.queue.enqueue(async () => {
       let lastError: any = null;
       for (let attempt = 0; attempt < retries; attempt++) {
         try {
-          const res = await this.fetchWithAuth(url, init);
+          const res = await this.fetchWithAuth(path, init);
           if (res.status === 429) {
-            console.warn(`[FinnhubProvider] 429 Rate Limit hit for ${url}. Retrying in ${delay}ms... (Attempt ${attempt + 1}/${retries})`);
+            console.warn(`[FinnhubProvider] 429 Rate Limit hit for ${path}. Retrying in ${delay}ms... (Attempt ${attempt + 1}/${retries})`);
             await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt)));
             continue;
           }
           return res;
         } catch (err) {
           lastError = err;
-          console.warn(`[FinnhubProvider] Fetch failed for ${url}:`, err);
+          console.warn(`[FinnhubProvider] Fetch failed for ${path}:`, err);
           await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt)));
         }
       }
-      throw lastError || new Error(`Failed to fetch ${url} after ${retries} attempts`);
+      throw lastError || new Error(`Failed to fetch ${path} after ${retries} attempts`);
     });
   }
 
@@ -211,9 +207,7 @@ export class FinnhubProvider implements MarketDataProvider {
     }
 
     try {
-      const apiBaseUrl = this.getApiBaseUrl();
-      const url = `${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(symbol)}`;
-      const res = await this.fetchWithQueue(url);
+      const res = await this.fetchWithQueue(`api/market-data/quote?symbol=${encodeURIComponent(symbol)}`);
       
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -240,7 +234,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix quote failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await this.fetchWithQueue(`${apiBaseUrl}/api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
+        const baseRes = await this.fetchWithQueue(`api/market-data/quote?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && typeof baseData.c === 'number' && baseData.c > 0) {
@@ -281,9 +275,7 @@ export class FinnhubProvider implements MarketDataProvider {
     }
 
     try {
-      const apiBaseUrl = this.getApiBaseUrl();
-      const url = `${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(symbol)}`;
-      const res = await this.fetchWithQueue(url);
+      const res = await this.fetchWithQueue(`api/market-data/metadata?symbol=${encodeURIComponent(symbol)}`);
       
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -309,7 +301,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix metadata lookup failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await this.fetchWithQueue(`${apiBaseUrl}/api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
+        const baseRes = await this.fetchWithQueue(`api/market-data/metadata?symbol=${encodeURIComponent(baseSymbol)}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.name) {
@@ -351,9 +343,7 @@ export class FinnhubProvider implements MarketDataProvider {
     try {
       const to = Math.floor(Date.now() / 1000);
       const from = to - (days * 24 * 60 * 60);
-      const apiBaseUrl = this.getApiBaseUrl();
-      const url = `${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}`;
-      const res = await this.fetchWithQueue(url);
+      const res = await this.fetchWithQueue(`api/market-data/historical?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}`);
 
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
@@ -369,7 +359,7 @@ export class FinnhubProvider implements MarketDataProvider {
       if (symbol.includes('.')) {
         console.warn(`[FinnhubProvider] Suffix history candle failed for ${symbol}. Retrying unsuffixed.`);
         const baseSymbol = ticker.toUpperCase().trim();
-        const baseRes = await this.fetchWithQueue(`${apiBaseUrl}/api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
+        const baseRes = await this.fetchWithQueue(`api/market-data/historical?symbol=${encodeURIComponent(baseSymbol)}&from=${from}&to=${to}`);
         if (baseRes.ok) {
           const baseData = await baseRes.json();
           if (baseData && baseData.s === 'ok' && Array.isArray(baseData.c)) {

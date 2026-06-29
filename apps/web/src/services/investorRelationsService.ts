@@ -1,4 +1,5 @@
 import { authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 import { CompanyRegistry } from './companyRegistry';
 
 export interface IRAnnouncement {
@@ -58,9 +59,8 @@ export class InvestorRelationsService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/market-data/ir-disclosures?ticker=${encodeURIComponent(ticker)}`, {
+      const res = await fetch(buildApiUrl(`api/market-data/ir-disclosures?ticker=${encodeURIComponent(ticker)}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {

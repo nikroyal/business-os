@@ -672,6 +672,24 @@ export const Opportunities: React.FC = () => {
                     </div>
                   ) : aiCommentary ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', lineHeight: 1.45 }}>
+                      {aiCommentary.fallbackModelUsed && (
+                        <div style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          color: '#b45309',
+                          padding: '0.4rem 0.6rem',
+                          borderRadius: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontFamily: 'var(--font-mono)',
+                          marginBottom: '0.25rem'
+                        }}>
+                          <span style={{ fontWeight: 'bold' }}>⚠️ FAILOVER:</span>
+                          <span>{aiCommentary.infoMessage || 'Fallback model used.'}</span>
+                        </div>
+                      )}
                       <p style={{ margin: 0, color: 'var(--text-primary)' }}>
                         <strong>Opportunity Analysis:</strong> {aiCommentary.opportunityCommentary}
                       </p>

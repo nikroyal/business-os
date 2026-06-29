@@ -478,6 +478,23 @@ export const Reports: React.FC = () => {
                     </div>
                   ) : aiCommentary ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {aiCommentary.fallbackModelUsed && (
+                        <div style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          color: '#b45309',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontFamily: 'var(--font-mono)'
+                        }}>
+                          <span style={{ fontWeight: 'bold' }}>⚠️ FAILOVER NOTICE:</span>
+                          <span>{aiCommentary.infoMessage || 'Fallback model used due to high demand.'}</span>
+                        </div>
+                      )}
                       <p style={{ fontSize: '0.95rem', fontFamily: 'var(--font-serif)', lineHeight: 1.6, textIndent: '1rem', margin: 0, color: 'var(--text-primary)' }}>
                         {aiCommentary.executiveSummary}
                       </p>

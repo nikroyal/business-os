@@ -1,4 +1,5 @@
 import { dbService, authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 import type { Holding } from './firebase';
 
 export interface MarketRegimeState {
@@ -204,10 +205,9 @@ export class MarketIntelligenceService {
       }
 
       // Live computation using Finnhub Provider or Backend APIs
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || `mock_${userId}`;
 
-      const res = await fetch(`${baseUrl}/api/market-intelligence?userId=${userId}`, {
+      const res = await fetch(buildApiUrl(`api/market-intelligence?userId=${userId}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -232,9 +232,8 @@ export class MarketIntelligenceService {
       return this.getMockTimeline();
     }
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || `mock_${userId}`;
-      const res = await fetch(`${baseUrl}/api/market-intelligence/regime-history`, {
+      const res = await fetch(buildApiUrl('api/market-intelligence/regime-history'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {

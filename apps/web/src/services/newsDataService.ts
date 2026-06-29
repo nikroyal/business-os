@@ -1,4 +1,5 @@
 import { authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 import type { NewsArticle } from './marketIntelligenceService';
 
 export interface NewsCluster {
@@ -88,9 +89,8 @@ export class NewsDataService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/market-data/news?ticker=${encodeURIComponent(ticker)}`, {
+      const res = await fetch(buildApiUrl(`api/market-data/news?ticker=${encodeURIComponent(ticker)}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -134,9 +134,8 @@ export class NewsDataService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/market-intelligence`, {
+      const res = await fetch(buildApiUrl('api/market-intelligence'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {

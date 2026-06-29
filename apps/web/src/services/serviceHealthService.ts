@@ -1,4 +1,5 @@
 import { authService, dbService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 
 export interface ServiceStatus {
   name: string;
@@ -35,10 +36,7 @@ export interface PlatformHealth {
 const LOCAL_STORAGE_KEY = 'business_os_health_status';
 
 export class ServiceHealthService {
-  private static getApiBaseUrl(): string {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-    return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  }
+
 
   /**
    * Retrieves the last cached health status from localStorage.
@@ -67,7 +65,7 @@ export class ServiceHealthService {
       }
     }
 
-    const apiBaseUrl = this.getApiBaseUrl();
+
     const generatedTimestamp = new Date().toISOString();
 
     // Default status skeleton
@@ -109,7 +107,7 @@ export class ServiceHealthService {
     // 1. Worker API check
     let workerAlive = false;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/health`);
+      const res = await fetch(buildApiUrl('api/health'));
       if (res.ok) {
         const data = await res.json() as any;
         health.services.worker = {
@@ -168,7 +166,7 @@ export class ServiceHealthService {
     if (workerAlive) {
       try {
         const token = await authService.getIdToken();
-        const res = await fetch(`${apiBaseUrl}/api/health/services`, {
+        const res = await fetch(buildApiUrl('api/health/services'), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -278,7 +276,7 @@ export class ServiceHealthService {
     if (workerAlive) {
       try {
         const token = await authService.getIdToken();
-        const res = await fetch(`${apiBaseUrl}/api/system/data-quality`, {
+        const res = await fetch(buildApiUrl('api/system/data-quality'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {

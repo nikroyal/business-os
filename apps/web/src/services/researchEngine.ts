@@ -1,4 +1,5 @@
 import { authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 import { SECDataService } from './secDataService';
 import type { SECCompanyFactsData } from './secDataService';
 import { InvestorRelationsService } from './investorRelationsService';
@@ -82,10 +83,9 @@ export class ResearchEngine {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
       
-      const res = await fetch(`${baseUrl}/api/market-data/compile-research`, {
+      const res = await fetch(buildApiUrl('api/market-data/compile-research'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

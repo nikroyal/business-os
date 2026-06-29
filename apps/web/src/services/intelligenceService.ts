@@ -2,6 +2,7 @@ import type { UserProfile, Holding, DailyReport } from './firebase';
 import type { PortfolioAnalytics } from './portfolioAnalyticsService';
 import type { WatchlistAssetIntelligence } from './watchlistService';
 import { authService, dbService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 import type { CompanyIntelligence, UserConviction } from './firebase';
 
 
@@ -254,18 +255,13 @@ export class IntelligenceService {
     return `Dear ${name}, your portfolio registered a ${changeLabel} of ${percentStr}% today, closing with a valuation of ${analytics.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. Global market indexes exhibited a ${globalTrend} posture. ${advice}`;
   }
 
-  private static getApiBaseUrl(): string {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-    return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  }
-
-  private static async fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+  private static async fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
     const token = await authService.getIdToken();
     const headers = {
       ...(init?.headers || {}),
       'Authorization': `Bearer ${token}`
     };
-    return fetch(url, {
+    return fetch(buildApiUrl(path), {
       ...(init || {}),
       headers
     });
@@ -684,8 +680,7 @@ export class IntelligenceService {
     }
 
     try {
-      const baseUrl = this.getApiBaseUrl();
-      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/company?symbol=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
+      const res = await this.fetchWithAuth(`api/intelligence/company?symbol=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }
@@ -729,8 +724,7 @@ export class IntelligenceService {
     }
 
     try {
-      const baseUrl = this.getApiBaseUrl();
-      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/recalculate-conviction`, {
+      const res = await this.fetchWithAuth('api/intelligence/recalculate-conviction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticker, exchange })
@@ -769,8 +763,7 @@ export class IntelligenceService {
     }
 
     try {
-      const baseUrl = this.getApiBaseUrl();
-      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/convictions`);
+      const res = await this.fetchWithAuth('api/intelligence/convictions');
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }
@@ -854,8 +847,7 @@ export class IntelligenceService {
     }
 
     try {
-      const baseUrl = this.getApiBaseUrl();
-      const res = await this.fetchWithAuth(`${baseUrl}/api/intelligence/business-school/case?conceptId=${encodeURIComponent(conceptId)}&symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}`);
+      const res = await this.fetchWithAuth(`api/intelligence/business-school/case?conceptId=${encodeURIComponent(conceptId)}&symbol=${encodeURIComponent(symbol)}&exchange=${encodeURIComponent(exchange)}`);
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }

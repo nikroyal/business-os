@@ -616,42 +616,27 @@ app.post('/api/commentary/generate', async (c) => {
     }
 
     const modelName = AIModelRegistry.resolveModel(model, 'Editorial Commentary');
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    const gemini = new GeminiClient(apiKey);
+    const { data, fallbackUsed, actualModel } = await gemini.generateContentWithFailover(systemPrompt, userPrompt, modelName);
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `${systemPrompt}\n\n${userPrompt}`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return c.json({ error: `Gemini API returned HTTP ${res.status}`, details: errText }, res.status as any);
+    // If fallback was used, surface the informational message by injecting it into candidate text
+    if (fallbackUsed && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      try {
+        const rawText = data.candidates[0].content.parts[0].text;
+        const parsed = JSON.parse(rawText.trim());
+        parsed._metadata = {
+          fallbackModelUsed: true,
+          requestedModel: modelName,
+          actualModel: actualModel,
+          infoMessage: `Temporarily switched to ${actualModel} due to high demand on ${modelName}.`
+        };
+        data.candidates[0].content.parts[0].text = JSON.stringify(parsed);
+      } catch (parseErr) {
+        console.error('[Gemini Failover] Failed to inject metadata into raw JSON candidate text:', parseErr);
+      }
     }
 
-    const data = (await res.json()) as any;
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      return c.json({ error: 'Empty response content from Gemini model.' }, 500);
-    }
-
-    const parsed = JSON.parse(rawText.trim());
-    return c.json(parsed);
+    return c.json(data);
   } catch (err: any) {
     console.error('Gemini backend commentary error:', err);
     return c.json({ error: 'Internal Server Error', details: err.message }, 500);

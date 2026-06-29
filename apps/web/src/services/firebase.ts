@@ -181,6 +181,8 @@ export interface AICommentary {
   marketContext: string;
   generatedTimestamp: string;
   inputHash: string;
+  fallbackModelUsed?: boolean;
+  infoMessage?: string;
 }
 
 export interface SmartMoneyMetric<T> {

@@ -1,4 +1,5 @@
 import { authService } from './firebase';
+import { buildApiUrl } from './urlBuilder';
 import type { FeatureFlags, UserRole, UsageLimits } from '../../../backend/src/index';
 
 export interface AuditLogEntry {
@@ -59,9 +60,8 @@ export class AdminService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/admin/users`, {
+      const res = await fetch(buildApiUrl('api/admin/users'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -95,9 +95,8 @@ export class AdminService {
       };
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/admin/users/${userId}`, {
+    const res = await fetch(buildApiUrl(`api/admin/users/${userId}`), {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
@@ -165,9 +164,8 @@ export class AdminService {
       throw new Error('User not found');
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/admin/users/${targetUserId}`, {
+    const res = await fetch(buildApiUrl(`api/admin/users/${targetUserId}`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -200,9 +198,8 @@ export class AdminService {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
       const token = await authService.getIdToken() || 'mock_anonymous';
-      const res = await fetch(`${baseUrl}/api/admin/audit-logs`, {
+      const res = await fetch(buildApiUrl('api/admin/audit-logs'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -251,9 +248,8 @@ export class AdminService {
       };
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/admin/system-stats`, {
+    const res = await fetch(buildApiUrl('api/admin/system-stats'), {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
@@ -279,9 +275,8 @@ export class AdminService {
       };
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/admin/feature-flags/global`, {
+    const res = await fetch(buildApiUrl('api/admin/feature-flags/global'), {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
@@ -296,9 +291,8 @@ export class AdminService {
       return;
     }
 
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787';
     const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(`${baseUrl}/api/admin/feature-flags/global`, {
+    const res = await fetch(buildApiUrl('api/admin/feature-flags/global'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
