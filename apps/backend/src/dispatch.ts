@@ -1651,9 +1651,19 @@ export function toFirestoreValue(value: any): any {
 
 export class FirestoreClient {
   private projectId: string;
+  private token?: string;
   
-  constructor(projectId: string) {
+  constructor(projectId: string, token?: string) {
     this.projectId = projectId;
+    this.token = token;
+  }
+
+  private get headers(): HeadersInit {
+    const headers: Record<string, string> = {};
+    if (this.token && !this.token.startsWith('mock_')) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    return headers;
   }
 
   private get baseUrl() {
@@ -1662,7 +1672,7 @@ export class FirestoreClient {
 
   async listUsers(): Promise<UserProfile[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/users`);
+      const res = await fetch(`${this.baseUrl}/users`, { headers: this.headers });
       if (!res.ok) {
         console.error(`Failed to list users: HTTP ${res.status}`);
         return [];
@@ -1855,7 +1865,7 @@ export class FirestoreClient {
   async getSecCompanyFacts(ticker: string): Promise<any | null> {
     try {
       const key = ticker.toUpperCase();
-      const res = await fetch(`${this.baseUrl}/secCompanyFacts/${encodeURIComponent(key)}`);
+      const res = await fetch(`${this.baseUrl}/secCompanyFacts/${encodeURIComponent(key)}`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get secCompanyFacts for ${key}: HTTP ${res.status}`);
@@ -1889,7 +1899,7 @@ export class FirestoreClient {
 
   async getFredIndicators(): Promise<any | null> {
     try {
-      const res = await fetch(`${this.baseUrl}/fredIndicators/latest`);
+      const res = await fetch(`${this.baseUrl}/fredIndicators/latest`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get fredIndicators: HTTP ${res.status}`);

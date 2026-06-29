@@ -134,6 +134,19 @@ let localCooldownCacheExpiry = 0;
 const firestoreUrl = (projectId: string, path: string) =>
   `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
 
+const firestoreFetch = async (projectId: string, path: string, token?: string, options: RequestInit = {}): Promise<Response> => {
+  const headers = {
+    ...(options.headers || {}),
+  } as Record<string, string>;
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return await fetch(firestoreUrl(projectId, path), {
+    ...options,
+    headers
+  });
+};
+
 export function toFirestoreValue(value: any): any {
   if (value === null || value === undefined) return { nullValue: null };
   if (typeof value === 'string') return { stringValue: value };
@@ -440,15 +453,14 @@ export class AIOrchestrator {
     }
   }
 
-  // --- DYNAMIC PERSISTENT COOLDOWNS ---
-  private static async getPersistentCooldowns(projectId: string): Promise<Record<string, number>> {
+  private static async getPersistentCooldowns(projectId: string, token?: string): Promise<Record<string, number>> {
     const now = Date.now();
     if (localCooldownCacheExpiry > now) {
       return localCooldownCache;
     }
 
     try {
-      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestratorCooldowns'));
+      const res = await firestoreFetch(projectId, 'system/aiOrchestratorCooldowns', token);
       if (res.ok) {
         const raw = await res.json() as any;
         const data = fromFirestoreDoc(raw) || {};
@@ -516,14 +528,14 @@ export class AIOrchestrator {
   }
 
   // --- GENERAL SYSTEM CONFIGS ---
-  public static async getOrchestratorConfig(projectId: string): Promise<any> {
+  public static async getOrchestratorConfig(projectId: string, token?: string): Promise<any> {
     const now = Date.now();
     if (this.cacheConfig && (now - this.cacheConfig.timestamp < this.CONFIG_CACHE_TTL_MS)) {
       return this.cacheConfig.data;
     }
 
     try {
-      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestrator'));
+      const res = await firestoreFetch(projectId, 'system/aiOrchestrator', token);
       if (res.ok) {
         const raw = await res.json() as any;
         const config = fromFirestoreDoc(raw);
@@ -536,13 +548,13 @@ export class AIOrchestrator {
     return null;
   }
 
-  public static async saveOrchestratorConfig(projectId: string, config: any): Promise<boolean> {
+  public static async saveOrchestratorConfig(projectId: string, config: any, token?: string): Promise<boolean> {
     try {
       const doc = { fields: {} as any };
       for (const [k, v] of Object.entries(config)) {
         doc.fields[k] = toFirestoreValue(v);
       }
-      const res = await fetch(firestoreUrl(projectId, 'system/aiOrchestrator'), {
+      const res = await firestoreFetch(projectId, 'system/aiOrchestrator', token, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
@@ -899,9 +911,9 @@ export class AIOrchestrator {
   // --- TELEMETRY READ LOGS ---
   // pageSize=500 ensures retention cleanup can act on a representative recent window.
   // Firestore orderBy requires a composite index; ordering client-side instead.
-  public static async getTelemetry(projectId: string): Promise<any[]> {
+  public static async getTelemetry(projectId: string, token?: string): Promise<any[]> {
     try {
-      const res = await fetch(firestoreUrl(projectId, 'aiTelemetry?pageSize=500'));
+      const res = await firestoreFetch(projectId, 'aiTelemetry?pageSize=500', token);
       if (res.ok) {
         const raw = await res.json() as any;
         return (raw.documents || []).map((d: any) => fromFirestoreDoc(d)).filter(Boolean);
@@ -913,15 +925,15 @@ export class AIOrchestrator {
   }
 
   // --- COMPILE DETAILED OPERATIONAL METRICS ---
-  public static async getOperationalStats(projectId: string): Promise<any> {
-    const config = await this.getOrchestratorConfig(projectId);
+  public static async getOperationalStats(projectId: string, token?: string): Promise<any> {
+    const config = await this.getOrchestratorConfig(projectId, token);
     const forcedModel = config?.forcedModel || null;
     const modelOverrides = config?.modelOverrides || {};
     const maintenanceMode = config?.maintenanceMode || false;
     const retentionDays = config?.retentionDays || 30;
 
-    const persistentCooldowns = await this.getPersistentCooldowns(projectId);
-    const telemetry = await this.getTelemetry(projectId);
+    const persistentCooldowns = await this.getPersistentCooldowns(projectId, token);
+    const telemetry = await this.getTelemetry(projectId, token);
     const now = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
     const startOfToday = now - oneDayMs;

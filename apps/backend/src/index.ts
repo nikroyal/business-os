@@ -1866,8 +1866,12 @@ export const TIER_LIMITS: Record<UserRole, UsageLimits> = {
 const firestoreUrl = (projectId: string, path: string) => 
   `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`;
 
-async function getFirestoreDoc(projectId: string, path: string): Promise<any | null> {
-  const res = await fetch(firestoreUrl(projectId, path));
+async function getFirestoreDoc(projectId: string, path: string, token?: string): Promise<any | null> {
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(firestoreUrl(projectId, path), { headers });
   if (res.ok) {
     const data = await res.json() as any;
     return fromFirestoreDoc(data);
@@ -1875,14 +1879,18 @@ async function getFirestoreDoc(projectId: string, path: string): Promise<any | n
   return null;
 }
 
-async function writeFirestoreDoc(projectId: string, path: string, data: any): Promise<void> {
+async function writeFirestoreDoc(projectId: string, path: string, data: any, token?: string): Promise<void> {
   const fields: Record<string, any> = {};
   for (const [k, v] of Object.entries(data)) {
     fields[k] = toFirestoreValue(v);
   }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const res = await fetch(firestoreUrl(projectId, path), {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ fields })
   });
   if (!res.ok) {
@@ -1891,14 +1899,19 @@ async function writeFirestoreDoc(projectId: string, path: string, data: any): Pr
   }
 }
 
-async function deleteFirestoreDoc(projectId: string, path: string): Promise<void> {
+async function deleteFirestoreDoc(projectId: string, path: string, token?: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   await fetch(firestoreUrl(projectId, path), {
-    method: 'DELETE'
+    method: 'DELETE',
+    headers
   });
 }
 
 // Role and Feature Flag Resolution Service
-async function getUserRoleProfile(userId: string, projectId: string, email?: string): Promise<{
+async function getUserRoleProfile(userId: string, projectId: string, email?: string, token?: string): Promise<{
   role: UserRole;
   subscriptionTier: string;
   customLimits: Partial<UsageLimits>;
@@ -1919,7 +1932,7 @@ async function getUserRoleProfile(userId: string, projectId: string, email?: str
   let modelCopilot = 'Automatic';
   let geminiModel = '';
 
-  let profile = await getFirestoreDoc(projectId, `users/${userId}`);
+  let profile = await getFirestoreDoc(projectId, `users/${userId}`, token);
   if (!profile && userId && userId !== 'undefined') {
     const isOwnerOrAdmin = (email && (email.includes('owner') || email.includes('admin'))) || (userId && (userId.includes('owner') || userId.includes('admin')));
     console.log(`[Bootstrap] Creating default ${isOwnerOrAdmin ? 'OWNER' : 'FREE'} profile for user ${userId}...`);
@@ -1931,7 +1944,7 @@ async function getUserRoleProfile(userId: string, projectId: string, email?: str
       subscriptionTier: isOwnerOrAdmin ? 'pro' : 'free',
       createdAt: new Date().toISOString()
     };
-    await writeFirestoreDoc(projectId, `users/${userId}`, profile).catch(e => console.error('[Bootstrap] Failed to write profile:', e));
+    await writeFirestoreDoc(projectId, `users/${userId}`, profile, token).catch(e => console.error('[Bootstrap] Failed to write profile:', e));
   }
 
   if (profile) {
@@ -2014,7 +2027,8 @@ async function logAuditEvent(
   action: string,
   beforeValue: any,
   afterValue: any,
-  reason: string
+  reason: string,
+  token?: string
 ): Promise<void> {
   const logId = `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const auditDoc = {
@@ -2028,7 +2042,7 @@ async function logAuditEvent(
     afterValue,
     reason
   };
-  await writeFirestoreDoc(projectId, `auditLog/${logId}`, auditDoc);
+  await writeFirestoreDoc(projectId, `auditLog/${logId}`, auditDoc, token);
 }
 
 // Enforce OWNER or ADMIN access Middleware
@@ -2039,7 +2053,9 @@ async function restrictToAdmin(c: any, next: any) {
   const userId = c.get('userId');
   const userEmail = c.get('userEmail');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const { role } = await getUserRoleProfile(userId, projectId, userEmail);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const { role } = await getUserRoleProfile(userId, projectId, userEmail, token);
   
   if (role !== 'OWNER' && role !== 'ADMIN') {
     return c.json({ error: 'Forbidden: Elevate permissions to view the Developer Panel operational console' }, 403);
@@ -2223,8 +2239,10 @@ app.post('/api/copilot/chat', async (c) => {
   }
 
   try {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
     // 1. Resolve Auth Roles and Feature Flags
-    const { role, customLimits, featureFlags, modelCopilot, geminiModel } = await getUserRoleProfile(userId, projectId);
+    const { role, customLimits, featureFlags, modelCopilot, geminiModel } = await getUserRoleProfile(userId, projectId, undefined, token);
     const flags = await resolveFlags(userId, role, featureFlags, projectId);
 
     if (!flags.copilot) {
@@ -2232,7 +2250,7 @@ app.post('/api/copilot/chat', async (c) => {
     }
 
     // 2. Fetch Session context
-    const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
+    const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, token);
     if (!session) {
       return c.json({ error: 'Session not found' }, 404);
     }
@@ -2509,8 +2527,14 @@ CRITICAL INSTRUCTIONS:
 // 1. Audit Logs Endpoint
 app.get('/api/admin/audit-logs', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   try {
-    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/auditLog`);
+    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/auditLog`, { headers });
     let logs: any[] = [];
     if (res.ok) {
       const data = await res.json() as any;
@@ -2525,7 +2549,9 @@ app.get('/api/admin/audit-logs', async (c) => {
 // 2. User Search and Lists
 app.get('/api/admin/users', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
   try {
     const list = await firestore.listUsers();
     return c.json(list);
@@ -2539,20 +2565,26 @@ app.get('/api/admin/users/:userId', async (c) => {
   const targetId = c.req.param('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const todayStr = new Date().toISOString().split('T')[0];
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   try {
-    const userDoc = await getFirestoreDoc(projectId, `users/${targetId}`);
+    const userDoc = await getFirestoreDoc(projectId, `users/${targetId}`, token);
     if (!userDoc) {
       return c.json({ error: 'User profile does not exist' }, 404);
     }
 
     // Load usage stats
-    const usage = await getFirestoreDoc(projectId, `users/${targetId}/copilotUsage/${todayStr}`);
+    const usage = await getFirestoreDoc(projectId, `users/${targetId}/copilotUsage/${todayStr}`, token);
     
     // Load total sessions
     let sessionsCount = 0;
     try {
-      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${targetId}/copilotSessions`);
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${targetId}/copilotSessions`, { headers });
       if (res.ok) {
         const body = await res.json() as any;
         if (body.documents) sessionsCount = body.documents.length;
@@ -2562,7 +2594,7 @@ app.get('/api/admin/users/:userId', async (c) => {
     // Load total reports
     let reportsCount = 0;
     try {
-      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${targetId}/reports`);
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${targetId}/reports`, { headers });
       if (res.ok) {
         const body = await res.json() as any;
         if (body.documents) reportsCount = body.documents.length;
@@ -2648,13 +2680,19 @@ app.get('/api/admin/system-stats', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
-  const firestoreClient = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const firestoreClient = new FirestoreClient(projectId, token);
 
   // Measure latency to check services live
   const start = Date.now();
   let dbLatency = 0;
   try {
-    await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/system/featureFlags`);
+    await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/system/featureFlags`, { headers });
     dbLatency = Date.now() - start;
   } catch {}
 
@@ -2664,7 +2702,7 @@ app.get('/api/admin/system-stats', async (c) => {
     .map(entry => entry.ticker);
 
   const cachedFred = await firestoreClient.getFredIndicators().catch(() => null);
-  const secSchedulerState = await getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null);
+  const secSchedulerState = await getFirestoreDoc(projectId, 'system/secSchedulerState', token).catch(() => null);
   const secFacts = await Promise.all(secTickers.map(async (t) => {
     return await firestoreClient.getSecCompanyFacts(t).catch(() => null);
   }));
@@ -2779,8 +2817,10 @@ app.get('/api/admin/system-stats', async (c) => {
 // 6. Global Feature Flags endpoints
 app.get('/api/admin/feature-flags/global', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    const doc = await getFirestoreDoc(projectId, 'system/featureFlags');
+    const doc = await getFirestoreDoc(projectId, 'system/featureFlags', token);
     return c.json(doc || ROLE_DEFAULT_FLAGS.FREE);
   } catch (err: any) {
     return c.json({ error: 'Failed to load global feature flags', details: err.message }, 500);
@@ -2791,13 +2831,15 @@ app.post('/api/admin/feature-flags/global', async (c) => {
   const adminId = c.get('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const flags = await c.req.json();
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
 
   try {
-    const existing = await getFirestoreDoc(projectId, 'system/featureFlags') || {};
-    await writeFirestoreDoc(projectId, 'system/featureFlags', flags);
+    const existing = await getFirestoreDoc(projectId, 'system/featureFlags', token) || {};
+    await writeFirestoreDoc(projectId, 'system/featureFlags', flags, token);
 
     // Audit Log
-    const adminDoc = await getFirestoreDoc(projectId, `users/${adminId}`);
+    const adminDoc = await getFirestoreDoc(projectId, `users/${adminId}`, token);
     const adminEmail = adminDoc?.email || 'admin@businessos.com';
     await logAuditEvent(
       projectId,
@@ -2807,7 +2849,8 @@ app.post('/api/admin/feature-flags/global', async (c) => {
       'UPDATE_GLOBAL_FEATURE_FLAGS',
       existing,
       flags,
-      'Global operational flag modification'
+      'Global operational flag modification',
+      token
     );
 
     return c.json({ success: true, flags });
@@ -2819,8 +2862,10 @@ app.post('/api/admin/feature-flags/global', async (c) => {
 // AI Orchestrator Stats, Timeline and Config endpoints
 app.get('/api/admin/ai-orchestrator/stats', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    const stats = await AIOrchestrator.getOperationalStats(projectId);
+    const stats = await AIOrchestrator.getOperationalStats(projectId, token);
     return c.json(stats);
   } catch (err: any) {
     return c.json({ error: 'Failed to retrieve AI stats', details: err.message }, 500);
@@ -2829,8 +2874,10 @@ app.get('/api/admin/ai-orchestrator/stats', async (c) => {
 
 app.get('/api/admin/ai-orchestrator/timeline', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    const telemetry = await AIOrchestrator.getTelemetry(projectId);
+    const telemetry = await AIOrchestrator.getTelemetry(projectId, token);
     const sorted = telemetry.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return c.json(sorted);
   } catch (err: any) {
@@ -2840,8 +2887,10 @@ app.get('/api/admin/ai-orchestrator/timeline', async (c) => {
 
 app.get('/api/admin/ai-orchestrator/config', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    const config = await AIOrchestrator.getOrchestratorConfig(projectId);
+    const config = await AIOrchestrator.getOrchestratorConfig(projectId, token);
     return c.json(config || { forcedModel: null, modelOverrides: {} });
   } catch (err: any) {
     return c.json({ error: 'Failed to load config', details: err.message }, 500);
@@ -2851,8 +2900,10 @@ app.get('/api/admin/ai-orchestrator/config', async (c) => {
 app.post('/api/admin/ai-orchestrator/config', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const config = await c.req.json();
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    const success = await AIOrchestrator.saveOrchestratorConfig(projectId, config);
+    const success = await AIOrchestrator.saveOrchestratorConfig(projectId, config, token);
     return c.json({ success, config });
   } catch (err: any) {
     return c.json({ error: 'Failed to save config', details: err.message }, 500);
