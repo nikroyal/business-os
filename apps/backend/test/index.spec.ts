@@ -236,4 +236,60 @@ describe("BusinessOS Backend Worker API Tests", () => {
 			expect(html).toContain("6400 (High)");
 		});
 	});
+
+	describe("Administrative APIs /api/admin/*", () => {
+		it("rejects unauthorized access with 401", async () => {
+			const response = await SELF.fetch("http://example.com/api/admin/users");
+			expect(response.status).toBe(401);
+		});
+
+		it("rejects non-admin/owner access with 403", async () => {
+			const response = await SELF.fetch("http://example.com/api/admin/users", {
+				headers: {
+					"Authorization": "Bearer mock_free_1"
+				}
+			});
+			// Should return 403 Forbidden because mock_free_1 role is not OWNER or ADMIN
+			expect(response.status).toBe(403);
+		});
+
+		it("allows access for mock OWNER token and returns list of users", async () => {
+			const response = await SELF.fetch("http://example.com/api/admin/users", {
+				headers: {
+					"Authorization": "Bearer mock_owner_1"
+				}
+			});
+			expect(response.status).toBe(200);
+			const users = await response.json() as any[];
+			expect(users.length).toBeGreaterThan(0);
+			expect(users.some(u => u.email === "owner@businessos.com")).toBe(true);
+		});
+
+		it("returns system stats correctly when authenticated as OWNER", async () => {
+			const response = await SELF.fetch("http://example.com/api/admin/system-stats", {
+				headers: {
+					"Authorization": "Bearer mock_owner_1"
+				}
+			});
+			expect(response.status).toBe(200);
+			const stats = await response.json() as any;
+			expect(stats).toHaveProperty("health");
+			expect(stats).toHaveProperty("apiAnalytics");
+			expect(stats).toHaveProperty("queues");
+			expect(stats.health.firestore.status).toBe("operational");
+		});
+
+		it("returns AI orchestrator stats correctly when authenticated as OWNER", async () => {
+			const response = await SELF.fetch("http://example.com/api/admin/ai-orchestrator/stats", {
+				headers: {
+					"Authorization": "Bearer mock_owner_1"
+				}
+			});
+			expect(response.status).toBe(200);
+			const stats = await response.json() as any;
+			expect(stats).toHaveProperty("overview");
+			expect(stats).toHaveProperty("models");
+			expect(stats).toHaveProperty("breakdowns");
+		});
+	});
 });
