@@ -303,6 +303,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#10b981' }}>${overview.estimatedDailyCost.toFixed(4)}</div>
               <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Monthly Projection: ${overview.estimatedMonthlyCost.toFixed(2)}</div>
             </div>
+
+            <div className="stat-card" style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+              <div style={{ fontSize: '0.65rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Cache Performance</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: '#f59e0b' }}>{overview.cacheHitRate || 0}%</div>
+              <div style={{ fontSize: '0.65rem', color: '#555', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached | Saved ${(overview.estimatedCostSavings || 0).toFixed(4)}</div>
+            </div>
           </div>
 
           {/* Fallback chain visualizer */}
@@ -369,7 +375,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#aaa' }}>Daily Requests:</span>
-                    <span>{overview.requestsToday} / 1,500</span>
+                    <span>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#aaa' }}>RPM Average:</span>
@@ -505,6 +511,19 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <div>{model.stats.successRate}% S / {model.stats.failure > 0 ? `${model.stats.failure} F` : '0 F'}</div>
                         <div style={{ fontSize: '0.55rem', color: '#555' }}>Avg Latency: {model.stats.avgLatencyMs}ms</div>
+                        {model.stats.lastSuccess && (
+                          <div style={{ fontSize: '0.5rem', color: '#10b98180', marginTop: '2px' }} title={`Last success: ${model.stats.lastSuccess}`}>
+                            ✓ {new Date(model.stats.lastSuccess).toLocaleTimeString()}
+                          </div>
+                        )}
+                        {model.stats.lastFailure && (
+                          <div style={{ fontSize: '0.5rem', color: '#ef444480', marginTop: '1px' }} title={model.stats.lastFailureReason || 'Unknown error'}>
+                            ✗ {new Date(model.stats.lastFailure).toLocaleTimeString()}
+                            {model.stats.lastFailureReason && (
+                              <span style={{ marginLeft: '2px', color: '#ef444460' }}>({model.stats.lastFailureReason})</span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                         {model.cooldownRemaining > 0 ? (
@@ -562,6 +581,30 @@ export const AIOrchestratorDashboard: React.FC = () => {
       {/* Subtab Content: Usage Analytics */}
       {activeSubTab === 'Usage' && stats && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Summary stats row: token split + cache metrics */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Prompt Tokens Today</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#06b6d4', fontFamily: 'var(--font-mono)' }}>{(overview?.promptTokensToday || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Input to AI models</div>
+            </div>
+            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Completion Tokens Today</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#a855f7', fontFamily: 'var(--font-mono)' }}>{(overview?.completionTokensToday || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Output from AI models</div>
+            </div>
+            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Cached Responses Today</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f59e0b', fontFamily: 'var(--font-mono)' }}>{overview?.cachedResponses || 0}</div>
+              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Cache hit rate: {overview?.cacheHitRate || 0}%</div>
+            </div>
+            <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
+              <div style={{ fontSize: '0.6rem', color: '#666', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Est. Cost Savings (Cache)</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#10b981', fontFamily: 'var(--font-mono)' }}>${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '0.6rem', color: '#555', marginTop: '0.2rem' }}>Avoided via cached responses</div>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
             <div style={{ background: '#111', border: '1px solid #222', padding: '1rem', borderRadius: '6px' }}>
               <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#fff', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -639,6 +682,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     <th style={{ padding: '0.4rem 0.25rem' }}>Timestamp</th>
                     <th style={{ padding: '0.4rem 0.25rem' }}>Feature</th>
                     <th style={{ padding: '0.4rem 0.25rem' }}>User</th>
+                    <th style={{ padding: '0.4rem 0.25rem' }}>Workspace</th>
                     <th style={{ padding: '0.4rem 0.25rem' }}>Models (Target &rarr; Actual)</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Tokens (P / C)</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Retries</th>
@@ -653,6 +697,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       <td style={{ padding: '0.5rem 0.25rem', color: '#666', fontFamily: 'var(--font-mono)' }}>{new Date(record.timestamp).toLocaleTimeString()}</td>
                       <td style={{ padding: '0.5rem 0.25rem', fontWeight: 'bold' }}>{record.feature}</td>
                       <td style={{ padding: '0.5rem 0.25rem', color: '#aaa', fontFamily: 'var(--font-mono)' }}>{record.user.substring(0, 8)}...</td>
+                      <td style={{ padding: '0.5rem 0.25rem', color: '#888', fontFamily: 'var(--font-mono)', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={record.workspace}>
+                        {record.workspace || '—'}
+                      </td>
                       <td style={{ padding: '0.5rem 0.25rem' }}>
                         <span style={{ color: '#888' }}>{record.selectedModel}</span>
                         {record.fallbackModel && record.fallbackModel !== record.selectedModel && (
@@ -666,6 +713,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         <span style={{ color: '#888' }}>{record.promptTokens}</span>
                         <span style={{ color: '#444' }}>/</span>
                         <span style={{ color: '#aaa' }}>{record.completionTokens}</span>
+                        {record.tokenCountSource === 'estimated' && (
+                          <span style={{ display: 'block', fontSize: '0.45rem', color: '#666', fontStyle: 'italic' }} title="Estimated via character count; provider did not return usage data">~est</span>
+                        )}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: record.retryCount > 0 ? '#f59e0b' : '#666', fontFamily: 'var(--font-mono)' }}>
                         {record.retryCount}
@@ -677,6 +727,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         ${record.estimatedCost.toFixed(5)}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'right', fontWeight: 'bold' }}>
+                        {record.cachedResponse && (
+                          <span style={{ display: 'block', fontSize: '0.5rem', background: '#f59e0b22', border: '1px solid #f59e0b44', color: '#f59e0b', padding: '1px 4px', borderRadius: '3px', marginBottom: '2px', textTransform: 'uppercase' }}>Cached</span>
+                        )}
                         {record.success ? (
                           <span style={{ color: '#10b981' }}>SUCCESS</span>
                         ) : (
@@ -734,6 +787,28 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   <option value={30}>30 Days</option>
                   <option value={90}>90 Days</option>
                 </select>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
+                <span>Daily request quota limit (BusinessOS estimate baseline):</span>
+                <input
+                  type="number"
+                  min="100"
+                  max="100000"
+                  step="100"
+                  value={config.dailyQuotaLimit || 1500}
+                  onChange={e => setConfig({ ...config, dailyQuotaLimit: parseInt(e.target.value) || 1500 })}
+                  style={{
+                    background: '#222',
+                    border: '1px solid #333',
+                    color: '#fff',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    width: '100px'
+                  }}
+                />
+                <span style={{ fontSize: '0.65rem', color: '#555' }}>reqs/day (not provider-reported)</span>
               </div>
             </div>
           </div>

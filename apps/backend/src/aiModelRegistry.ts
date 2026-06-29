@@ -662,6 +662,7 @@ export class AIOrchestrator {
     let fallbackUsed = false;
     let finalPromptTokens = 0;
     let finalCompletionTokens = 0;
+    let tokenCountSource: 'provider' | 'estimated' = 'estimated';
 
     // 4. Try models in fallback chain
     for (let i = 0; i < chain.length; i++) {
@@ -703,10 +704,13 @@ export class AIOrchestrator {
 
           finalPayload = result.rawResponse;
           attemptSuccess = true;
-          
-          // Capture provider token counts when available
-          finalPromptTokens = result.promptTokens || Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-          finalCompletionTokens = result.completionTokens || Math.ceil((result.text.length) / 4);
+
+          // Use actual provider token counts when available; fall back to estimation.
+          // tokenCountSource is recorded in telemetry so consumers can distinguish real vs estimated.
+          const hasRealTokens = typeof result.promptTokens === 'number' && typeof result.completionTokens === 'number';
+          finalPromptTokens = hasRealTokens ? result.promptTokens! : Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+          finalCompletionTokens = hasRealTokens ? result.completionTokens! : Math.ceil((result.text.length) / 4);
+          tokenCountSource = hasRealTokens ? 'provider' : 'estimated';
           break;
         } catch (e: any) {
           attemptStatus = e.status || 500;
@@ -778,7 +782,10 @@ export class AIOrchestrator {
       errorClassification: finalPayload ? '' : lastErrorType,
       retryCount: retriesCount,
       estimatedCost: cost,
-      cachedResponse: false
+      cachedResponse: false,
+      // Distinguishes official provider-reported counts from character-division estimates.
+      // Consumers should display or flag this field when presenting token metrics.
+      tokenCountSource
     };
 
     this.recordTelemetry(projectId, telemetry).catch((e: any) => console.error('[AIOrchestrator] Async telemetry save failed:', e));
@@ -890,9 +897,11 @@ export class AIOrchestrator {
   }
 
   // --- TELEMETRY READ LOGS ---
+  // pageSize=500 ensures retention cleanup can act on a representative recent window.
+  // Firestore orderBy requires a composite index; ordering client-side instead.
   public static async getTelemetry(projectId: string): Promise<any[]> {
     try {
-      const res = await fetch(firestoreUrl(projectId, 'aiTelemetry?pageSize=100'));
+      const res = await fetch(firestoreUrl(projectId, 'aiTelemetry?pageSize=500'));
       if (res.ok) {
         const raw = await res.json() as any;
         if (!raw.documents) return [];
@@ -920,12 +929,15 @@ export class AIOrchestrator {
 
     let requestsToday = 0;
     let tokensToday = 0;
+    let promptTokensToday = 0;
+    let completionTokensToday = 0;
     let costToday = 0;
     let totalFailovers = 0;
     let totalRetries = 0;
     let totalLatencyMs = 0;
     let successCount = 0;
-    let cachedResponses = 0; // future cache aggregates placeholder
+    let cachedResponses = 0;
+    let totalRequests30d = 0;
 
     const featureCost: Record<string, number> = {};
     const workspaceCost: Record<string, number> = {};
@@ -935,10 +947,15 @@ export class AIOrchestrator {
       const recTime = new Date(record.timestamp).getTime();
       const isToday = recTime >= startOfToday;
 
+      totalRequests30d++;
+
       if (isToday) {
         requestsToday++;
         tokensToday += (record.totalTokens || 0);
+        promptTokensToday += (record.promptTokens || 0);
+        completionTokensToday += (record.completionTokens || 0);
         costToday += (record.estimatedCost || 0);
+        if (record.cachedResponse) cachedResponses++;
       }
 
       if (record.success) successCount++;
@@ -957,6 +974,13 @@ export class AIOrchestrator {
       const usr = record.user || 'Unknown';
       userCost[usr] = (userCost[usr] || 0) + (record.estimatedCost || 0);
     }
+
+    const cacheHitRate = requestsToday > 0 ? Math.round((cachedResponses / requestsToday) * 100) : 0;
+    // Cost savings: assume a cached response would have cost the average non-cached cost
+    const avgNonCachedCost = (requestsToday - cachedResponses) > 0
+      ? costToday / (requestsToday - cachedResponses)
+      : 0;
+    const estimatedCostSavings = cachedResponses * avgNonCachedCost;
 
     const totalRequests = telemetry.length;
     const overallSuccessRate = totalRequests > 0 ? (successCount / totalRequests) * 100 : 100;
@@ -1008,6 +1032,9 @@ export class AIOrchestrator {
     const requestsPerMinute = requestsToday / 1440;
     const tokensPerMinute = tokensToday / 1440;
 
+    // Daily quota limit — configurable from Developer Console; defaults to 1500 (free tier)
+    const dailyQuotaLimit: number = config?.dailyQuotaLimit || 1500;
+
     return {
       overview: {
         activeProvider: 'Google Gemini',
@@ -1015,17 +1042,20 @@ export class AIOrchestrator {
         overallSuccessRate: Math.round(overallSuccessRate),
         averageLatencyMs: Math.round(avgLatency),
         requestsToday,
-        requestsThisMonth: totalRequests,
+        requestsThisMonth: totalRequests30d,
         tokensToday,
+        promptTokensToday,
+        completionTokensToday,
         estimatedDailyCost: costToday,
         estimatedMonthlyCost: costToday * 30,
         totalFailovers,
         totalRetries,
         maintenanceMode,
         retentionDays,
+        dailyQuotaLimit,
         cachedResponses,
-        cacheHitRate: 0,
-        estimatedCostSavings: 0
+        cacheHitRate,
+        estimatedCostSavings
       },
       provider: providerStatus,
       models,
@@ -1037,8 +1067,10 @@ export class AIOrchestrator {
       quota: {
         requestsPerMinute: Math.round(requestsPerMinute * 10) / 10,
         tokensPerMinute: Math.round(tokensPerMinute),
-        estimatedRemainingDailyRequests: Math.max(0, 1500 - requestsToday),
-        quotaUtilisationPercentage: Math.round(Math.min(100, (requestsToday / 1500) * 100))
+        estimatedRemainingDailyRequests: Math.max(0, dailyQuotaLimit - requestsToday),
+        quotaUtilisationPercentage: Math.round(Math.min(100, (requestsToday / dailyQuotaLimit) * 100)),
+        // Clearly mark this as BusinessOS-estimated, not provider-reported
+        source: 'businessos_estimate' as const
       }
     };
   }

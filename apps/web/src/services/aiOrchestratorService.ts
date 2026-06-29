@@ -9,6 +9,7 @@ export interface ModelStats {
   successRate: number;
   lastSuccess: string;
   lastFailure: string;
+  lastFailureReason: string;
 }
 
 export interface ModelMetadataWithStats {
@@ -46,10 +47,16 @@ export interface OverviewStats {
   requestsToday: number;
   requestsThisMonth?: number;
   tokensToday: number;
+  promptTokensToday: number;
+  completionTokensToday: number;
   estimatedDailyCost: number;
   estimatedMonthlyCost: number;
   totalFailovers: number;
   totalRetries: number;
+  dailyQuotaLimit: number;
+  cachedResponses: number;
+  cacheHitRate: number;
+  estimatedCostSavings: number;
 }
 
 export interface QuotaStats {
@@ -57,6 +64,8 @@ export interface QuotaStats {
   tokensPerMinute: number;
   estimatedRemainingDailyRequests: number;
   quotaUtilisationPercentage: number;
+  /** 'businessos_estimate' = derived from telemetry; never provider-reported. */
+  source: 'businessos_estimate';
 }
 
 export interface ProviderStats {
@@ -96,12 +105,16 @@ export interface TelemetryRecord {
   retryCount: number;
   estimatedCost: number;
   cachedResponse: boolean;
+  /** 'provider' = official API usageMetadata; 'estimated' = character-division fallback. */
+  tokenCountSource?: 'provider' | 'estimated';
 }
 
 export interface OrchestratorConfig {
   forcedModel: string | null;
   maintenanceMode?: boolean;
   retentionDays?: number;
+  /** Configurable daily request quota limit; defaults to 1500 (free tier). */
+  dailyQuotaLimit?: number;
   modelOverrides: Record<string, {
     enabled?: boolean;
     priority?: number;

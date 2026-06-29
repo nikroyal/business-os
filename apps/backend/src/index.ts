@@ -2706,8 +2706,32 @@ app.get('/api/admin/system-stats', async (c) => {
     resend: { status: 'operational', latency: 85 }
   };
 
+  // Fetch real AI orchestrator telemetry for gemini analytics (replaces hardcoded mock)
+  let aiOrchestratorOverview: any = null;
+  try {
+    const aiStats = await AIOrchestrator.getOperationalStats(projectId);
+    aiOrchestratorOverview = aiStats.overview;
+  } catch (aiErr) {
+    console.warn('[system-stats] AI Orchestrator stats fetch failed:', aiErr);
+  }
+
   const apiAnalytics = {
-    gemini: { flashRequests: 1450, proRequests: 120, totalTokens: 18500000, dailyCost: 7.42, hitRate: 84.5 },
+    gemini: aiOrchestratorOverview
+      ? {
+          // Derived from real BusinessOS telemetry — not provider-reported values
+          requestsToday: aiOrchestratorOverview.requestsToday,
+          requestsThisMonth: aiOrchestratorOverview.requestsThisMonth,
+          promptTokensToday: aiOrchestratorOverview.promptTokensToday,
+          completionTokensToday: aiOrchestratorOverview.completionTokensToday,
+          totalTokensToday: aiOrchestratorOverview.tokensToday,
+          dailyCost: aiOrchestratorOverview.estimatedDailyCost,
+          monthlyCostProjection: aiOrchestratorOverview.estimatedMonthlyCost,
+          cacheHitRate: aiOrchestratorOverview.cacheHitRate,
+          cachedResponses: aiOrchestratorOverview.cachedResponses,
+          estimatedCostSavings: aiOrchestratorOverview.estimatedCostSavings,
+          source: 'businessos_estimate' as const
+        }
+      : { source: 'businessos_estimate', error: 'Orchestrator stats unavailable' },
     finnhub: { requestsToday: 1840, hitRate: 72.8, count429: 0, latency: 180 },
     fred: { requests: 220, cachedIndicators: indicatorCount, lastRefresh: cachedFred?.updatedAt || new Date().toISOString() },
     sec: { companiesCached, filingsCached, lastIngestion: secSchedulerState?.lastExecution || new Date().toISOString(), queueHealth: schedulerFailed ? 'degraded' : 'healthy' }
