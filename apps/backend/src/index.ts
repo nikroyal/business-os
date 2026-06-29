@@ -208,6 +208,34 @@ app.post('/api/auth-debug', async (c) => {
   }
 });
 
+// Temporary endpoint to list available Gemini models using the configured production key
+app.get('/api/auth-debug/models', async (c) => {
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  if (!geminiKey) {
+    return c.json({ error: 'GEMINI_API_KEY is not configured in backend worker environment.' }, 500);
+  }
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`;
+  console.log('[Gemini Model List Trace] Querying Google Models API...');
+  
+  try {
+    const res = await fetch(endpoint);
+    const txt = await res.text();
+    console.log(`[Gemini Model List Trace] HTTP Status: ${res.status}`);
+    console.log(`[Gemini Model List Trace] Response Body: ${txt}`);
+    
+    if (!res.ok) {
+      return c.json({ error: `Google API returned HTTP ${res.status}`, details: txt }, res.status as any);
+    }
+    
+    const data = JSON.parse(txt);
+    return c.json(data);
+  } catch (err: any) {
+    console.error('[Gemini Model List Trace] Exception:', err);
+    return c.json({ error: 'Failed to query Google Models API', details: err.message }, 500);
+  }
+});
+
 // Protect all following routes
 app.use('/api/market-data/*', authenticateUser);
 app.use('/api/commentary/*', authenticateUser);
