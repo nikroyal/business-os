@@ -744,7 +744,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </table>
             </div>
           ) : (
-            <div style={{ padding: '3rem', textAlign: 'center', color: '#555', fontFamily: 'var(--font-mono)' }}>No AI request logs recorded.</div>
+            <div style={{ padding: '3rem', textAlign: 'center', color: '#555', fontFamily: 'var(--font-mono)' }}>No telemetry has been recorded yet.</div>
           )}
         </div>
       )}

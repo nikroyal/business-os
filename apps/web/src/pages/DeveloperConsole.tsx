@@ -409,17 +409,24 @@ export const DeveloperConsole: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(queues).map(([key, q]: any) => (
+              {Object.entries(queues || {}).map(([key, q]: any) => (
                 <tr key={key} style={{ borderBottom: '1px solid #1c1c1c' }}>
                   <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</td>
                   <td style={{ padding: '0.5rem' }}><span style={{ color: 'var(--color-success-text)' }}>{q.status.toUpperCase()}</span></td>
-                  <td style={{ padding: '0.5rem' }}>{new Date(q.lastExecution).toLocaleTimeString()}</td>
+                  <td style={{ padding: '0.5rem' }}>{q.lastExecution ? new Date(q.lastExecution).toLocaleTimeString() : '—'}</td>
                   <td style={{ padding: '0.5rem' }}>{q.duration}s</td>
                   <td style={{ padding: '0.5rem' }}>{q.pending}</td>
                   <td style={{ padding: '0.5rem', color: q.failures > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{q.failures}</td>
                   <td style={{ padding: '0.5rem' }}>{q.retries}</td>
                 </tr>
               ))}
+              {(!queues || Object.keys(queues).length === 0) && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: '#666', fontFamily: 'var(--font-mono)' }}>
+                    No background jobs have executed.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -477,6 +484,13 @@ export const DeveloperConsole: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: '2rem', textAlign: 'center', color: '#666', fontFamily: 'var(--font-mono)' }}>
+                        No users found.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -861,7 +875,9 @@ export const DeveloperConsole: React.FC = () => {
                 </tbody>
               </table>
             ) : (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#555' }}>No audit trail entries matched criteria</div>
+              <div style={{ padding: '3rem', textAlign: 'center', color: '#555', fontFamily: 'var(--font-mono)' }}>
+                {auditFilter ? 'No audit trail entries matched criteria' : 'No audit events yet.'}
+              </div>
             )}
           </div>
         </div>
