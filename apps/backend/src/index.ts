@@ -319,30 +319,33 @@ app.get('/api/health/services', async (c) => {
       const payload = {
         contents: [{ parts: [{ text: 'say ok' }] }]
       };
-      console.log(`[Gemini Health Trace] 1. Exact endpoint: ${cleanEndpoint}`);
-      console.log(`[Gemini Health Trace] 2. Resolved model name: gemini-3.5-flash`);
-      console.log(`[Gemini Health Trace] 3. Request payload: ${JSON.stringify(payload)}`);
+      const reqHeaders = { 'Content-Type': 'application/json' };
+      console.log(`[Gemini Health Trace] Exact request URL: ${cleanEndpoint}`);
+      console.log(`[Gemini Health Trace] HTTP method: POST`);
+      console.log(`[Gemini Health Trace] Request headers: ${JSON.stringify(reqHeaders)}`);
+      console.log(`[Gemini Health Trace] Request body: ${JSON.stringify(payload)}`);
+      console.log(`[Gemini Health Trace] Resolved model name: gemini-3.5-flash`);
 
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: reqHeaders,
         body: JSON.stringify(payload)
       });
       
       const txt = await res.text();
-      console.log(`[Gemini Health Trace] 4. Response status: ${res.status}`);
-      console.log(`[Gemini Health Trace] 4. Full response body: ${txt}`);
+      const resHeaders = Array.from(res.headers.entries());
+      console.log(`[Gemini Health Trace] Response status: ${res.status}`);
+      console.log(`[Gemini Health Trace] Response headers: ${JSON.stringify(resHeaders)}`);
+      console.log(`[Gemini Health Trace] Full raw Google response body: ${txt}`);
 
       if (!res.ok) {
-        console.log(`[Gemini Health Trace] 5. Reason for failure: HTTP ${res.status} - ${txt}`);
+        console.log(`[Gemini Health Trace] Exact reason for HTTP status error: HTTP ${res.status} - ${txt}`);
         results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}: ${txt}` };
       } else {
         results.gemini = { status: 'operational', description: 'Gemini API is operational' };
       }
     } catch (err: any) {
-      console.log(`[Gemini Health Trace] 5. Reason for failure: Unreachable - ${err.message || err}`);
+      console.log(`[Gemini Health Trace] Exact reason for failure: Unreachable - ${err.message || err}`);
       results.gemini = { status: 'failure', description: `Gemini is unreachable: ${err.message || err}` };
     }
   }

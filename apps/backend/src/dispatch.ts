@@ -2338,15 +2338,18 @@ export class GeminiClient {
       }
     };
 
-    console.log(`[Gemini Trace] 1. Exact endpoint: ${cleanEndpoint}`);
-    console.log(`[Gemini Trace] 2. Resolved model name: ${model}`);
-    console.log(`[Gemini Trace] 3. Request payload: ${JSON.stringify(payload)}`);
+    const reqHeaders = { 'Content-Type': 'application/json' };
+    console.log(`[Gemini Trace] Exact request URL: ${cleanEndpoint}`);
+    console.log(`[Gemini Trace] HTTP method: POST`);
+    console.log(`[Gemini Trace] Request headers: ${JSON.stringify(reqHeaders)}`);
+    console.log(`[Gemini Trace] Request body: ${JSON.stringify(payload)}`);
+    console.log(`[Gemini Trace] Resolved model name: ${model}`);
 
     let res: Response;
     try {
       res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: reqHeaders,
         body: JSON.stringify(payload)
       });
     } catch (fetchErr: any) {
@@ -2355,11 +2358,13 @@ export class GeminiClient {
     }
 
     const txt = await res.text();
-    console.log(`[Gemini Trace] 4. Response status: ${res.status}`);
-    console.log(`[Gemini Trace] 4. Full response body: ${txt}`);
+    const resHeaders = Array.from(res.headers.entries());
+    console.log(`[Gemini Trace] Response status: ${res.status}`);
+    console.log(`[Gemini Trace] Response headers: ${JSON.stringify(resHeaders)}`);
+    console.log(`[Gemini Trace] Full raw Google response body: ${txt}`);
 
     if (!res.ok) {
-      console.log(`[Gemini Trace] 5. Reason for failure: HTTP ${res.status} - ${txt}`);
+      console.log(`[Gemini Trace] Exact reason for HTTP status error: HTTP ${res.status} - ${txt}`);
       throw new Error(`Gemini API returned HTTP ${res.status}: ${txt}`);
     }
 

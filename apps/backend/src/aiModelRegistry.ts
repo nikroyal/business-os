@@ -3,7 +3,7 @@ export type Subsystem = 'Editorial Commentary' | 'Research Engine' | 'Business S
 
 export const GEMINI_MODEL_MAPPING = {
   'Latest Flash': 'gemini-3.5-flash',
-  'Latest Pro': 'gemini-3.1-pro'
+  'Latest Pro': 'gemini-3.1-pro-preview'
 };
 
 export const SUBSYSTEM_AUTOMATIC_MAPPING: Record<Subsystem, keyof typeof GEMINI_MODEL_MAPPING> = {
