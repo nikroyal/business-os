@@ -925,9 +925,9 @@ export const DeveloperConsole: React.FC = () => {
 
       {activeTab === 'AIOrchestrator' && (
         <AIOrchestratorDashboard />
-      )}  )}
+      )}
 
-    </div>
+      </div>
     </div>
   );
 };
