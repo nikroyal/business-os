@@ -57,6 +57,8 @@ export interface OverviewStats {
   cachedResponses: number;
   cacheHitRate: number;
   estimatedCostSavings: number;
+  maintenanceMode?: boolean;
+  retentionDays?: number;
 }
 
 export interface QuotaStats {

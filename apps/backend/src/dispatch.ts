@@ -8,10 +8,10 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  riskProfile: 'conservative' | 'moderate' | 'aggressive';
-  interests: string[];
-  timezone: string;
-  emailPreferences: {
+  riskProfile?: 'conservative' | 'moderate' | 'aggressive';
+  interests?: string[];
+  timezone?: string;
+  emailPreferences?: {
     dailyBriefing: boolean;
     weeklyReport: boolean;
     alerts: boolean;
@@ -32,6 +32,11 @@ export interface UserProfile {
   modelResearchEngine?: string;
   modelBusinessSchool?: string;
   modelCopilot?: string;
+  role?: string;
+  subscriptionTier?: string;
+  customLimits?: any;
+  featureFlags?: any;
+  suspended?: boolean;
 }
 
 export interface Holding {
