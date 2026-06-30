@@ -2220,9 +2220,16 @@ app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
     const messages: any[] = [];
     const latestIndex = session.latestChunkIndex || 0;
     
-    // Compile chunks sequentially
+    // Compile chunks in parallel
+    const chunkPromises = [];
     for (let i = 0; i <= latestIndex; i++) {
-      const chunk = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`);
+      chunkPromises.push(
+        getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`)
+      );
+    }
+
+    const chunks = await Promise.all(chunkPromises);
+    for (const chunk of chunks) {
       if (chunk && chunk.messages) {
         messages.push(...chunk.messages);
       }
