@@ -18,7 +18,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Enable CORS for frontend local development
 app.use('/api/*', cors({
-  origin: (origin, c) => c.env.FRONTEND_URL || 'http://localhost:5173', // Allow local dev by default, restrict via FRONTEND_URL env in prod
+  origin: (_origin, c) => c.env.FRONTEND_URL || 'http://localhost:5173', // Allow local dev by default, restrict via FRONTEND_URL env in prod
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length'],
