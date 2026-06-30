@@ -3520,73 +3520,77 @@ export async function checkAndRunScheduled(env: {
   const users = await firestore.listUsers();
   console.log(`[Scheduler] Fetched ${users.length} users to scan.`);
 
-  for (const user of users) {
-    try {
-      const timezone = user.preferredTimezone || user.timezone || 'UTC';
-      const local = getUserLocalTime(now, timezone);
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < users.length; i += BATCH_SIZE) {
+    const batch = users.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (user) => {
+      try {
+        const timezone = user.preferredTimezone || user.timezone || 'UTC';
+        const local = getUserLocalTime(now, timezone);
 
-      const preferredDeliveryTime = user.preferredDeliveryTime || '07:00';
-      const [prefHour, prefMin] = preferredDeliveryTime.split(':').map(Number);
+        const preferredDeliveryTime = user.preferredDeliveryTime || '07:00';
+        const [prefHour, prefMin] = preferredDeliveryTime.split(':').map(Number);
 
-      const preferredTotalMin = prefHour * 60 + (prefMin || 0);
-      const localTotalMin = local.hour * 60 + local.minute;
+        const preferredTotalMin = prefHour * 60 + (prefMin || 0);
+        const localTotalMin = local.hour * 60 + local.minute;
 
-      console.log(`[Scheduler] Scanning User ${user.uid} (${user.email}). Preferred: ${preferredDeliveryTime}. Local time: ${local.hour}:${local.minute} (${local.weekday}).`);
+        console.log(`[Scheduler] Scanning User ${user.uid} (${user.email}). Preferred: ${preferredDeliveryTime}. Local time: ${local.hour}:${local.minute} (${local.weekday}).`);
 
-      // DAILY BRIEFING
-      const dailyBriefingEnabled = user.emailPreferences?.dailyBriefing ?? true;
-      if (dailyBriefingEnabled) {
-        if (localTotalMin >= preferredTotalMin) {
-          const history = await firestore.getDispatchHistory(user.uid);
-          const dailyAlreadySent = history.some(h => 
-            h.dispatchType === 'daily' && 
-            h.localDate === local.dateStr && 
-            h.status === 'success'
-          );
+        // DAILY BRIEFING
+        const dailyBriefingEnabled = user.emailPreferences?.dailyBriefing ?? true;
+        if (dailyBriefingEnabled) {
+          if (localTotalMin >= preferredTotalMin) {
+            const history = await firestore.getDispatchHistory(user.uid);
+            const dailyAlreadySent = history.some(h =>
+              h.dispatchType === 'daily' &&
+              h.localDate === local.dateStr &&
+              h.status === 'success'
+            );
 
-          const dailyFailuresToday = history.filter(h =>
-            h.dispatchType === 'daily' &&
-            h.localDate === local.dateStr &&
-            h.status === 'failed'
-          ).length;
+            const dailyFailuresToday = history.filter(h =>
+              h.dispatchType === 'daily' &&
+              h.localDate === local.dateStr &&
+              h.status === 'failed'
+            ).length;
 
-          if (!dailyAlreadySent && dailyFailuresToday < 3) {
-            console.log(`[Scheduler] Triggering Daily Dispatch for User ${user.uid} (${user.email}) for date ${local.dateStr}. Failures today: ${dailyFailuresToday}`);
-            await executeDailyDispatch(user, local.dateStr, firestore, finnhub, gemini, resend);
-          } else {
-            console.log(`[Scheduler] Daily Dispatch for ${user.uid} skipped. Sent: ${dailyAlreadySent}, Failed runs today: ${dailyFailuresToday}`);
+            if (!dailyAlreadySent && dailyFailuresToday < 3) {
+              console.log(`[Scheduler] Triggering Daily Dispatch for User ${user.uid} (${user.email}) for date ${local.dateStr}. Failures today: ${dailyFailuresToday}`);
+              await executeDailyDispatch(user, local.dateStr, firestore, finnhub, gemini, resend);
+            } else {
+              console.log(`[Scheduler] Daily Dispatch for ${user.uid} skipped. Sent: ${dailyAlreadySent}, Failed runs today: ${dailyFailuresToday}`);
+            }
           }
         }
-      }
 
-      // WEEKLY RETROSPECTIVE (Sundays)
-      const weeklyReportEnabled = user.emailPreferences?.weeklyReport ?? true;
-      if (weeklyReportEnabled && local.weekday === 'Sun') {
-        if (localTotalMin >= preferredTotalMin) {
-          const history = await firestore.getDispatchHistory(user.uid);
-          const weeklyAlreadySent = history.some(h => 
-            h.dispatchType === 'weekly' && 
-            h.localDate === local.dateStr && 
-            h.status === 'success'
-          );
+        // WEEKLY RETROSPECTIVE (Sundays)
+        const weeklyReportEnabled = user.emailPreferences?.weeklyReport ?? true;
+        if (weeklyReportEnabled && local.weekday === 'Sun') {
+          if (localTotalMin >= preferredTotalMin) {
+            const history = await firestore.getDispatchHistory(user.uid);
+            const weeklyAlreadySent = history.some(h =>
+              h.dispatchType === 'weekly' &&
+              h.localDate === local.dateStr &&
+              h.status === 'success'
+            );
 
-          const weeklyFailuresToday = history.filter(h =>
-            h.dispatchType === 'weekly' &&
-            h.localDate === local.dateStr &&
-            h.status === 'failed'
-          ).length;
+            const weeklyFailuresToday = history.filter(h =>
+              h.dispatchType === 'weekly' &&
+              h.localDate === local.dateStr &&
+              h.status === 'failed'
+            ).length;
 
-          if (!weeklyAlreadySent && weeklyFailuresToday < 3) {
-            console.log(`[Scheduler] Triggering Weekly Summary for User ${user.uid} (${user.email}) for date ${local.dateStr}. Failures today: ${weeklyFailuresToday}`);
-            await executeWeeklySummary(user, local.dateStr, firestore, finnhub, gemini, resend);
-          } else {
-            console.log(`[Scheduler] Weekly Summary for ${user.uid} skipped. Sent: ${weeklyAlreadySent}, Failed runs today: ${weeklyFailuresToday}`);
+            if (!weeklyAlreadySent && weeklyFailuresToday < 3) {
+              console.log(`[Scheduler] Triggering Weekly Summary for User ${user.uid} (${user.email}) for date ${local.dateStr}. Failures today: ${weeklyFailuresToday}`);
+              await executeWeeklySummary(user, local.dateStr, firestore, finnhub, gemini, resend);
+            } else {
+              console.log(`[Scheduler] Weekly Summary for ${user.uid} skipped. Sent: ${weeklyAlreadySent}, Failed runs today: ${weeklyFailuresToday}`);
+            }
           }
         }
+      } catch (userErr) {
+        console.error(`[Scheduler] Failed checking user ${user.uid}:`, userErr);
       }
-    } catch (userErr) {
-      console.error(`[Scheduler] Failed checking user ${user.uid}:`, userErr);
-    }
+    }));
   }
 }
 
