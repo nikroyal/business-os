@@ -283,14 +283,14 @@ export const DeveloperConsole: React.FC = () => {
 
   // Filter users
   const filteredUsers = usersList.filter(u => 
-    u.email.toLowerCase().includes(userSearch.toLowerCase()) || 
+    (u.email || '').toLowerCase().includes(userSearch.toLowerCase()) || 
     (u.displayName || '').toLowerCase().includes(userSearch.toLowerCase())
   );
 
   const filteredLogs = auditLogs.filter(log => 
-    log.action.toLowerCase().includes(auditFilter.toLowerCase()) ||
-    log.adminEmail.toLowerCase().includes(auditFilter.toLowerCase()) ||
-    log.targetUserId.toLowerCase().includes(auditFilter.toLowerCase())
+    (log.action || '').toLowerCase().includes(auditFilter.toLowerCase()) ||
+    (log.adminEmail || '').toLowerCase().includes(auditFilter.toLowerCase()) ||
+    (log.targetUserId || '').toLowerCase().includes(auditFilter.toLowerCase())
   );
 
   return (
@@ -408,7 +408,7 @@ export const DeveloperConsole: React.FC = () => {
               </thead>
               <tbody>
                 {Object.entries(health).map(([node, detail]: any) => {
-                  const s = detail.status.toLowerCase();
+                  const s = (detail?.status || '').toLowerCase();
                   const isGreen = ['operational', 'available', 'healthy'].includes(s);
                   const isOrange = ['degraded', 'cache_empty', 'waiting_for_scheduled_sync'].includes(s);
                   const isGray = ['not_configured'].includes(s);
@@ -425,10 +425,10 @@ export const DeveloperConsole: React.FC = () => {
                       <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{node.toUpperCase()}</td>
                       <td style={{ padding: '0.75rem 0.5rem' }}>
                         <span style={{ color, fontWeight: 'bold' }}>
-                          ● {detail.status.toUpperCase().replace(/_/g, ' ')}
+                          ● {(detail?.status || '').toUpperCase().replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{detail.latency} ms</td>
+                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{detail?.latency || 0} ms</td>
                     </tr>
                   );
                 })}
@@ -514,6 +514,7 @@ export const DeveloperConsole: React.FC = () => {
             </thead>
             <tbody>
               {Object.entries(queues || {}).map(([key, q]: any) => {
+                if (!q) return null;
                 let nextExecution = '—';
                 if (q.lastExecution) {
                   const lastTime = new Date(q.lastExecution).getTime();
@@ -527,16 +528,17 @@ export const DeveloperConsole: React.FC = () => {
                     nextExecution = new Date(lastTime + 15 * 60 * 1000).toLocaleTimeString();
                   }
                 }
+                const statusStr = q.status || 'unknown';
                 return (
                   <tr key={key} style={{ borderBottom: '1px solid #E2DACD' }}>
                     <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}><span style={{ color: 'var(--color-success-text)', fontWeight: 'bold' }}>{q.status.toUpperCase()}</span></td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}><span style={{ color: 'var(--color-success-text)', fontWeight: 'bold' }}>{statusStr.toUpperCase()}</span></td>
                     <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.lastExecution ? new Date(q.lastExecution).toLocaleTimeString() : '—'}</td>
                     <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{nextExecution}</td>
-                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.duration}s</td>
-                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{q.pending}</td>
-                    <td style={{ padding: '0.75rem 0.5rem', color: q.failures > 0 ? 'var(--color-danger-text)' : 'inherit', fontFamily: 'var(--font-mono)' }}>{q.failures}</td>
-                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.retries}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.duration || 0}s</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{q.pending || 0}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: (q.failures || 0) > 0 ? 'var(--color-danger-text)' : 'inherit', fontFamily: 'var(--font-mono)' }}>{q.failures || 0}</td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{q.retries || 0}</td>
                   </tr>
                 );
               })}

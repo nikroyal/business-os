@@ -255,7 +255,9 @@ app.get('/api/health/services', async (c) => {
   const resendKey = (c.env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   // Default results mapping
   const results: any = {
@@ -288,9 +290,9 @@ app.get('/api/health/services', async (c) => {
     secFacts,
     fredApiResponse
   ] = await Promise.all([
-    getFirestoreDoc(projectId, 'system/featureFlags').catch(() => null),
+    getFirestoreDoc(projectId, 'system/featureFlags', token).catch(() => null),
     firestore.getFredIndicators().catch(() => null),
-    getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
+    getFirestoreDoc(projectId, 'system/secSchedulerState', token).catch(() => null),
     Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null))),
     fredApiPromise
   ]);
@@ -1647,7 +1649,9 @@ app.post('/api/market-data/compile-research', async (c) => {
 // 5. Data Quality Monitoring Endpoint
 app.get('/api/system/data-quality', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
   const fredKey = c.env.FRED_API_KEY;
   
   try {
@@ -1662,8 +1666,8 @@ app.get('/api/system/data-quality', async (c) => {
       fredIndicatorsDoc,
       secFactsData
     ] = await Promise.all([
-      getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
-      getFirestoreDoc(projectId, 'system/fredHealth').catch(() => null),
+      getFirestoreDoc(projectId, 'system/secSchedulerState', token).catch(() => null),
+      getFirestoreDoc(projectId, 'system/fredHealth', token).catch(() => null),
       firestore.getFredIndicators().catch(() => null),
       Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null)))
     ]);
@@ -1971,9 +1975,9 @@ async function getUserRoleProfile(userId: string, projectId: string, email?: str
   };
 }
 
-async function resolveFlags(_userId: string, role: UserRole, userOverrides: Partial<FeatureFlags>, projectId: string): Promise<FeatureFlags> {
+async function resolveFlags(_userId: string, role: UserRole, userOverrides: Partial<FeatureFlags>, projectId: string, token?: string): Promise<FeatureFlags> {
   let dbFlags: Record<string, any> = {};
-  const globalFlagsDoc = await getFirestoreDoc(projectId, 'system/featureFlags');
+  const globalFlagsDoc = await getFirestoreDoc(projectId, 'system/featureFlags', token);
   if (globalFlagsDoc) {
     dbFlags = globalFlagsDoc;
   }
@@ -2243,7 +2247,7 @@ app.post('/api/copilot/chat', async (c) => {
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
     // 1. Resolve Auth Roles and Feature Flags
     const { role, customLimits, featureFlags, modelCopilot, geminiModel } = await getUserRoleProfile(userId, projectId, undefined, token);
-    const flags = await resolveFlags(userId, role, featureFlags, projectId);
+    const flags = await resolveFlags(userId, role, featureFlags, projectId, token);
 
     if (!flags.copilot) {
       return c.json({ error: 'Forbidden: Copilot interface is not enabled for your account plan.' }, 403);
@@ -2602,7 +2606,7 @@ app.get('/api/admin/users/:userId', async (c) => {
     } catch {}
 
     // Resolve active feature flags
-    const resolvedFlags = await resolveFlags(targetId, userDoc.role || 'FREE', userDoc.featureFlags || {}, projectId);
+    const resolvedFlags = await resolveFlags(targetId, userDoc.role || 'FREE', userDoc.featureFlags || {}, projectId, token);
 
     // Compute dispatch status
     const dispatchStatus = userDoc.emailPreferences?.dailyBriefing ? 'Active' : 'Inactive';

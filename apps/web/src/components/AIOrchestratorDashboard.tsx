@@ -320,29 +320,29 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Overall AI Health</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: overview.overallHealth === 'healthy' ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>
-                {overview.overallHealth === 'healthy' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                {overview.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: overview?.overallHealth === 'healthy' ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>
+                {overview?.overallHealth === 'healthy' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                {overview?.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {overview.overallSuccessRate}% | Failovers: {overview.totalFailovers}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {overview?.overallSuccessRate || 0}% | Failovers: {overview?.totalFailovers || 0}</div>
             </div>
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Volume & Latency</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>{overview.averageLatencyMs} ms</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday} | Monthly: {overview.requestsThisMonth || 0}</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>{overview?.averageLatencyMs || 0} ms</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview?.requestsToday || 0} | Monthly: {overview?.requestsThisMonth || 0}</div>
             </div>
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Operational Cost Today</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-success-text)' }}>${overview.estimatedDailyCost.toFixed(4)}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Monthly Projection: ${overview.estimatedMonthlyCost.toFixed(2)}</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-success-text)' }}>${(overview?.estimatedDailyCost || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Monthly Projection: ${(overview?.estimatedMonthlyCost || 0).toFixed(2)}</div>
             </div>
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cache Performance</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text)' }}>{overview.cacheHitRate || 0}%</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached | Saved ${(overview.estimatedCostSavings || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text)' }}>{overview?.cacheHitRate || 0}%</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview?.cachedResponses || 0} cached | Saved ${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
             </div>
           </div>
 
@@ -539,17 +539,17 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
-                        <div>{model.stats.successRate}% S / {model.stats.failure > 0 ? `${model.stats.failure} F` : '0 F'}</div>
-                        <div style={{ fontSize: '0.55rem', color: 'var(--text-secondary)' }}>Avg Latency: {model.stats.avgLatencyMs}ms</div>
-                        {model.stats.lastSuccess && (
+                        <div>{(model.stats?.successRate || 0)}% S / {(model.stats?.failure || 0) > 0 ? `${model.stats?.failure} F` : '0 F'}</div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-secondary)' }}>Avg Latency: {(model.stats?.avgLatencyMs || 0)}ms</div>
+                        {model.stats?.lastSuccess && (
                           <div style={{ fontSize: '0.5rem', color: 'var(--color-success-text)', marginTop: '2px' }} title={`Last success: ${model.stats.lastSuccess}`}>
                             ✓ {new Date(model.stats.lastSuccess).toLocaleTimeString()}
                           </div>
                         )}
-                        {model.stats.lastFailure && (
+                        {model.stats?.lastFailure && (
                           <div style={{ fontSize: '0.5rem', color: 'var(--color-danger-text)', marginTop: '1px' }} title={model.stats.lastFailureReason || 'Unknown error'}>
                             ✗ {new Date(model.stats.lastFailure).toLocaleTimeString()}
-                            {model.stats.lastFailureReason && (
+                            {model.stats?.lastFailureReason && (
                               <span style={{ marginLeft: '2px', color: 'var(--color-danger-text)', opacity: 0.7 }}>({model.stats.lastFailureReason})</span>
                             )}
                           </div>
@@ -639,13 +639,13 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <Layers size={14} style={{ color: 'var(--color-accent)' }} /> Cost by Feature
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {Object.entries(stats.breakdowns.featureCost).map(([feat, cost]) => (
+                {Object.entries(stats?.breakdowns?.featureCost || {}).map(([feat, cost]) => (
                   <div key={feat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>{feat}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${cost.toFixed(5)}</strong>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
                   </div>
                 ))}
-                {Object.keys(stats.breakdowns.featureCost).length === 0 && (
+                {Object.keys(stats?.breakdowns?.featureCost || {}).length === 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
@@ -656,13 +656,13 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <Briefcase size={14} style={{ color: '#a855f7' }} /> Cost by Workspace
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {Object.entries(stats.breakdowns.workspaceCost).map(([ws, cost]) => (
+                {Object.entries(stats?.breakdowns?.workspaceCost || {}).map(([ws, cost]) => (
                   <div key={ws} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
                     <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{ws}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${cost.toFixed(5)}</strong>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
                   </div>
                 ))}
-                {Object.keys(stats.breakdowns.workspaceCost).length === 0 && (
+                {Object.keys(stats?.breakdowns?.workspaceCost || {}).length === 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
@@ -673,13 +673,13 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <User size={14} style={{ color: 'var(--color-warning-text)' }} /> Cost by User
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {Object.entries(stats.breakdowns.userCost).map(([usr, cost]) => (
+                {Object.entries(stats?.breakdowns?.userCost || {}).map(([usr, cost]) => (
                   <div key={usr} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{usr.substring(0, 16)}{usr.length > 16 && '...'}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${cost.toFixed(5)}</strong>
+                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{(usr || '').substring(0, 16)}{(usr || '').length > 16 && '...'}</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
                   </div>
                 ))}
-                {Object.keys(stats.breakdowns.userCost).length === 0 && (
+                {Object.keys(stats?.breakdowns?.userCost || {}).length === 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
@@ -724,7 +724,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     <tr key={record.id} style={{ borderBottom: '1px solid #E2DACD' }}>
                       <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(record.timestamp).toLocaleTimeString()}</td>
                       <td style={{ padding: '0.5rem 0.25rem', fontWeight: 'bold' }}>{record.feature}</td>
-                      <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{record.user.substring(0, 8)}...</td>
+                      <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{(record.user || '').substring(0, 8)}...</td>
                       <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={record.workspace}>
                         {record.workspace || '—'}
                       </td>
@@ -752,7 +752,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         {record.latency}ms
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>
-                        ${record.estimatedCost.toFixed(5)}
+                        ${(record.estimatedCost || 0).toFixed(5)}
                       </td>
                       <td style={{ padding: '0.5rem 0.25rem', textAlign: 'right', fontWeight: 'bold' }}>
                         {record.cachedResponse && (
