@@ -3304,10 +3304,9 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
   console.log('[Scheduler] Ingesting FRED economic series daily cache...');
   try {
     const seriesIds = ['UNRATE', 'CPIAUCSL', 'CPILFESL', 'FEDFUNDS', 'DGS2', 'DGS10', 'T10Y2Y'];
-    const indicators: any[] = [];
     const timestamp = new Date().toISOString();
 
-    for (const seriesId of seriesIds) {
+    const indicatorPromises = seriesIds.map(async (seriesId) => {
       const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=15`;
       const res = await fetch(url);
       if (!res.ok) {
@@ -3320,7 +3319,7 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
         .filter((o: any) => o.value !== '.' && !isNaN(parseFloat(o.value)))
         .map((o: any) => ({ date: o.date, value: parseFloat(o.value) }));
 
-      if (validObs.length === 0) continue;
+      if (validObs.length === 0) return null;
 
       const latest = validObs[0];
       let value = latest.value;
@@ -3372,7 +3371,7 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
       const trendDirection = change1M > 0.01 ? 'Rising' : (change1M < -0.01 ? 'Falling' : 'Flat');
       const significance = (seriesId === 'CPIAUCSL' || seriesId === 'CPILFESL' || seriesId === 'T10Y2Y') ? 'Critical' : 'High';
 
-      indicators.push({
+      return {
         id: seriesId.toLowerCase(),
         name,
         value,
@@ -3385,8 +3384,11 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
         confidence: 'High',
         date: latest.date,
         change1M
-      });
-    }
+      };
+    });
+
+    const results = await Promise.all(indicatorPromises);
+    const indicators = results.filter(Boolean);
 
     await firestore.saveFredIndicators(indicators);
     console.log('[Scheduler] FRED indicators daily cache saved successfully.');
