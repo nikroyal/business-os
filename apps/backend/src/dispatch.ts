@@ -1739,7 +1739,7 @@ export class FirestoreClient {
 
   async saveReport(userId: string, report: Omit<DailyReport, 'id' | 'createdAt'>): Promise<DailyReport> {
     const timestamp = new Date().toISOString();
-    const id = 'report_' + Math.random().toString(36).substr(2, 9);
+    const id = 'report_' + crypto.randomUUID();
     const newReport: DailyReport = {
       id,
       ...report,
@@ -1765,7 +1765,7 @@ export class FirestoreClient {
   async saveOpportunities(userId: string, opportunities: Omit<Opportunity, 'id'>[]): Promise<Opportunity[]> {
     const timestamp = new Date().toISOString();
     const savedList = opportunities.map(opp => ({
-      id: 'opp_' + Math.random().toString(36).substr(2, 9),
+      id: 'opp_' + crypto.randomUUID(),
       ...opp,
       generatedTimestamp: timestamp
     }));
@@ -1788,7 +1788,7 @@ export class FirestoreClient {
   }
 
   async saveDispatchHistory(userId: string, historyItem: Omit<DispatchHistory, 'id'>): Promise<DispatchHistory> {
-    const id = 'dispatch_' + Math.random().toString(36).substr(2, 9);
+    const id = 'dispatch_' + crypto.randomUUID();
     const fullItem = {
       id,
       ...historyItem
@@ -4076,7 +4076,7 @@ export class NewsDataService {
 
       if (!isDup) {
         processed.push({
-          id: art.id || String(Math.random().toString(36).substr(2, 9)),
+          id: art.id || String(crypto.randomUUID()),
           headline,
           summary,
           sourceName,
@@ -4194,7 +4194,7 @@ export class InvestorRelationsService {
     }
 
     return {
-      id: art.id ? String(art.id) : `${symbol}_ir_${Math.random().toString(36).substr(2, 9)}`,
+      id: art.id ? String(art.id) : `${symbol}_ir_${crypto.randomUUID()}`,
       type,
       title: headline,
       publishDate,

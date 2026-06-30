@@ -438,7 +438,7 @@ export class AIOrchestrator {
 
   public static async recordTelemetry(projectId: string, telemetry: any): Promise<void> {
     try {
-      const docId = `telemetry_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const docId = `telemetry_${Date.now()}_${crypto.randomUUID()}`;
       const doc = { fields: {} as any };
       for (const [k, v] of Object.entries(telemetry)) {
         doc.fields[k] = toFirestoreValue(v);
