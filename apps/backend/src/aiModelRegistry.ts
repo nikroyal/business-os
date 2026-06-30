@@ -517,11 +517,13 @@ export class AIOrchestrator {
       const toDelete = telemetry.filter(record => new Date(record.timestamp).getTime() < threshold);
       
       console.log(`[AIOrchestrator] Retention Cleanup: deleting ${toDelete.length} legacy telemetry logs.`);
-      for (const record of toDelete) {
-        await fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
-          method: 'DELETE'
-        });
-      }
+      await Promise.all(
+        toDelete.map(record =>
+          fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
+            method: 'DELETE'
+          })
+        )
+      );
     } catch (e) {
       console.error('[AIOrchestrator] Telemetry cleanup failed:', e);
     }
@@ -572,11 +574,13 @@ export class AIOrchestrator {
   public static async clearTelemetry(projectId: string): Promise<void> {
     try {
       const telemetry = await this.getTelemetry(projectId);
-      for (const record of telemetry) {
-        await fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
-          method: 'DELETE'
-        });
-      }
+      await Promise.all(
+        telemetry.map(record =>
+          fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
+            method: 'DELETE'
+          })
+        )
+      );
     } catch (e) {
       console.error('[AIOrchestrator] Clear telemetry failed:', e);
     }
