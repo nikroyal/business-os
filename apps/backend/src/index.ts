@@ -51,32 +51,25 @@ async function authenticateUser(c: any, next: any) {
   if (c.req.method === 'OPTIONS') {
     return await next();
   }
-  console.log(`[Auth Trace] 1. Request reached Worker. URL: ${c.req.url}, Method: ${c.req.method}`);
   
   const authHeader = c.req.header('Authorization');
-  console.log(`[Auth Trace] 2. Authorization header: ${authHeader ? 'Present' : 'Missing'} (${authHeader})`);
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('[Auth Trace] 9. Failure: Missing or invalid Authorization header format (returning 401 at line 52)');
     return c.json({ error: 'Unauthorized: Missing Authorization token' }, 401);
   }
 
   const token = authHeader.substring(7);
-  console.log(`[Auth Trace] 3. Firebase ID token present: ${!!token}`);
 
   // Allow mock tokens in local development / fallback modes
   if (token.startsWith('mock_')) {
-    console.log(`[Auth Trace] Bypassing verification for mock token: ${token}`);
     c.set('userId', token);
     c.set('userEmail', token.includes('owner') ? 'owner@businessos.com' : (token.includes('admin') ? 'admin@businessos.com' : 'user@businessos.com'));
-    console.log('[Auth Trace] 8. Mock request passing to next handler');
     return await next();
   }
 
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
-      console.log('[Auth Trace] 9. Failure: Invalid JWT format (returning 401 at line 66)');
       return c.json({ error: 'Unauthorized: Invalid JWT format' }, 401);
     }
 
@@ -85,24 +78,19 @@ async function authenticateUser(c: any, next: any) {
     try {
       header = JSON.parse(atob(parts[0]));
       payload = JSON.parse(atob(parts[1]));
-      console.log(`[Auth Trace] 4. Token parsed successfully. Header: ${JSON.stringify(header)}, Payload keys: ${Object.keys(payload).join(', ')}`);
     } catch (parseErr: any) {
-      console.log(`[Auth Trace] 4. Token parsing failed: ${parseErr.message}`);
       throw parseErr;
     }
 
     // Validate expiration
     const nowSec = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < nowSec) {
-      console.log(`[Auth Trace] 9. Failure: Token expired. Expiration: ${payload.exp}, Now: ${nowSec} (returning 401 at line 75)`);
       return c.json({ error: 'Unauthorized: Token expired' }, 401);
     }
 
     // Validate Issuer & Audience if project ID is configured
     const expectedProjectId = c.env.FIREBASE_PROJECT_ID || payload.aud; // fallback to payload's aud
-    console.log(`[Auth Trace] 7. Firebase project ID check. Env FIREBASE_PROJECT_ID: ${c.env.FIREBASE_PROJECT_ID}, Expected Project ID: ${expectedProjectId}, Payload aud: ${payload.aud}, Payload iss: ${payload.iss}`);
     if (payload.iss !== `https://securetoken.google.com/${expectedProjectId}` || payload.aud !== expectedProjectId) {
-      console.log(`[Auth Trace] 9. Failure: Invalid token issuer or audience. Expected project: ${expectedProjectId}, got iss=${payload.iss}, aud=${payload.aud} (returning 401 at line 81)`);
       return c.json({ error: 'Unauthorized: Invalid token issuer or audience' }, 401);
     }
 
@@ -110,13 +98,10 @@ async function authenticateUser(c: any, next: any) {
     let keys: any[] = [];
     const nowMs = Date.now();
     if (cachedGoogleCerts && nowMs < cachedGoogleCertsExpires) {
-      console.log('[Auth Trace] 5. Google public certificates retrieved from cache.');
       keys = cachedGoogleCerts;
     } else {
-      console.log('[Auth Trace] 5. Cache miss or expired. Fetching Google public certificates from securetoken endpoint...');
       const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
       if (!certsRes.ok) {
-        console.log(`[Auth Trace] 5. Failed to fetch Google public certificates: HTTP ${certsRes.status}`);
         throw new Error('Failed to fetch Google public certificates');
       }
       
@@ -141,17 +126,14 @@ async function authenticateUser(c: any, next: any) {
       keys = body.keys || [];
       cachedGoogleCerts = keys;
       cachedGoogleCertsExpires = nowMs + (ttlSeconds * 1000);
-      console.log(`[Auth Trace] 5. Downloaded Google signing certificates successfully. Count: ${keys.length}`);
     }
 
     const jwk = keys.find((k: any) => k.kid === header.kid);
     if (!jwk) {
-      console.log(`[Auth Trace] 9. Failure: Unknown key ID (kid) ${header.kid} (returning 401 at line 120)`);
       return c.json({ error: 'Unauthorized: Unknown key ID (kid)' }, 401);
     }
 
     // Verify cryptographic signature
-    console.log('[Auth Trace] 6. Verifying cryptographic signature...');
     const key = await crypto.subtle.importKey(
       'jwk',
       jwk,
@@ -171,11 +153,9 @@ async function authenticateUser(c: any, next: any) {
     );
 
     if (!isValid) {
-      console.log('[Auth Trace] 9. Failure: Invalid cryptographic signature (returning 401 at line 143)');
       return c.json({ error: 'Unauthorized: Invalid cryptographic signature' }, 401);
     }
 
-    console.log('[Auth Trace] 6. Cryptographic signature verified successfully.');
 
     // Set user context
     c.set('userId', payload.sub);
@@ -222,13 +202,10 @@ app.get('/api/auth-debug/models', async (c) => {
   }
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`;
-  console.log('[Gemini Model List Trace] Querying Google Models API...');
   
   try {
     const res = await fetch(endpoint);
     const txt = await res.text();
-    console.log(`[Gemini Model List Trace] HTTP Status: ${res.status}`);
-    console.log(`[Gemini Model List Trace] Response Body: ${txt}`);
     
     if (!res.ok) {
       return c.json({ error: `Google API returned HTTP ${res.status}`, details: txt }, res.status as any);
@@ -250,7 +227,6 @@ app.use('/api/system/*', authenticateUser);
 
 // Services Health Check Endpoint
 app.get('/api/health/services', async (c) => {
-  console.log(`[Auth Trace] 8. Request reached service health code. User ID: ${c.var.userId}`);
   const finnhubKey = (c.env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const geminiKey = (c.env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const resendKey = (c.env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
@@ -323,16 +299,11 @@ app.get('/api/health/services', async (c) => {
   } else {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
-      const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=HIDDEN`;
+
       const payload = {
         contents: [{ parts: [{ text: 'say ok' }] }]
       };
       const reqHeaders = { 'Content-Type': 'application/json' };
-      console.log(`[Gemini Health Trace] Exact request URL: ${cleanEndpoint}`);
-      console.log(`[Gemini Health Trace] HTTP method: POST`);
-      console.log(`[Gemini Health Trace] Request headers: ${JSON.stringify(reqHeaders)}`);
-      console.log(`[Gemini Health Trace] Request body: ${JSON.stringify(payload)}`);
-      console.log(`[Gemini Health Trace] Resolved model name: gemini-3.5-flash`);
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -341,19 +312,14 @@ app.get('/api/health/services', async (c) => {
       });
       
       const txt = await res.text();
-      const resHeaders = Array.from(res.headers.entries());
-      console.log(`[Gemini Health Trace] Response status: ${res.status}`);
-      console.log(`[Gemini Health Trace] Response headers: ${JSON.stringify(resHeaders)}`);
-      console.log(`[Gemini Health Trace] Full raw Google response body: ${txt}`);
+
 
       if (!res.ok) {
-        console.log(`[Gemini Health Trace] Exact reason for HTTP status error: HTTP ${res.status} - ${txt}`);
         results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}: ${txt}` };
       } else {
         results.gemini = { status: 'operational', description: 'Gemini API is operational' };
       }
     } catch (err: any) {
-      console.log(`[Gemini Health Trace] Exact reason for failure: Unreachable - ${err.message || err}`);
       results.gemini = { status: 'failure', description: `Gemini is unreachable: ${err.message || err}` };
     }
   }
@@ -695,7 +661,6 @@ class FREDDataService {
     // 2. Fetch from FRED API if API Key is configured
     if (apiKey) {
       try {
-        console.log('[FREDDataService] Cache miss or stale. Querying FRED API...');
         const seriesIds = ['UNRATE', 'CPIAUCSL', 'CPILFESL', 'FEDFUNDS', 'DGS2', 'DGS10', 'T10Y2Y'];
         const indicators: any[] = [];
         const timestamp = new Date().toISOString();
@@ -840,13 +805,12 @@ app.get('/api/intelligence/company', async (c) => {
   const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
 
   try {
-    const key = `${symbol.toUpperCase()}:${exchange.toUpperCase()}`;
+
     let intel = await firestore.getCompanyIntelligence(symbol, exchange);
     
     // If not found or stale (> 7 days), regenerate
     const isStale = intel ? (Date.now() - new Date(intel.updatedAt).getTime() > 7 * 24 * 60 * 60 * 1000) : true;
     if (isStale) {
-      console.log(`[Intelligence API] Company record for ${key} is missing or stale. Generating...`);
       intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
     }
@@ -1565,11 +1529,9 @@ app.post('/api/market-data/compile-research', async (c) => {
     // Check Shared Research Cache first
     const cachedReport = await firestore.getResearchReportCache(ticker, exchange, version, dateStr);
     if (cachedReport) {
-      console.log(`[SharedResearchCache] Cache HIT for ${ticker}:${exchange} (version: ${version}, date: ${dateStr})`);
       return c.json(cachedReport);
     }
     
-    console.log(`[SharedResearchCache] Cache MISS. Compiling report via Gemini for ${ticker}:${exchange}...`);
 
     const systemPrompt = `You are a Senior Equity Research Analyst writing formal investment briefs. 
     Analyze the company's financial facts and news context.
@@ -1786,7 +1748,6 @@ app.post('/api/system/fred/refresh', async (c) => {
   const firestore = new FirestoreClient(projectId);
 
   try {
-    console.log('[Manual Trigger] Triggering FRED daily ingestion...');
     await runFredDailyIngestion(firestore, fredKey, true); // force = true
     return c.json({ success: true, message: 'FRED cache refreshed successfully.' });
   } catch (err: any) {
@@ -1801,7 +1762,6 @@ app.post('/api/system/sec/ingest', async (c) => {
   const firestore = new FirestoreClient(projectId);
 
   try {
-    console.log('[Manual Trigger] Triggering SEC batch ingestion...');
     await runSecBatchIngestion(firestore, true); // force = true
     return c.json({ success: true, message: 'SEC EDGAR ingestion triggered successfully.' });
   } catch (err: any) {
@@ -1940,7 +1900,6 @@ async function getUserRoleProfile(userId: string, projectId: string, email?: str
   let profile = await getFirestoreDoc(projectId, `users/${userId}`, token);
   if (!profile && userId && userId !== 'undefined') {
     const isOwnerOrAdmin = (email && (email.includes('owner') || email.includes('admin'))) || (userId && (userId.includes('owner') || userId.includes('admin')));
-    console.log(`[Bootstrap] Creating default ${isOwnerOrAdmin ? 'OWNER' : 'FREE'} profile for user ${userId}...`);
     profile = {
       uid: userId,
       email: email || (userId.startsWith('mock_') ? `${userId.substring(5)}@businessos.com` : 'user@businessos.com'),
@@ -2509,7 +2468,6 @@ CRITICAL INSTRUCTIONS:
 
     if (totalCharCount > 25000 && (!contextSummary || charsSinceLastSummary > 15000)) {
       try {
-        console.log(`[Copilot Memory] Running sliding-window summarizer loop for session ${sessionId}...`);
         const messagesToSummarize = activeChunk.messages.slice(0, -6);
         if (messagesToSummarize.length > 0) {
           const summarySystem = `You are a financial records archivist. Summarize the core topics, questions, portfolios, and decisions resolved during this chat history into a single compact context paragraph. Do not include details or code. Output raw JSON object: { "summary": "Your paragraph here." }`;
@@ -2997,8 +2955,7 @@ import { checkAndRunScheduled, runFredDailyIngestion, runSecBatchIngestion } fro
 
 export default {
   fetch: app.fetch,
-  async scheduled(event: any, env: Bindings, ctx: any) {
-    console.log('[Worker Cron] Triggered scheduled event:', event.cron);
+  async scheduled(_event: any, env: Bindings, ctx: any) {
     ctx.waitUntil(checkAndRunScheduled(env as any));
   }
 };
