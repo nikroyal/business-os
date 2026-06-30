@@ -2181,9 +2181,11 @@ app.delete('/api/copilot/sessions/:sessionId', async (c) => {
     
     // Delete chunks up to latest index
     const latestIndex = session.latestChunkIndex || 0;
+    const deletePromises = [];
     for (let i = 0; i <= latestIndex; i++) {
-      await deleteFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`);
+      deletePromises.push(deleteFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`));
     }
+    await Promise.all(deletePromises);
 
     return c.json({ success: true, message: 'Session deleted successfully' });
   } catch (err: any) {
