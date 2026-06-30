@@ -327,7 +327,7 @@ export const DeveloperConsole: React.FC = () => {
         <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Gemini Daily Tokens</span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
-            {(apiAnalytics?.gemini?.totalTokens || 0).toLocaleString()}
+            {(apiAnalytics?.gemini?.totalTokens ?? apiAnalytics?.gemini?.totalTokensToday ?? 0).toLocaleString()}
           </strong>
         </div>
         <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
@@ -439,24 +439,51 @@ export const DeveloperConsole: React.FC = () => {
           {/* Token Costs summaries */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             
-            <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div className="card" style={{ background: '#fff', padding: '1rem 1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
               <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Gemini Cost Tracking</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Flash API Calls:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini.flashRequests}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Pro API Calls:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini.proRequests}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Total Token Overhead:</span> <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{apiAnalytics.gemini.totalTokens.toLocaleString()}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Daily Cost Estimate:</span> <strong style={{ color: 'var(--color-success-text)' }}>${apiAnalytics.gemini.dailyCost.toFixed(2)}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio:</span> <strong style={{ color: 'var(--color-warning-text)' }}>{apiAnalytics.gemini.hitRate}%</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {apiAnalytics.gemini?.flashRequests !== undefined ? 'Flash API Calls:' : 'Total Requests Today:'}
+                  </span>
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    {apiAnalytics.gemini?.flashRequests ?? apiAnalytics.gemini?.requestsToday ?? 0}
+                  </strong>
+                </div>
+                {apiAnalytics.gemini?.proRequests !== undefined && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Pro API Calls:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini?.proRequests}</strong>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Total Token Overhead:</span>
+                  <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                    {(apiAnalytics.gemini?.totalTokens ?? apiAnalytics.gemini?.totalTokensToday ?? 0).toLocaleString()}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Daily Cost Estimate:</span>
+                  <strong style={{ color: 'var(--color-success-text)' }}>
+                    ${(apiAnalytics.gemini?.dailyCost ?? 0).toFixed(2)}
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio:</span>
+                  <strong style={{ color: 'var(--color-warning-text)' }}>
+                    {apiAnalytics.gemini?.hitRate ?? apiAnalytics.gemini?.cacheHitRate ?? 0}%
+                  </strong>
+                </div>
               </div>
             </div>
 
             <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
               <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Data Quality Metrics</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>FRED Cached Indicators:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.fred.cachedIndicators}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Companies:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.sec.companiesCached}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Filings:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.sec.filingsCached}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Finnhub 429 Errors:</span> <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics.finnhub.count429}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>FRED Cached Indicators:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.fred?.cachedIndicators ?? 0}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Companies:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.companiesCached ?? 0}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Filings:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.filingsCached ?? 0}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Finnhub 429 Errors:</span> <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics?.finnhub?.count429 ?? 0}</strong></div>
               </div>
             </div>
 

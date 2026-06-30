@@ -27,7 +27,24 @@ export interface PlatformHealthStatus {
 }
 
 export interface APIUsageStatistics {
-  gemini: { flashRequests: number; proRequests: number; totalTokens: number; dailyCost: number; hitRate: number };
+  gemini: { 
+    flashRequests?: number; 
+    proRequests?: number; 
+    totalTokens?: number; 
+    dailyCost?: number; 
+    hitRate?: number;
+    requestsToday?: number;
+    requestsThisMonth?: number;
+    promptTokensToday?: number;
+    completionTokensToday?: number;
+    totalTokensToday?: number;
+    monthlyCostProjection?: number;
+    cacheHitRate?: number;
+    cachedResponses?: number;
+    estimatedCostSavings?: number;
+    source?: string;
+    error?: string;
+  };
   finnhub: { requestsToday: number; hitRate: number; count429: number; latency: number };
   fred: { requests: number; cachedIndicators: number; lastRefresh: string };
   sec: { companiesCached: number; filingsCached: number; lastIngestion: string; queueHealth: string };
