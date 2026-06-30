@@ -3606,14 +3606,26 @@ async function executeDailyDispatch(
     const marketPrices: Record<string, number> = {};
     const metadataMap: Record<string, AssetMetadata | null> = {};
     
-    await Promise.all(holdings.map(async (h) => {
+    const uniqueAssets = new Map<string, { ticker: string, exchange: string | undefined, ids: string[] }>();
+    for (const h of holdings) {
       const tickerStr = h.ticker || h.symbol;
+      const key = `${tickerStr}_${h.exchange || ''}`;
+      if (!uniqueAssets.has(key)) {
+        uniqueAssets.set(key, { ticker: tickerStr, exchange: h.exchange, ids: [] });
+      }
+      uniqueAssets.get(key)!.ids.push(h.id);
+    }
+
+    await Promise.all(Array.from(uniqueAssets.values()).map(async (asset) => {
       const [quote, meta] = await Promise.all([
-        finnhub.getQuote(tickerStr, h.exchange),
-        finnhub.getMetadata(tickerStr, h.exchange)
+        finnhub.getQuote(asset.ticker, asset.exchange),
+        finnhub.getMetadata(asset.ticker, asset.exchange)
       ]);
-      marketPrices[h.id] = quote.current;
-      metadataMap[tickerStr] = meta;
+
+      for (const id of asset.ids) {
+        marketPrices[id] = quote.current;
+      }
+      metadataMap[asset.ticker] = meta;
     }));
 
     const reportingCurrency = user.reportingCurrency || 'USD';
@@ -3795,14 +3807,26 @@ async function executeWeeklySummary(
     const marketPrices: Record<string, number> = {};
     const metadataMap: Record<string, AssetMetadata | null> = {};
     
-    await Promise.all(holdings.map(async (h) => {
+    const uniqueAssets = new Map<string, { ticker: string, exchange: string | undefined, ids: string[] }>();
+    for (const h of holdings) {
       const tickerStr = h.ticker || h.symbol;
+      const key = `${tickerStr}_${h.exchange || ''}`;
+      if (!uniqueAssets.has(key)) {
+        uniqueAssets.set(key, { ticker: tickerStr, exchange: h.exchange, ids: [] });
+      }
+      uniqueAssets.get(key)!.ids.push(h.id);
+    }
+
+    await Promise.all(Array.from(uniqueAssets.values()).map(async (asset) => {
       const [quote, meta] = await Promise.all([
-        finnhub.getQuote(tickerStr, h.exchange),
-        finnhub.getMetadata(tickerStr, h.exchange)
+        finnhub.getQuote(asset.ticker, asset.exchange),
+        finnhub.getMetadata(asset.ticker, asset.exchange)
       ]);
-      marketPrices[h.id] = quote.current;
-      metadataMap[tickerStr] = meta;
+
+      for (const id of asset.ids) {
+        marketPrices[id] = quote.current;
+      }
+      metadataMap[asset.ticker] = meta;
     }));
 
     const reportingCurrency = user.reportingCurrency || 'USD';
