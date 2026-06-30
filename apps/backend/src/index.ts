@@ -1200,8 +1200,8 @@ app.get('/api/market-intelligence', async (c) => {
     const riskHighlights: string[] = [];
     const opportunityHighlights: string[] = [];
 
-    const nextId = () => 'act_' + Math.random().toString(36).substr(2, 9);
-    const feedId = () => 'feed_' + Math.random().toString(36).substr(2, 9);
+    const nextId = () => 'act_' + crypto.randomUUID();
+    const feedId = () => 'feed_' + crypto.randomUUID();
 
     // US Regime Check
     const usReg = regimes.US;
@@ -1344,7 +1344,7 @@ app.get('/api/market-intelligence', async (c) => {
       if (item.type === 'Risk' || item.significance === 'HIGH') {
         try {
           await firestore.saveAlert(userId, {
-            id: 'alert_mi_' + Math.random().toString(36).substr(2, 9),
+            id: 'alert_mi_' + crypto.randomUUID(),
             userId,
             priority: item.type === 'Risk' ? 'high' : 'medium',
             category: item.type === 'Risk' ? 'concentration' : 'opportunity',
@@ -2030,7 +2030,7 @@ async function logAuditEvent(
   reason: string,
   token?: string
 ): Promise<void> {
-  const logId = `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const logId = `audit_${Date.now()}_${crypto.randomUUID()}`;
   const auditDoc = {
     id: logId,
     timestamp: new Date().toISOString(),
@@ -2103,7 +2103,7 @@ app.post('/api/copilot/sessions', async (c) => {
   }
 
   const timestamp = new Date().toISOString();
-  const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const sessionId = `session_${Date.now()}_${crypto.randomUUID()}`;
   const title = prompt.slice(0, 40) + (prompt.length > 40 ? '...' : '');
 
   const sessionDoc = {
