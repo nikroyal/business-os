@@ -291,7 +291,7 @@ app.get('/api/health/services', async (c) => {
     getFirestoreDoc(projectId, 'system/featureFlags').catch(() => null),
     firestore.getFredIndicators().catch(() => null),
     getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
-    Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null))),
+    firestore.batchGetSecCompanyFacts(secTickers),
     fredApiPromise
   ]);
 
@@ -1665,7 +1665,7 @@ app.get('/api/system/data-quality', async (c) => {
       getFirestoreDoc(projectId, 'system/secSchedulerState').catch(() => null),
       getFirestoreDoc(projectId, 'system/fredHealth').catch(() => null),
       firestore.getFredIndicators().catch(() => null),
-      Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null)))
+      firestore.batchGetSecCompanyFacts(secTickers)
     ]);
 
     const secFactsStatus: any[] = [];
@@ -2703,9 +2703,7 @@ app.get('/api/admin/system-stats', async (c) => {
 
   const cachedFred = await firestoreClient.getFredIndicators().catch(() => null);
   const secSchedulerState = await getFirestoreDoc(projectId, 'system/secSchedulerState', token).catch(() => null);
-  const secFacts = await Promise.all(secTickers.map(async (t) => {
-    return await firestoreClient.getSecCompanyFacts(t).catch(() => null);
-  }));
+  const secFacts = await firestoreClient.batchGetSecCompanyFacts(secTickers);
 
   // Compute FRED status
   const indicatorCount = cachedFred?.indicators?.length || 0;

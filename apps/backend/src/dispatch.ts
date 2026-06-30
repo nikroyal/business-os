@@ -1862,6 +1862,50 @@ export class FirestoreClient {
     return intel;
   }
 
+
+  async batchGetSecCompanyFacts(tickers: string[]): Promise<(any | null)[]> {
+    if (tickers.length === 0) return [];
+
+    // Using batchGet which uses POST to :batchGet
+    const body = {
+      documents: tickers.map(t => `projects/${this.projectId}/databases/(default)/documents/secCompanyFacts/${encodeURIComponent(t.toUpperCase())}`)
+    };
+
+    try {
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents:batchGet`, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        console.error(`Failed to batchGet secCompanyFacts: HTTP ${res.status}`);
+        return tickers.map(() => null);
+      }
+
+      const data = await res.json() as any[];
+
+      // Parse results and map back to original index
+      const resultMap = new Map<string, any>();
+      for (const item of data) {
+        if (item.found) {
+            const doc = fromFirestoreDoc(item.found);
+            const parts = item.found.name.split('/');
+            const ticker = decodeURIComponent(parts[parts.length - 1]);
+            resultMap.set(ticker, doc);
+        }
+      }
+
+      return tickers.map(t => resultMap.get(t.toUpperCase()) || null);
+    } catch (err) {
+      console.error(`Error batch getting secCompanyFacts:`, err);
+      return tickers.map(() => null);
+    }
+  }
+
   async getSecCompanyFacts(ticker: string): Promise<any | null> {
     try {
       const key = ticker.toUpperCase();
