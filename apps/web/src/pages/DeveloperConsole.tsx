@@ -91,7 +91,7 @@ export const DeveloperConsole: React.FC = () => {
 
   const parseApiError = (e: any) => {
     let status = "HTTP 500 Internal Error";
-    let msg = e.message || String(e);
+    const msg = e.message || String(e);
     if (msg.includes("HTTP ")) {
       const parts = msg.split("HTTP ");
       if (parts[1]) {
