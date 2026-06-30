@@ -52,7 +52,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
     } catch (e: any) {
       console.error('Failed to load AI Orchestrator data:', e);
       let status = "HTTP 500 Internal Error";
-      let msg = e.message || String(e);
+      const msg = e.message || String(e);
       if (msg.includes("HTTP ")) {
         const parts = msg.split("HTTP ");
         if (parts[1]) {

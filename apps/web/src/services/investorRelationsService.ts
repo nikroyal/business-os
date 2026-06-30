@@ -40,16 +40,9 @@ export class InvestorRelationsService {
     }
 
     const cacheKey = `ir_data_${ticker.toUpperCase()}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.cachedAt < this.CACHE_TTL) {
-          return parsed.data;
-        }
-      } catch (e) {
-        console.warn('Failed to parse cached IR data, refetching...');
-      }
+    const cachedData = this.readFromCache(cacheKey);
+    if (cachedData) {
+      return cachedData;
     }
 
     if (isMockMode) {
@@ -58,6 +51,10 @@ export class InvestorRelationsService {
       return mockData;
     }
 
+    return this.fetchLiveIRData(ticker, cacheKey);
+  }
+
+  private static async fetchLiveIRData(ticker: string, cacheKey: string): Promise<IRCompanyData | null> {
     try {
       const token = await authService.getIdToken() || 'mock_anonymous';
       const res = await fetch(buildApiUrl(`api/market-data/ir-disclosures?ticker=${encodeURIComponent(ticker)}`), {
@@ -72,6 +69,21 @@ export class InvestorRelationsService {
       }
     } catch (e) {
       console.warn('Failed to fetch live IR disclosures:', e);
+    }
+    return null;
+  }
+
+  private static readFromCache(cacheKey: string): IRCompanyData | null {
+    const cached = localStorage.getItem(cacheKey);
+    if (!cached) return null;
+
+    try {
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.cachedAt < this.CACHE_TTL) {
+        return parsed.data;
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached IR data, refetching...');
     }
 
     return null;

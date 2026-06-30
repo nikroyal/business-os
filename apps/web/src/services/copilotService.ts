@@ -215,7 +215,7 @@ export class CopilotService {
       const mode = session.researchMode || 'businessos';
 
       // Load active chunk
-      let latestIdx = session.latestChunkIndex || 0;
+      const latestIdx = session.latestChunkIndex || 0;
       const chunkKey = `mock_chunk_${sessionId}_${latestIdx}`;
       let chunkMessages: CopilotMessage[] = [];
       const chunkStr = localStorage.getItem(chunkKey);

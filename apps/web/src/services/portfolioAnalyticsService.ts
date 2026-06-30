@@ -419,7 +419,7 @@ export class PortfolioAnalyticsService {
     const dominantCurrencyWeight = currencyExposure.length > 0 ? currencyExposure[0].percentage : 100;
 
     let points = 25;
-    let liquidityComments = [];
+    const liquidityComments = [];
     if (cashPercent < 5) {
       points -= 10;
       liquidityComments.push('No Cash Buffer: cash is under 5% (allocating 5-15% preserves tactical buying power)');
