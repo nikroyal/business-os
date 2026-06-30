@@ -14,16 +14,21 @@ export interface AuditLogEntry {
   reason: string;
 }
 
+export interface ServiceHealth {
+  status: string;
+  latency: number;
+}
+
 export interface PlatformHealthStatus {
-  pages: { status: string; latency: number };
-  workers: { status: string; latency: number };
-  firebaseAuth: { status: string; latency: number };
-  firestore: { status: string; latency: number };
-  finnhub: { status: string; latency: number };
-  gemini: { status: string; latency: number };
-  fred: { status: string; latency: number };
-  secEdgar: { status: string; latency: number };
-  resend: { status: string; latency: number };
+  pages: ServiceHealth;
+  workers: ServiceHealth;
+  firebaseAuth: ServiceHealth;
+  firestore: ServiceHealth;
+  finnhub: ServiceHealth;
+  gemini: ServiceHealth;
+  fred: ServiceHealth;
+  secEdgar: ServiceHealth;
+  resend: ServiceHealth;
 }
 
 export interface APIUsageStatistics {
@@ -50,25 +55,66 @@ export interface APIUsageStatistics {
   sec: { companiesCached: number; filingsCached: number; lastIngestion: string; queueHealth: string };
 }
 
+export interface QueueStatus {
+  status: string;
+  lastExecution: string;
+  duration: number;
+  pending: number;
+  failures: number;
+  retries: number;
+}
+
 export interface SystemQueueStatus {
-  secIngestion: { status: string; lastExecution: string; duration: number; pending: number; failures: number; retries: number };
-  fredRefresh: { status: string; lastExecution: string; duration: number; pending: number; failures: number; retries: number };
-  newsIngestion: { status: string; lastExecution: string; duration: number; pending: number; failures: number; retries: number };
-  researchCache: { status: string; lastExecution: string; duration: number; pending: number; failures: number; retries: number };
-  dailyDispatch: { status: string; lastExecution: string; duration: number; pending: number; failures: number; retries: number };
-  emailQueue: { status: string; lastExecution: string; duration: number; pending: number; failures: number; retries: number };
+  secIngestion: QueueStatus;
+  fredRefresh: QueueStatus;
+  newsIngestion: QueueStatus;
+  researchCache: QueueStatus;
+  dailyDispatch: QueueStatus;
+  emailQueue: QueueStatus;
 }
 
 export class AdminService {
-  public static async listUsers(_isMockMode: boolean): Promise<any[]> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl('api/admin/users'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      return await res.json();
+  private static async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    errorMessage: string
+  ): Promise<T> {
+    const token = (await authService.getIdToken()) || 'mock_anonymous';
+    const headers = {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    };
+
+    if (options.body && typeof options.body === 'string') {
+      (headers as any)['Content-Type'] = 'application/json';
     }
-    throw new Error('Failed to load user directories');
+
+    const res = await fetch(buildApiUrl(endpoint), {
+      ...options,
+      headers,
+    });
+
+    if (!res.ok) {
+      throw new Error(errorMessage);
+    }
+
+    // For POST/PATCH that might not return JSON, handle carefully
+    // But based on original code, all except updateGlobalFeatureFlags parse JSON.
+    // updateGlobalFeatureFlags didn't return anything, so returning undefined is fine
+    // or attempting JSON parse if content-length > 0
+    if (res.status === 204 || res.headers.get('content-length') === '0') {
+      return undefined as T;
+    }
+
+    try {
+      return await res.json();
+    } catch {
+      return undefined as T;
+    }
+  }
+
+  public static async listUsers(_isMockMode: boolean): Promise<any[]> {
+    return this.request<any[]>('api/admin/users', {}, 'Failed to load user directories');
   }
 
   public static async getUserDetails(userId: string, _isMockMode: boolean): Promise<{
@@ -76,14 +122,11 @@ export class AdminService {
     usage: { businessosCount: number; liveCount: number; deepCount: number };
     sessionsCount: number;
   }> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl(`api/admin/users/${userId}`), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-    throw new Error('Failed to retrieve user details');
+    return this.request(
+      `api/admin/users/${userId}`,
+      {},
+      'Failed to retrieve user details'
+    );
   }
 
   public static async updateUserProfile(
@@ -100,30 +143,18 @@ export class AdminService {
     },
     _isMockMode: boolean
   ): Promise<any> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl(`api/admin/users/${targetUserId}`), {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+    return this.request(
+      `api/admin/users/${targetUserId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
       },
-      body: JSON.stringify(updates)
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-    throw new Error('Administrative update failed');
+      'Administrative update failed'
+    );
   }
 
   public static async getAuditLogs(_isMockMode: boolean): Promise<AuditLogEntry[]> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl('api/admin/audit-logs'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-    throw new Error('Failed to retrieve audit log');
+    return this.request<AuditLogEntry[]>('api/admin/audit-logs', {}, 'Failed to retrieve audit log');
   }
 
   public static async getSystemStats(_isMockMode: boolean): Promise<{
@@ -132,40 +163,26 @@ export class AdminService {
     queues: SystemQueueStatus;
     timestamp: string;
   }> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl('api/admin/system-stats'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-    throw new Error('Failed to query operational health stats');
+    return this.request(
+      'api/admin/system-stats',
+      {},
+      'Failed to query operational health stats'
+    );
   }
 
   public static async getGlobalFeatureFlags(_isMockMode: boolean): Promise<FeatureFlags> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl('api/admin/feature-flags/global'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-    throw new Error('Failed to fetch global feature flags');
+    return this.request<FeatureFlags>('api/admin/feature-flags/global', {}, 'Failed to fetch global feature flags');
   }
 
   public static async updateGlobalFeatureFlags(flags: FeatureFlags, _isMockMode: boolean): Promise<void> {
-    const token = await authService.getIdToken() || 'mock_anonymous';
-    const res = await fetch(buildApiUrl('api/admin/feature-flags/global'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+    await this.request(
+      'api/admin/feature-flags/global',
+      {
+        method: 'POST',
+        body: JSON.stringify(flags),
       },
-      body: JSON.stringify(flags)
-    });
-    if (!res.ok) {
-      throw new Error('Failed to update global feature flags');
-    }
+      'Failed to update global feature flags'
+    );
   }
 }
 export default AdminService;
