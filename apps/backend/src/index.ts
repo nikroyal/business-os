@@ -299,7 +299,7 @@ app.get('/api/health/services', async (c) => {
   } else {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
-      const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=HIDDEN`;
+
       const payload = {
         contents: [{ parts: [{ text: 'say ok' }] }]
       };
@@ -312,7 +312,7 @@ app.get('/api/health/services', async (c) => {
       });
       
       const txt = await res.text();
-      const resHeaders = Array.from(res.headers.entries());
+
 
       if (!res.ok) {
         results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}: ${txt}` };
@@ -805,7 +805,7 @@ app.get('/api/intelligence/company', async (c) => {
   const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
 
   try {
-    const key = `${symbol.toUpperCase()}:${exchange.toUpperCase()}`;
+
     let intel = await firestore.getCompanyIntelligence(symbol, exchange);
     
     // If not found or stale (> 7 days), regenerate
@@ -2955,7 +2955,7 @@ import { checkAndRunScheduled, runFredDailyIngestion, runSecBatchIngestion } fro
 
 export default {
   fetch: app.fetch,
-  async scheduled(event: any, env: Bindings, ctx: any) {
+  async scheduled(_event: any, env: Bindings, ctx: any) {
     ctx.waitUntil(checkAndRunScheduled(env as any));
   }
 };
