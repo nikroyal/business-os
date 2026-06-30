@@ -3630,9 +3630,11 @@ async function executeDailyDispatch(
 
     const watchlistIntelligenceList = await Promise.all(watchlist.map(async (item) => {
       try {
-        const quote = await finnhub.getQuote(item.ticker, item.exchange);
-        const metadata = await finnhub.getMetadata(item.ticker, item.exchange);
-        const history = await finnhub.getHistoricalPrices(item.ticker, 365, item.exchange);
+        const [quote, metadata, history] = await Promise.all([
+          finnhub.getQuote(item.ticker, item.exchange),
+          finnhub.getMetadata(item.ticker, item.exchange),
+          finnhub.getHistoricalPrices(item.ticker, 365, item.exchange)
+        ]);
         
         const livePrice = quote.current;
         const allPrices = history.length > 0 ? [...history, livePrice] : [livePrice];
