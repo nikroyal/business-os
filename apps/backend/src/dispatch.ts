@@ -3409,52 +3409,59 @@ export async function runSecBatchIngestion(firestore: FirestoreClient, force = f
   let successes = 0;
   let failures = 0;
 
-  for (const ticker of secTickers) {
-    try {
-      const existing = await firestore.getSecCompanyFacts(ticker);
-      const isStale = existing ? (Date.now() - new Date(existing.updatedAt).getTime() > 3 * 24 * 60 * 60 * 1000) : true;
-      
-      if (!force && !isStale) {
-        console.log(`[Scheduler] SEC facts for ${ticker} are fresh. Skipping.`);
-        successes++;
-        continue;
-      }
+  const CONCURRENCY_LIMIT = 5;
+  let index = 0;
 
-      const entry = COMPANY_REGISTRY[ticker];
-      if (!entry || !entry.cik) {
-        console.warn(`[Scheduler] No CIK found for SEC covered ticker ${ticker}. Skipping.`);
-        continue;
-      }
+  const worker = async () => {
+    while (index < secTickers.length) {
+      const ticker = secTickers[index++];
+      try {
+        const existing = await firestore.getSecCompanyFacts(ticker);
+        const isStale = existing ? (Date.now() - new Date(existing.updatedAt).getTime() > 3 * 24 * 60 * 60 * 1000) : true;
 
-      console.log(`[Scheduler] SEC facts for ${ticker} are missing/stale. Ingesting from SEC EDGAR (awaiting rate limiter queue)...`);
-      await secLimiter.acquireToken();
-
-      const cik = entry.cik;
-      const secUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik.padStart(10, '0')}.json`;
-      
-      const res = await fetch(secUrl, {
-        headers: {
-          'User-Agent': 'BusinessOS Research Platform admin@businessos.com',
-          'Accept-Encoding': 'gzip, deflate'
+        if (!force && !isStale) {
+          console.log(`[Scheduler] SEC facts for ${ticker} are fresh. Skipping.`);
+          successes++;
+          continue;
         }
-      });
 
-      if (!res.ok) {
-        throw new Error(`SEC EDGAR returned HTTP ${res.status}`);
+        const entry = COMPANY_REGISTRY[ticker];
+        if (!entry || !entry.cik) {
+          console.warn(`[Scheduler] No CIK found for SEC covered ticker ${ticker}. Skipping.`);
+          continue;
+        }
+
+        console.log(`[Scheduler] SEC facts for ${ticker} are missing/stale. Ingesting from SEC EDGAR (awaiting rate limiter queue)...`);
+        await secLimiter.acquireToken();
+
+        const cik = entry.cik;
+        const secUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik.padStart(10, '0')}.json`;
+
+        const res = await fetch(secUrl, {
+          headers: {
+            'User-Agent': 'BusinessOS Research Platform admin@businessos.com',
+            'Accept-Encoding': 'gzip, deflate'
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error(`SEC EDGAR returned HTTP ${res.status}`);
+        }
+
+        const secData = await res.json() as any;
+        const parsedFacts = parseSecCompanyFacts(ticker, cik, secData);
+        await firestore.saveSecCompanyFacts(ticker, parsedFacts);
+        console.log(`[Scheduler] SEC facts for ${ticker} successfully parsed and cached.`);
+        successes++;
+      } catch (err: any) {
+        console.error(`[Scheduler] SEC ingestion failed for ${ticker}:`, err.message || err);
+        failures++;
       }
-
-      const secData = await res.json() as any;
-      const parsedFacts = parseSecCompanyFacts(ticker, cik, secData);
-      await firestore.saveSecCompanyFacts(ticker, parsedFacts);
-      console.log(`[Scheduler] SEC facts for ${ticker} successfully parsed and cached.`);
-      successes++;
-      
-      await new Promise(resolve => setTimeout(resolve, 1500));
-    } catch (err: any) {
-      console.error(`[Scheduler] SEC ingestion failed for ${ticker}:`, err.message || err);
-      failures++;
     }
-  }
+  };
+
+  const workers = Array.from({ length: Math.min(CONCURRENCY_LIMIT, secTickers.length) }, () => worker());
+  await Promise.all(workers);
 
   // Save the scheduler state to Firestore
   try {
