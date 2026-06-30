@@ -367,10 +367,13 @@ export const authService = {
     if (realAuth) {
       const cred = await createUserWithEmailAndPassword(realAuth, email, password);
       // Initialize default firestore user record
+      const isOwnerOrAdmin = email && (email.includes('owner') || email.includes('admin'));
       const defaultProfile: UserProfile = {
         uid: cred.user.uid,
         email: email,
         displayName: displayName || email.split('@')[0],
+        role: isOwnerOrAdmin ? 'OWNER' : 'FREE',
+        subscriptionTier: isOwnerOrAdmin ? 'pro' : 'free',
         riskProfile: 'moderate',
         interests: ['Artificial Intelligence'],
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -397,11 +400,13 @@ export const authService = {
       users.push({ ...newMockUser, password });
       localStorage.setItem('business_os_mock_db_users', JSON.stringify(users));
       
-      // Save default profile for mock user
+      const isOwnerOrAdmin = email && (email.includes('owner') || email.includes('admin'));
       const defaultProfile: UserProfile = {
         uid: newMockUser.uid,
         email: email,
         displayName: displayName || email.split('@')[0],
+        role: isOwnerOrAdmin ? 'OWNER' : 'FREE',
+        subscriptionTier: isOwnerOrAdmin ? 'pro' : 'free',
         riskProfile: 'moderate',
         interests: ['Artificial Intelligence'],
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
