@@ -2142,6 +2142,9 @@ app.post('/api/copilot/sessions', async (c) => {
 app.patch('/api/copilot/sessions/:sessionId', async (c) => {
   const userId = c.get('userId');
   const sessionId = c.req.param('sessionId');
+  if (!sessionId || sessionId.includes('/') || sessionId.includes('..')) {
+    return c.json({ error: 'Invalid session ID' }, 400);
+  }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const updates = await c.req.json();
 
@@ -2168,6 +2171,9 @@ app.patch('/api/copilot/sessions/:sessionId', async (c) => {
 app.delete('/api/copilot/sessions/:sessionId', async (c) => {
   const userId = c.get('userId');
   const sessionId = c.req.param('sessionId');
+  if (!sessionId || sessionId.includes('/') || sessionId.includes('..')) {
+    return c.json({ error: 'Invalid session ID' }, 400);
+  }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
 
   try {
@@ -2195,6 +2201,9 @@ app.delete('/api/copilot/sessions/:sessionId', async (c) => {
 app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
   const userId = c.get('userId');
   const sessionId = c.req.param('sessionId');
+  if (!sessionId || sessionId.includes('/') || sessionId.includes('..')) {
+    return c.json({ error: 'Invalid session ID' }, 400);
+  }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
 
   try {
@@ -2563,6 +2572,9 @@ app.get('/api/admin/users', async (c) => {
 // 3. User Detailed Management Profile View
 app.get('/api/admin/users/:userId', async (c) => {
   const targetId = c.req.param('userId');
+  if (!targetId || targetId.includes('/') || targetId.includes('..')) {
+    return c.json({ error: 'Invalid user ID' }, 400);
+  }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const todayStr = new Date().toISOString().split('T')[0];
   const authHeader = c.req.header('Authorization');
@@ -2624,6 +2636,9 @@ app.get('/api/admin/users/:userId', async (c) => {
 app.patch('/api/admin/users/:userId', async (c) => {
   const adminId = c.get('userId');
   const targetId = c.req.param('userId');
+  if (!targetId || targetId.includes('/') || targetId.includes('..')) {
+    return c.json({ error: 'Invalid user ID' }, 400);
+  }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const { role, subscriptionTier, customLimits, featureFlags, suspended, resetUsage, forceLogout, reason } = await c.req.json();
   const todayStr = new Date().toISOString().split('T')[0];
