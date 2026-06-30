@@ -7,6 +7,7 @@ type Bindings = {
   FIREBASE_PROJECT_ID?: string;
   RESEND_API_KEY?: string;
   FRED_API_KEY?: string;
+  FRONTEND_URL?: string;
 };
 
 type Variables = {
@@ -17,7 +18,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Enable CORS for frontend local development
 app.use('/api/*', cors({
-  origin: '*', // Allow all in dev, can restrict to localhost:5173 in prod settings
+  origin: (origin, c) => c.env.FRONTEND_URL || 'http://localhost:5173', // Allow local dev by default, restrict via FRONTEND_URL env in prod
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length'],
