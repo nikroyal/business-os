@@ -213,6 +213,7 @@ app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
     message: 'BusinessOS Edge API is running',
+    version: '604020c1147ccaf7ae9507c64dcf8e6c537471e0',
     timestamp: new Date().toISOString(),
     runtime: 'Cloudflare Worker'
   });
