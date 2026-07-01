@@ -291,4 +291,80 @@ describe("BusinessOS Backend Worker API Tests", () => {
 			expect(stats).toHaveProperty("breakdowns");
 		});
 	});
+
+	describe("CORS Configuration", () => {
+		const pagesDevOrigin = "https://business-os-cf0.pages.dev";
+		const localhostOrigin = "http://localhost:5173";
+		const localhostOtherPortOrigin = "http://localhost:3000";
+		const randomOrigin = "https://malicious-site.com";
+
+		it("returns correct CORS headers for allowed production origin in GET request", async () => {
+			const response = await SELF.fetch("http://example.com/api/health", {
+				headers: {
+					"Origin": pagesDevOrigin
+				}
+			});
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(pagesDevOrigin);
+			expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+		});
+
+		it("returns correct CORS headers for localhost origin in GET request", async () => {
+			const response = await SELF.fetch("http://example.com/api/health", {
+				headers: {
+					"Origin": localhostOrigin
+				}
+			});
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(localhostOrigin);
+			expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+		});
+
+		it("returns correct CORS headers for other localhost ports in GET request", async () => {
+			const response = await SELF.fetch("http://example.com/api/health", {
+				headers: {
+					"Origin": localhostOtherPortOrigin
+				}
+			});
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(localhostOtherPortOrigin);
+			expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+		});
+
+		it("returns production origin fallback for unauthorized/external origin", async () => {
+			const response = await SELF.fetch("http://example.com/api/health", {
+				headers: {
+					"Origin": randomOrigin
+				}
+			});
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(pagesDevOrigin);
+		});
+
+		it("returns identical CORS headers for preflight OPTIONS request on allowed production origin", async () => {
+			const response = await SELF.fetch("http://example.com/api/health", {
+				method: "OPTIONS",
+				headers: {
+					"Origin": pagesDevOrigin,
+					"Access-Control-Request-Method": "GET",
+					"Access-Control-Request-Headers": "Authorization"
+				}
+			});
+			expect(response.status).toBe(204);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(pagesDevOrigin);
+			expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+			expect(response.headers.get("Access-Control-Allow-Methods")).toContain("GET");
+		});
+
+		it("returns identical CORS headers for preflight OPTIONS request on localhost origin", async () => {
+			const response = await SELF.fetch("http://example.com/api/health", {
+				method: "OPTIONS",
+				headers: {
+					"Origin": localhostOrigin,
+					"Access-Control-Request-Method": "GET",
+					"Access-Control-Request-Headers": "Authorization"
+				}
+			});
+			expect(response.status).toBe(204);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe(localhostOrigin);
+			expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+		});
+	});
 });
+

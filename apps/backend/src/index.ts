@@ -16,14 +16,35 @@ type Variables = {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Enable CORS for frontend local development
+// Enable CORS with a production-safe allowlist supporting localhost and production
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'https://business-os-cf0.pages.dev'
+];
+
 app.use('/api/*', cors({
-  origin: (_origin, c) => c.env.FRONTEND_URL || 'http://localhost:5173', // Allow local dev by default, restrict via FRONTEND_URL env in prod
+  origin: (origin, c) => {
+    const extraOrigin = c.env.FRONTEND_URL;
+    if (!origin) {
+      return extraOrigin || 'https://business-os-cf0.pages.dev';
+    }
+    if (
+      ALLOWED_ORIGINS.includes(origin) ||
+      (extraOrigin && origin === extraOrigin) ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:')
+    ) {
+      return origin;
+    }
+    return extraOrigin || 'https://business-os-cf0.pages.dev';
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length'],
   maxAge: 600,
+  credentials: true,
 }));
+
 
 // Base64Url decoding helper
 function base64UrlDecode(str: string): Uint8Array {
