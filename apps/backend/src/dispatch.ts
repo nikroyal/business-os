@@ -2120,9 +2120,69 @@ export class FinnhubClient {
   private cache = new Map<string, { data: any; timestamp: number }>();
   private lastCallTime = 0;
   private readonly THROTTLE_MS = 100;
+  private projectId?: string;
+  private token?: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, projectId?: string, token?: string) {
     this.apiKey = apiKey;
+    this.projectId = projectId;
+    this.token = token;
+  }
+
+  private async recordApiRequest(latencyMs: number, status: number) {
+    if (!this.projectId) return;
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/system/finnhubTelemetry`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (this.token && !this.token.startsWith('mock_')) {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
+
+      // 1. Fetch current document
+      const getRes = await fetch(url, { headers });
+      let existing: any = null;
+      if (getRes.ok) {
+        const getJson = await getRes.json() as any;
+        existing = fromFirestoreDoc(getJson);
+      }
+
+      const prevRequests = existing?.requestsToday || 0;
+      const prevTotal = existing?.totalRequests || 0;
+      const prevSuccess = existing?.successCount || 0;
+      const prev429 = existing?.count429 || 0;
+      const prevLatency = existing?.latency || 0;
+
+      const requestsToday = prevRequests + 1;
+      const totalRequests = prevTotal + 1;
+      const count429 = prev429 + (status === 429 ? 1 : 0);
+      const successCount = prevSuccess + (status >= 200 && status < 300 ? 1 : 0);
+      const hitRate = totalRequests > 0 ? Math.round((successCount / totalRequests) * 1000) / 10 : 100.0;
+      const latency = prevLatency > 0 ? Math.round((prevLatency * 9 + latencyMs) / 10) : latencyMs;
+
+      // 2. Write document
+      const data = {
+        requestsToday,
+        totalRequests,
+        hitRate,
+        count429,
+        latency,
+        successCount,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const fields: Record<string, any> = {};
+      for (const [k, v] of Object.entries(data)) {
+        fields[k] = toFirestoreValue(v);
+      }
+
+      await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields })
+      });
+    } catch (err) {
+      console.warn('Failed to record Finnhub request telemetry:', err);
+    }
   }
 
   private async throttle() {
@@ -2152,8 +2212,11 @@ export class FinnhubClient {
     }
 
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub quote returned HTTP ${res.status}`);
       const data = await res.json() as any;
       const quote: MarketQuote = {
@@ -2166,8 +2229,10 @@ export class FinnhubClient {
         previousClose: data.pc || 0
       };
       this.cache.set(cacheKey, { data: quote, timestamp: Date.now() });
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       return quote;
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn(`Error getting live quote for ${symbol}:`, err);
       return { current: 0, change: 0, percentChange: 0, high: 0, low: 0, open: 0, previousClose: 0 };
     }
@@ -2186,11 +2251,17 @@ export class FinnhubClient {
     }
 
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub profile returned HTTP ${res.status}`);
       const data = await res.json() as any;
-      if (!data || !data.name) return null;
+      if (!data || !data.name) {
+        this.recordApiRequest(Date.now() - start, status).catch(() => {});
+        return null;
+      }
       const meta: AssetMetadata = {
         ticker: symbol,
         exchange: exchange || 'NASDAQ',
@@ -2201,8 +2272,10 @@ export class FinnhubClient {
         marketCapitalization: data.marketCapitalization
       };
       this.cache.set(cacheKey, { data: meta, timestamp: Date.now() });
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       return meta;
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn(`Error getting metadata for ${symbol}:`, err);
       return null;
     }
@@ -2217,18 +2290,24 @@ export class FinnhubClient {
     }
 
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const to = Math.floor(Date.now() / 1000);
       const from = to - (days * 24 * 60 * 60);
       const res = await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${from}&to=${to}&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub candles returned HTTP ${res.status}`);
       const data = await res.json() as any;
       if (data && data.s === 'ok' && Array.isArray(data.c)) {
         this.cache.set(cacheKey, { data: data.c, timestamp: Date.now() });
+        this.recordApiRequest(Date.now() - start, status).catch(() => {});
         return data.c;
       }
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       return [];
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn(`Error getting historical prices for ${symbol}:`, err);
       return [];
     }
@@ -2246,8 +2325,11 @@ export class FinnhubClient {
   } | null> {
     const symbol = this.formatSymbol(ticker, exchange);
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const res = await fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub financials returned HTTP ${res.status}`);
       const data = await res.json() as any;
       if (data && data.metric) {
@@ -2259,7 +2341,7 @@ export class FinnhubClient {
         const grossMargin = data.metric['grossMarginTTM'] || data.metric['grossMarginAnnual'] || null;
         const operatingMargin = data.metric['operatingMarginTTM'] || data.metric['operatingMarginAnnual'] || null;
         
-        return {
+        const result = {
           leverageRatio: typeof debtToEquity === 'number' ? debtToEquity / 100 : 0.45,
           freeCashFlowMargin: typeof fcfMargin === 'number' ? fcfMargin : 20.0,
           revenueGrowthYoy: revGrowth,
@@ -2269,9 +2351,14 @@ export class FinnhubClient {
           operatingMargin,
           debtToEquity: typeof debtToEquity === 'number' ? debtToEquity : null
         };
+        this.cache.set(`financials_${symbol}`, { data: result, timestamp: Date.now() });
+        this.recordApiRequest(Date.now() - start, status).catch(() => {});
+        return result;
       }
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       return null;
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn(`Error getting financials for ${symbol}:`, err);
       return null;
     }
@@ -2281,11 +2368,17 @@ export class FinnhubClient {
     const symbol = this.formatSymbol(ticker, exchange);
     if (exchange?.toUpperCase() === 'CRYPTO' || exchange?.toUpperCase() === 'CASH') return null;
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const res = await fetch(`https://finnhub.io/api/v1/stock/insider-transactions?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub insider transactions returned HTTP ${res.status}`);
-      return await res.json();
+      const data = await res.json();
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
+      return data;
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn(`Error getting insider transactions for ${symbol}:`, err);
       return null;
     }
@@ -2295,11 +2388,17 @@ export class FinnhubClient {
     const symbol = this.formatSymbol(ticker, exchange);
     if (exchange?.toUpperCase() === 'CRYPTO' || exchange?.toUpperCase() === 'CASH') return null;
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const res = await fetch(`https://finnhub.io/api/v1/stock/insider-sentiment?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub insider sentiment returned HTTP ${res.status}`);
-      return await res.json();
+      const data = await res.json();
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
+      return data;
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn(`Error getting insider sentiment for ${symbol}:`, err);
       return null;
     }
@@ -2312,16 +2411,22 @@ export class FinnhubClient {
       return cached.data;
     }
     await this.throttle();
+    const start = Date.now();
+    let status = 200;
     try {
       const res = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${this.apiKey}`);
+      status = res.status;
       if (!res.ok) throw new Error(`Finnhub news returned HTTP ${res.status}`);
       const data = await res.json() as any;
       if (Array.isArray(data)) {
         this.cache.set(cacheKey, { data, timestamp: Date.now() });
+        this.recordApiRequest(Date.now() - start, status).catch(() => {});
         return data;
       }
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       return [];
     } catch (err) {
+      this.recordApiRequest(Date.now() - start, status).catch(() => {});
       console.warn('Error getting market news:', err);
       return [];
     }
@@ -3515,7 +3620,7 @@ export async function checkAndRunScheduled(env: {
     console.error('[Scheduler] Telemetry retention cleanup error:', cleanupErr);
   }
 
-  const finnhub = new FinnhubClient((env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
+  const finnhub = new FinnhubClient((env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''), env.FIREBASE_PROJECT_ID);
   const gemini = new GeminiClient((env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
   const resend = new ResendClient((env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
 

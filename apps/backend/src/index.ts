@@ -857,8 +857,10 @@ app.get('/api/intelligence/company', async (c) => {
     return c.json({ error: 'Finnhub API key not configured on backend' }, 500);
   }
 
-  const firestore = new FirestoreClient(projectId);
-  const finnhub = new FinnhubClient(finnhubKey);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
+  const finnhub = new FinnhubClient(finnhubKey, projectId, token);
   const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
 
   try {
@@ -890,7 +892,9 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
   const ex = exchange || 'NASDAQ';
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     // 1. Get canonical company intelligence
@@ -899,7 +903,7 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
       const finnhubKey = c.env.FINNHUB_API_KEY;
       const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
-      const finnhub = new FinnhubClient(finnhubKey);
+      const finnhub = new FinnhubClient(finnhubKey, projectId, token);
       const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
       intel = await IntelligenceService.generateCompanyIntelligence(ticker, ex, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
@@ -939,7 +943,9 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
 app.get('/api/intelligence/convictions', async (c) => {
   const userId = c.get('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     const list = await firestore.getAllUserConvictions(userId);
@@ -961,7 +967,9 @@ app.get('/api/intelligence/business-school/case', async (c) => {
   }
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   const CONCEPTS: Record<string, { name: string; definition: string; equation: string }> = {
     operating_leverage: {
@@ -997,8 +1005,7 @@ app.get('/api/intelligence/business-school/case', async (c) => {
       const finnhubKey = c.env.FINNHUB_API_KEY;
       const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
-      const finnhub = new FinnhubClient(finnhubKey);
-      const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+      const finnhub = new FinnhubClient(finnhubKey, projectId, token);
       const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
       intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
@@ -1055,8 +1062,10 @@ app.get('/api/market-intelligence', async (c) => {
   const finnhubKey = c.env.FINNHUB_API_KEY;
   const geminiKey = c.env.GEMINI_API_KEY;
 
-  const firestore = new FirestoreClient(projectId);
-  const finnhub = new FinnhubClient(finnhubKey || '');
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
+  const finnhub = new FinnhubClient(finnhubKey || '', projectId, token);
   const gemini = new GeminiClient(geminiKey || '', projectId, userId);
 
   try {
@@ -1464,7 +1473,9 @@ app.get('/api/market-data/news', async (c) => {
   }
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     const articles = await NewsDataService.getCompanyNews(ticker, apiKey, firestore);
@@ -1488,7 +1499,9 @@ app.get('/api/market-intelligence/sec-facts', async (c) => {
   }
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     const facts = await firestore.getSecCompanyFacts(ticker);
@@ -1555,7 +1568,9 @@ app.get('/api/market-data/ir-disclosures', async (c) => {
   }
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     const apiKey = c.env.FINNHUB_API_KEY;
@@ -1581,7 +1596,9 @@ app.post('/api/market-data/compile-research', async (c) => {
   const dateStr = new Date().toISOString().split('T')[0];
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     // Check Shared Research Cache first
@@ -1805,7 +1822,9 @@ app.get('/api/system/data-quality', async (c) => {
 app.post('/api/system/fred/refresh', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     console.log('[Manual Trigger] Triggering FRED daily ingestion...');
@@ -1820,7 +1839,9 @@ app.post('/api/system/fred/refresh', async (c) => {
 // Manual SEC EDGAR Ingestion Trigger Endpoint
 app.post('/api/system/sec/ingest', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const firestore = new FirestoreClient(projectId);
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const firestore = new FirestoreClient(projectId, token);
 
   try {
     console.log('[Manual Trigger] Triggering SEC batch ingestion...');
@@ -2105,8 +2126,14 @@ app.use('/api/copilot', authenticateUser);
 app.get('/api/copilot/sessions', async (c) => {
   const userId = c.get('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const headers: Record<string, string> = {};
+  if (token && !token.startsWith('mock_')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   try {
-    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${userId}/copilotSessions`);
+    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${userId}/copilotSessions`, { headers });
     if (res.ok) {
       const data = await res.json() as any;
       if (!data.documents) return c.json([]);
@@ -2123,6 +2150,8 @@ app.get('/api/copilot/sessions', async (c) => {
 app.post('/api/copilot/sessions', async (c) => {
   const userId = c.get('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   const { prompt, mode } = await c.req.json();
   
   if (!prompt || !mode) {
@@ -2150,14 +2179,14 @@ app.post('/api/copilot/sessions', async (c) => {
   };
 
   try {
-    await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, sessionDoc);
+    await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, sessionDoc, token);
     
     // Seed chunk 0
     const chunkId = 'chunk_0';
     await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/${chunkId}`, {
       chunkIndex: 0,
       messages: []
-    });
+    }, token);
 
     return c.json(sessionDoc);
   } catch (err: any) {
@@ -2173,10 +2202,12 @@ app.patch('/api/copilot/sessions/:sessionId', async (c) => {
     return c.json({ error: 'Invalid session ID' }, 400);
   }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   const updates = await c.req.json();
 
   try {
-    const existing = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
+    const existing = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, token);
     if (!existing) {
       return c.json({ error: 'Session not found' }, 404);
     }
@@ -2187,7 +2218,7 @@ app.patch('/api/copilot/sessions/:sessionId', async (c) => {
       updatedAt: new Date().toISOString()
     };
 
-    await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, merged);
+    await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, merged, token);
     return c.json(merged);
   } catch (err: any) {
     return c.json({ error: 'Failed to update session', details: err.message }, 500);
@@ -2202,21 +2233,23 @@ app.delete('/api/copilot/sessions/:sessionId', async (c) => {
     return c.json({ error: 'Invalid session ID' }, 400);
   }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
 
   try {
-    const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
+    const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, token);
     if (!session) {
       return c.json({ error: 'Session not found' }, 404);
     }
 
     // Delete session
-    await deleteFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
+    await deleteFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, token);
     
     // Delete chunks up to latest index
     const latestIndex = session.latestChunkIndex || 0;
     const deletePromises = [];
     for (let i = 0; i <= latestIndex; i++) {
-      deletePromises.push(deleteFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`));
+      deletePromises.push(deleteFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`, token));
     }
     await Promise.all(deletePromises);
 
@@ -2234,9 +2267,11 @@ app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
     return c.json({ error: 'Invalid session ID' }, 400);
   }
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
 
   try {
-    const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`);
+    const session = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}`, token);
     if (!session) {
       return c.json({ error: 'Session not found' }, 404);
     }
@@ -2248,7 +2283,7 @@ app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
     const chunkPromises = [];
     for (let i = 0; i <= latestIndex; i++) {
       chunkPromises.push(
-        getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`)
+        getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${i}`, token)
       );
     }
 
@@ -2310,7 +2345,7 @@ app.post('/api/copilot/chat', async (c) => {
 
     // 3. Enforce usage limits
     const todayStr = new Date().toISOString().split('T')[0];
-    let usage = await getFirestoreDoc(projectId, `users/${userId}/copilotUsage/${todayStr}`);
+    let usage = await getFirestoreDoc(projectId, `users/${userId}/copilotUsage/${todayStr}`, token);
     if (!usage) {
       usage = { businessosCount: 0, liveCount: 0, deepCount: 0, lastUpdated: new Date().toISOString() };
     }
@@ -2332,7 +2367,7 @@ app.post('/api/copilot/chat', async (c) => {
     if (mode === 'businessos') usage.businessosCount++;
     if (mode === 'live') usage.liveCount++;
     if (mode === 'deep') usage.deepCount++;
-    await writeFirestoreDoc(projectId, `users/${userId}/copilotUsage/${todayStr}`, usage);
+    await writeFirestoreDoc(projectId, `users/${userId}/copilotUsage/${todayStr}`, usage, token);
 
     // 4. Assemble Grounding Context
     let portfolioContext = '';
@@ -2340,7 +2375,7 @@ app.post('/api/copilot/chat', async (c) => {
     const usedSources: any[] = [];
 
     if (mode !== 'quick') {
-      const firestore = new FirestoreClient(projectId);
+      const firestore = new FirestoreClient(projectId, token);
       
       // Load holdings & watchlist
       const [holdings, watchlist] = await Promise.all([
@@ -2399,7 +2434,7 @@ app.post('/api/copilot/chat', async (c) => {
 
     // Get the last 6 messages from chunk history to preserve fresh context
     const currentChunkId = `chunk_${session.latestChunkIndex}`;
-    const activeChunkDoc = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/${currentChunkId}`);
+    const activeChunkDoc = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/${currentChunkId}`, token);
     const priorMessages = activeChunkDoc?.messages?.slice(-6) || [];
     const conversationContext = priorMessages.map((m: any) => `${m.sender === 'user' ? 'User' : 'Copilot'}: ${m.content}`).join('\n');
 
@@ -2511,16 +2546,16 @@ CRITICAL INSTRUCTIONS:
     // Chunk split if messages in chunk > 40
     if (activeChunk.messages.length >= 40) {
       // Save current chunk first
-      await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${latestChunkIndex}`, activeChunk);
+      await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${latestChunkIndex}`, activeChunk, token);
       
       // Seed next chunk document
       latestChunkIndex++;
       await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${latestChunkIndex}`, {
         chunkIndex: latestChunkIndex,
         messages: []
-      });
+      }, token);
     } else {
-      await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${latestChunkIndex}`, activeChunk);
+      await writeFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/chunk_${latestChunkIndex}`, activeChunk, token);
     }
 
     // 9. Sliding Window Summarization Trigger (triggered only when required by token/character limits)
@@ -2556,7 +2591,7 @@ CRITICAL INSTRUCTIONS:
       totalCharCount,
       charCountAtLastSummary,
       updatedAt: new Date().toISOString()
-    });
+    }, token);
 
     return c.json(copilotMessage);
   } catch (err: any) {
@@ -2805,12 +2840,20 @@ app.get('/api/admin/system-stats', async (c) => {
     secStatus = 'healthy';
   }
 
+  // Load real Finnhub telemetry from Firestore
+  let finnhubTelemetryDoc: any = null;
+  try {
+    finnhubTelemetryDoc = await getFirestoreDoc(projectId, 'system/finnhubTelemetry', token);
+  } catch (err) {
+    console.warn('[system-stats] Finnhub telemetry fetch failed:', err);
+  }
+
   const health = {
     pages: { status: 'operational', latency: 45 },
     workers: { status: 'operational', latency: 28 },
     firebaseAuth: { status: 'operational', latency: 120 },
     firestore: { status: dbLatency > 0 ? 'operational' : 'degraded', latency: dbLatency },
-    finnhub: { status: finnhubKey ? 'operational' : 'not_configured', latency: finnhubKey ? 180 : 0 },
+    finnhub: { status: finnhubKey ? 'operational' : 'not_configured', latency: finnhubKey ? (finnhubTelemetryDoc?.latency ?? 180) : 0 },
     gemini: { status: geminiKey ? 'operational' : 'not_configured', latency: geminiKey ? 320 : 0 },
     fred: { status: fredStatus, latency: 150 },
     secEdgar: { status: secStatus, latency: 210 },
@@ -2843,7 +2886,12 @@ app.get('/api/admin/system-stats', async (c) => {
           source: 'businessos_estimate' as const
         }
       : { source: 'businessos_estimate', error: 'Orchestrator stats unavailable' },
-    finnhub: { requestsToday: 1840, hitRate: 72.8, count429: 0, latency: 180 },
+    finnhub: {
+      requestsToday: finnhubTelemetryDoc?.requestsToday ?? 0,
+      hitRate: finnhubTelemetryDoc?.hitRate ?? 100.0,
+      count429: finnhubTelemetryDoc?.count429 ?? 0,
+      latency: finnhubTelemetryDoc?.latency ?? 0
+    },
     fred: { requests: 220, cachedIndicators: indicatorCount, lastRefresh: cachedFred?.updatedAt || new Date().toISOString() },
     sec: { companiesCached, filingsCached, lastIngestion: secSchedulerState?.lastExecution || new Date().toISOString(), queueHealth: schedulerFailed ? 'degraded' : 'healthy' }
   };
