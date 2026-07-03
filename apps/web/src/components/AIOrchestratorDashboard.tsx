@@ -400,39 +400,48 @@ export const AIOrchestratorDashboard: React.FC = () => {
           </div>
 
           {/* Quota estimation widget */}
-          {stats.quota && (
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
-              <div>
-                <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Daily Requests:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>RPM Average:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{stats.quota.requestsPerMinute} reqs / min</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Tokens Ingested Today:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{overview.tokensToday.toLocaleString()} tokens</strong>
-                  </div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--color-warning-text)', fontStyle: 'italic', marginTop: '0.25rem' }}>
-                    ⚠️ Note: Displayed values are BusinessOS estimates derived from recorded telemetry, not provider-reported limits.
+          {(stats.quota || overview) && (() => {
+            const qStats = stats.quota || {
+              requestsPerMinute: Math.round((overview?.requestsToday || 0) / Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()))),
+              tokensPerMinute: Math.round((overview?.tokensToday || 0) / Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()))),
+              estimatedRemainingDailyRequests: Math.max(0, (overview?.dailyQuotaLimit || 1500) - (overview?.requestsToday || 0)),
+              quotaUtilisationPercentage: Math.min(100, Math.round(((overview?.requestsToday || 0) / (overview?.dailyQuotaLimit || 1500)) * 100)),
+              source: 'businessos_estimate' as const
+            };
+            return (
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
+                <div>
+                  <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Daily Requests:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>RPM Average:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{qStats.requestsPerMinute} reqs / min</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Tokens Ingested Today:</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{overview.tokensToday.toLocaleString()} tokens</strong>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--color-warning-text)', fontStyle: 'italic', marginTop: '0.25rem' }}>
+                      ⚠️ Note: Displayed values are BusinessOS estimates derived from recorded telemetry, not provider-reported limits.
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', borderLeft: '1px solid #E2DACD', paddingLeft: '1.5rem' }}>
-                <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', background: 'conic-gradient(var(--color-accent) ' + stats.quota.quotaUtilisationPercentage + '%, #E2DACD 0)' }}>
-                  <div style={{ position: 'absolute', width: '74px', height: '74px', borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{stats.quota.quotaUtilisationPercentage}%</span>
-                    <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Utilized</span>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', borderLeft: '1px solid #E2DACD', paddingLeft: '1.5rem' }}>
+                  <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', background: 'conic-gradient(var(--color-accent) ' + qStats.quotaUtilisationPercentage + '%, #E2DACD 0)' }}>
+                    <div style={{ position: 'absolute', width: '74px', height: '74px', borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{qStats.quotaUtilisationPercentage}%</span>
+                      <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Utilized</span>
+                    </div>
                   </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontFamily: 'var(--font-sans)' }}>{qStats.estimatedRemainingDailyRequests} requests estimated remaining</div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontFamily: 'var(--font-sans)' }}>{stats.quota.estimatedRemainingDailyRequests} requests estimated remaining</div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -638,13 +647,27 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
                 <Layers size={14} style={{ color: 'var(--color-accent)' }} /> Cost by Feature
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {Object.entries(stats?.breakdowns?.featureCost || {}).map(([feat, cost]) => (
-                  <div key={feat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{feat}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {(() => {
+                  const total = Object.values(stats?.breakdowns?.featureCost || {}).reduce((a, b) => a + (b || 0), 0);
+                  return Object.entries(stats?.breakdowns?.featureCost || {}).map(([feat, cost]) => {
+                    const pct = total > 0 ? ((cost / total) * 100).toFixed(1) : '0';
+                    return (
+                      <div key={feat} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{feat}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)' }}>
+                            <strong style={{ color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', marginLeft: '6px' }}>({pct}%)</span>
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', background: '#FAF8F5', height: '5px', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, background: 'var(--color-accent)', height: '100%' }} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
                 {Object.keys(stats?.breakdowns?.featureCost || {}).length === 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
@@ -655,13 +678,27 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
                 <Briefcase size={14} style={{ color: '#a855f7' }} /> Cost by Workspace
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {Object.entries(stats?.breakdowns?.workspaceCost || {}).map(([ws, cost]) => (
-                  <div key={ws} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{ws}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {(() => {
+                  const total = Object.values(stats?.breakdowns?.workspaceCost || {}).reduce((a, b) => a + (b || 0), 0);
+                  return Object.entries(stats?.breakdowns?.workspaceCost || {}).map(([ws, cost]) => {
+                    const pct = total > 0 ? ((cost / total) * 100).toFixed(1) : '0';
+                    return (
+                      <div key={ws} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500, wordBreak: 'break-all' }}>{ws}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)' }}>
+                            <strong style={{ color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', marginLeft: '6px' }}>({pct}%)</span>
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', background: '#FAF8F5', height: '5px', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, background: '#a855f7', height: '100%' }} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
                 {Object.keys(stats?.breakdowns?.workspaceCost || {}).length === 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
@@ -670,19 +707,83 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
-                <User size={14} style={{ color: 'var(--color-warning-text)' }} /> Cost by User
+                <User size={14} style={{ color: 'var(--color-warning-text)' }} /> Cost Leaderboard (Top Users)
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {Object.entries(stats?.breakdowns?.userCost || {}).map(([usr, cost]) => (
-                  <div key={usr} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{(usr || '').substring(0, 16)}{(usr || '').length > 16 && '...'}</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {(() => {
+                  const entries = Object.entries(stats?.breakdowns?.userCost || {}).sort((a, b) => (b[1] || 0) - (a[1] || 0));
+                  const total = entries.reduce((a, b) => a + (b[1] || 0), 0);
+                  return entries.slice(0, 10).map(([usr, cost], idx) => {
+                    const pct = total > 0 ? ((cost / total) * 100).toFixed(1) : '0';
+                    return (
+                      <div key={usr} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500, wordBreak: 'break-all' }}>
+                            <strong style={{ color: 'var(--text-primary)', marginRight: '4px' }}>#{idx + 1}</strong>
+                            {(usr || '').substring(0, 16)}{(usr || '').length > 16 && '...'}
+                          </span>
+                          <span style={{ fontFamily: 'var(--font-mono)' }}>
+                            <strong style={{ color: 'var(--color-success-text)' }}>${(cost || 0).toFixed(5)}</strong>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', marginLeft: '6px' }}>({pct}%)</span>
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', background: '#FAF8F5', height: '5px', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, background: 'var(--color-warning-text)', height: '100%' }} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
                 {Object.keys(stats?.breakdowns?.userCost || {}).length === 0 && (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No operational usage logs recorded yet.</div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Fallback Trigger Tracking Card */}
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+              <AlertTriangle size={15} style={{ color: 'var(--color-warning-text)' }} /> Fallback Trigger Analysis & Health Degradation
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: '#FAF8F5', padding: '0.85rem', borderLeft: '3px solid var(--color-warning-border)' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontFamily: 'var(--font-mono)' }}>Total Failovers Triggered</span>
+                <strong style={{ fontSize: '1.25rem', color: 'var(--color-warning-text)' }}>{overview?.totalFailovers || 0} events</strong>
+              </div>
+              <div style={{ background: '#FAF8F5', padding: '0.85rem', borderLeft: '3px solid var(--color-danger-border)' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontFamily: 'var(--font-mono)' }}>Total API Retries</span>
+                <strong style={{ fontSize: '1.25rem', color: 'var(--color-danger-text)' }}>{overview?.totalRetries || 0} retries</strong>
+              </div>
+              <div style={{ background: '#FAF8F5', padding: '0.85rem', borderLeft: '3px solid var(--color-success-border)' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontFamily: 'var(--font-mono)' }}>Primary Route Reliability</span>
+                <strong style={{ fontSize: '1.25rem', color: 'var(--color-success-text)' }}>
+                  {overview?.requestsToday ? Math.max(0, Math.round((1 - (overview?.totalFailovers || 0) / overview?.requestsToday) * 100)) : 100}%
+                </strong>
+              </div>
+            </div>
+            
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>Recent Fallback Activity Log:</strong>
+              {timeline && timeline.filter(t => t.selectedModel !== t.fallbackModel && t.fallbackModel).length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '160px', overflowY: 'auto' }}>
+                  {timeline.filter(t => t.selectedModel !== t.fallbackModel && t.fallbackModel).slice(0, 5).map((record, idx) => (
+                    <div key={idx} style={{ padding: '0.5rem 0.75rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontWeight: 'bold', color: 'var(--color-danger-text)' }}>{record.selectedModel}</span> &rarr; <span style={{ fontWeight: 'bold', color: 'var(--color-success-text)' }}>{record.fallbackModel}</span>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>Feature: <strong>{record.feature}</strong> | Classification: {record.errorClassification}</div>
+                      </div>
+                      <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                        {new Date(record.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontStyle: 'italic', color: 'var(--text-muted)', background: '#FAF8F5', padding: '1rem', textAlign: 'center', border: '1px dashed #E2DACD' }}>
+                  No failovers or fallback activations triggered in recent telemetry window. Primary models operating within SLA.
+                </div>
+              )}
             </div>
           </div>
         </div>

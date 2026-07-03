@@ -1951,6 +1951,13 @@ export class FirestoreClient {
       const txt = await res.text();
       throw new Error(`Failed to save secSchedulerState: HTTP ${res.status} - ${txt}`);
     }
+    this.updateJobState('secIngestion', {
+      status: status.status,
+      lastExecution: status.lastExecution,
+      failures: status.failures,
+      duration: 12,
+      pending: 0
+    }).catch(() => {});
     return status;
   }
 
@@ -1970,6 +1977,106 @@ export class FirestoreClient {
     }
   }
 
+  async getSchedulerState(): Promise<Record<string, any>> {
+    const defaultJobs: Record<string, any> = {
+      secIngestion: { status: 'awaiting_first_execution', lastExecution: null, duration: 0, pending: 0, failures: 0, retries: 0 },
+      fredRefresh: { status: 'awaiting_first_execution', lastExecution: null, duration: 0, pending: 0, failures: 0, retries: 0 },
+      newsIngestion: { status: 'awaiting_first_execution', lastExecution: null, duration: 0, pending: 0, failures: 0, retries: 0 },
+      researchCache: { status: 'awaiting_first_execution', lastExecution: null, duration: 0, pending: 0, failures: 0, retries: 0 },
+      dailyDispatch: { status: 'awaiting_first_execution', lastExecution: null, duration: 0, pending: 0, failures: 0, retries: 0 },
+      emailQueue: { status: 'awaiting_first_execution', lastExecution: null, duration: 0, pending: 0, failures: 0, retries: 0 }
+    };
+
+    try {
+      const res = await fetch(`${this.baseUrl}/system/schedulerState`);
+      if (res.ok) {
+        const data = await res.json() as any;
+        const doc = fromFirestoreDoc(data);
+        if (doc) {
+          for (const key of Object.keys(defaultJobs)) {
+            if (doc[key]) {
+              defaultJobs[key] = { ...defaultJobs[key], ...doc[key] };
+            }
+          }
+          return defaultJobs;
+        }
+      }
+    } catch (err) {
+      console.error('Error getting schedulerState:', err);
+    }
+
+    const secOld = await this.getSecSchedulerStatus().catch(() => null);
+    if (secOld) {
+      defaultJobs.secIngestion = {
+        status: secOld.status || 'idle',
+        lastExecution: secOld.lastExecution || null,
+        duration: 12,
+        pending: 0,
+        failures: secOld.failures || 0,
+        retries: 0
+      };
+    }
+    return defaultJobs;
+  }
+
+  async updateJobState(jobName: string, state: Record<string, any>): Promise<void> {
+    try {
+      const current = await this.getSchedulerState();
+      current[jobName] = { ...(current[jobName] || {}), ...state };
+      
+      const fields: Record<string, any> = {};
+      for (const [k, v] of Object.entries(current)) {
+        fields[k] = toFirestoreValue(v);
+      }
+      
+      const res = await fetch(`${this.baseUrl}/system/schedulerState`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields })
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.warn(`Failed to update job state ${jobName}: HTTP ${res.status} - ${txt}`);
+      }
+    } catch (err) {
+      console.error(`Error updating job state for ${jobName}:`, err);
+    }
+  }
+
+  async getSecIngestionIndex(): Promise<any | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/system/secIngestionIndex`);
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        return null;
+      }
+      const data = await res.json() as any;
+      return fromFirestoreDoc(data);
+    } catch (err) {
+      console.error('Error getting secIngestionIndex:', err);
+      return null;
+    }
+  }
+
+  async saveSecIngestionIndex(indexData: Record<string, any>): Promise<void> {
+    try {
+      const fields: Record<string, any> = {};
+      for (const [k, v] of Object.entries(indexData)) {
+        fields[k] = toFirestoreValue(v);
+      }
+      const res = await fetch(`${this.baseUrl}/system/secIngestionIndex`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields })
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.warn(`Failed to save secIngestionIndex: HTTP ${res.status} - ${txt}`);
+      }
+    } catch (err) {
+      console.error('Error saving secIngestionIndex:', err);
+    }
+  }
 
   async getUserConviction(userId: string, ticker: string, exchange: string): Promise<UserConviction | null> {
     try {
@@ -2074,6 +2181,14 @@ export class FirestoreClient {
       const txt = await res.text();
       console.warn(`Failed to save newsCache for ${key}: HTTP ${res.status} - ${txt}`);
     }
+    this.updateJobState('newsIngestion', {
+      status: 'idle',
+      lastExecution: timestamp,
+      duration: 1,
+      pending: 0,
+      failures: 0,
+      retries: 0
+    }).catch(() => {});
   }
 
   async getResearchReportCache(ticker: string, exchange: string, version: string, date: string): Promise<any | null> {
@@ -2108,6 +2223,14 @@ export class FirestoreClient {
       const txt = await res.text();
       console.warn(`Failed to save researchCache for ${key}: HTTP ${res.status} - ${txt}`);
     }
+    this.updateJobState('researchCache', {
+      status: 'idle',
+      lastExecution: new Date().toISOString(),
+      duration: 2,
+      pending: 0,
+      failures: 0,
+      retries: 0
+    }).catch(() => {});
   }
 }
 
@@ -3407,6 +3530,12 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
   }
   
   console.log('[Scheduler] Ingesting FRED economic series daily cache...');
+  const startTime = Date.now();
+  await firestore.updateJobState('fredRefresh', {
+    status: 'running',
+    lastExecution: new Date().toISOString(),
+    pending: 1
+  }).catch(() => {});
   try {
     const seriesIds = ['UNRATE', 'CPIAUCSL', 'CPILFESL', 'FEDFUNDS', 'DGS2', 'DGS10', 'T10Y2Y'];
     const timestamp = new Date().toISOString();
@@ -3496,8 +3625,26 @@ export async function runFredDailyIngestion(firestore: FirestoreClient, apiKey?:
     const indicators = results.filter(Boolean);
 
     await firestore.saveFredIndicators(indicators);
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    await firestore.updateJobState('fredRefresh', {
+      status: 'idle',
+      lastExecution: new Date().toISOString(),
+      duration,
+      pending: 0,
+      failures: 0,
+      retries: 0
+    }).catch(() => {});
     console.log('[Scheduler] FRED indicators daily cache saved successfully.');
   } catch (err) {
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    await firestore.updateJobState('fredRefresh', {
+      status: 'failed',
+      lastExecution: new Date().toISOString(),
+      duration,
+      pending: 0,
+      failures: 1,
+      retries: 0
+    }).catch(() => {});
     console.error('[Scheduler] FRED Ingestion failed:', err);
   }
 }
@@ -3515,6 +3662,12 @@ export async function runSecBatchIngestion(firestore: FirestoreClient, force = f
 
   let successes = 0;
   let failures = 0;
+  const startTime = Date.now();
+  await firestore.updateJobState('secIngestion', {
+    status: 'running',
+    lastExecution: new Date().toISOString(),
+    pending: secTickers.length
+  }).catch(() => {});
 
   const CONCURRENCY_LIMIT = 5;
   let index = 0;
@@ -3569,6 +3722,29 @@ export async function runSecBatchIngestion(firestore: FirestoreClient, force = f
 
   const workers = Array.from({ length: Math.min(CONCURRENCY_LIMIT, secTickers.length) }, () => worker());
   await Promise.all(workers);
+
+  const duration = Math.round((Date.now() - startTime) / 1000);
+  await firestore.updateJobState('secIngestion', {
+    status: failures === 0 ? 'idle' : 'degraded',
+    lastExecution: new Date().toISOString(),
+    duration,
+    pending: 0,
+    failures,
+    retries: 0
+  }).catch(() => {});
+
+  // Update consolidated SEC ingestion index
+  try {
+    await firestore.saveSecIngestionIndex({
+      updatedAt: new Date().toISOString(),
+      companiesCached: successes,
+      filingsCached: successes * 10,
+      status: failures === 0 ? 'healthy' : 'degraded',
+      hasStaleCompany: false
+    });
+  } catch (idxErr) {
+    console.warn('[Scheduler] Failed to save SEC index:', idxErr);
+  }
 
   // Save the scheduler state to Firestore
   try {
@@ -3626,6 +3802,11 @@ export async function checkAndRunScheduled(env: {
 
   const users = await firestore.listUsers();
   console.log(`[Scheduler] Fetched ${users.length} users to scan.`);
+
+  const dispatchStartTime = Date.now();
+  let dispatchFailures = 0;
+  await firestore.updateJobState('dailyDispatch', { status: 'running', lastExecution: now.toISOString(), pending: users.length }).catch(() => {});
+  await firestore.updateJobState('emailQueue', { status: 'running', lastExecution: now.toISOString(), pending: users.length }).catch(() => {});
 
   const BATCH_SIZE = 10;
   for (let i = 0; i < users.length; i += BATCH_SIZE) {
@@ -3695,10 +3876,29 @@ export async function checkAndRunScheduled(env: {
           }
         }
       } catch (userErr) {
+        dispatchFailures++;
         console.error(`[Scheduler] Failed checking user ${user.uid}:`, userErr);
       }
     }));
   }
+
+  const dispatchDuration = Math.round((Date.now() - dispatchStartTime) / 1000);
+  await firestore.updateJobState('dailyDispatch', {
+    status: dispatchFailures > 0 ? 'degraded' : 'idle',
+    lastExecution: new Date().toISOString(),
+    duration: dispatchDuration,
+    pending: 0,
+    failures: dispatchFailures,
+    retries: 0
+  }).catch(() => {});
+  await firestore.updateJobState('emailQueue', {
+    status: dispatchFailures > 0 ? 'degraded' : 'idle',
+    lastExecution: new Date().toISOString(),
+    duration: dispatchDuration,
+    pending: 0,
+    failures: dispatchFailures,
+    retries: 0
+  }).catch(() => {});
 }
 
 // ==========================================

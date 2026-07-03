@@ -448,8 +448,125 @@ export class AIOrchestrator {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
+      this.updateTelemetrySummary(projectId, telemetry).catch(() => {});
     } catch (e) {
       console.error('[AIOrchestrator] Telemetry save failed:', e);
+    }
+  }
+
+  private static async updateTelemetrySummary(projectId: string, telemetry: any): Promise<void> {
+    try {
+      const dateStr = new Date(telemetry.timestamp || Date.now()).toISOString().split('T')[0];
+      let summary: any = {
+        date: dateStr,
+        requests: 0,
+        tokens: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        cost: 0,
+        successes: 0,
+        failures: 0,
+        cachedResponses: 0,
+        totalLatencyMs: 0,
+        retries: 0,
+        failovers: 0,
+        featureCost: {},
+        workspaceCost: {},
+        userCost: {}
+      };
+
+      const res = await firestoreFetch(projectId, `aiTelemetrySummary/${dateStr}`);
+      if (res.ok) {
+        const raw = await res.json() as any;
+        const existing = fromFirestoreDoc(raw);
+        if (existing && existing.requests !== undefined) {
+          summary = { ...summary, ...existing };
+          summary.featureCost = existing.featureCost || {};
+          summary.workspaceCost = existing.workspaceCost || {};
+          summary.userCost = existing.userCost || {};
+        }
+      }
+
+      summary.requests++;
+      summary.tokens += (telemetry.totalTokens || 0);
+      summary.promptTokens += (telemetry.promptTokens || 0);
+      summary.completionTokens += (telemetry.completionTokens || 0);
+      summary.cost += (telemetry.estimatedCost || 0);
+      if (telemetry.success) summary.successes++;
+      else summary.failures++;
+      if (telemetry.cachedResponse) summary.cachedResponses++;
+      summary.totalLatencyMs += (telemetry.latency || 0);
+      summary.retries += (telemetry.retryCount || 0);
+      if (telemetry.fallbackModel && telemetry.fallbackModel !== '') summary.failovers++;
+
+      const feat = telemetry.feature || 'Unknown';
+      summary.featureCost[feat] = (summary.featureCost[feat] || 0) + (telemetry.estimatedCost || 0);
+      const ws = telemetry.workspace || 'Unknown';
+      summary.workspaceCost[ws] = (summary.workspaceCost[ws] || 0) + (telemetry.estimatedCost || 0);
+      const usr = telemetry.user || 'Unknown';
+      summary.userCost[usr] = (summary.userCost[usr] || 0) + (telemetry.estimatedCost || 0);
+
+      const doc = { fields: {} as any };
+      for (const [k, v] of Object.entries(summary)) {
+        doc.fields[k] = toFirestoreValue(v);
+      }
+      await firestoreFetch(projectId, `aiTelemetrySummary/${dateStr}`, undefined, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+    } catch (e) {
+      console.warn('[AIOrchestrator] Failed to update telemetry summary:', e);
+    }
+  }
+
+  private static async getPersistentStats(projectId: string, token?: string): Promise<{ models: Record<string, any>; providers: Record<string, any> }> {
+    try {
+      const res = await firestoreFetch(projectId, 'system/aiOrchestratorStats', token);
+      if (res.ok) {
+        const raw = await res.json() as any;
+        const data = fromFirestoreDoc(raw);
+        if (data && data.models) {
+          return { models: data.models || {}, providers: data.providers || {} };
+        }
+      }
+    } catch (e) {
+      console.warn('[AIOrchestrator] Failed to fetch persistent stats:', e);
+    }
+    return { models: {}, providers: {} };
+  }
+
+  private static async updatePersistentStats(projectId: string, modelId: string, providerId: string, latencyMs: number, success: boolean, reason?: string): Promise<void> {
+    try {
+      const current = await this.getPersistentStats(projectId);
+      const m = current.models[modelId] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+      m.requests++;
+      m.totalLatencyMs += latencyMs;
+      if (success) {
+        m.success++;
+        m.lastSuccess = new Date().toISOString();
+      } else {
+        m.failure++;
+        m.lastFailure = new Date().toISOString();
+        m.lastFailureReason = reason || '';
+      }
+      current.models[modelId] = m;
+
+      const p = current.providers[providerId] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+      p.requests++;
+      p.totalLatencyMs += latencyMs;
+      if (success) p.success++;
+      else p.failure++;
+      current.providers[providerId] = p;
+
+      const doc = { fields: { models: toFirestoreValue(current.models), providers: toFirestoreValue(current.providers) } };
+      await firestoreFetch(projectId, 'system/aiOrchestratorStats', undefined, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+    } catch (e) {
+      console.warn('[AIOrchestrator] Failed to update persistent stats:', e);
     }
   }
 
@@ -750,6 +867,7 @@ export class AIOrchestrator {
         provStats.success++;
         provStats.totalLatencyMs += modelLatency;
         providerLocalStats.set(model.provider, provStats);
+        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, true).catch(() => {});
         break;
       } else {
         modelStats.failure++;
@@ -759,6 +877,7 @@ export class AIOrchestrator {
 
         provStats.failure++;
         providerLocalStats.set(model.provider, provStats);
+        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, false, lastErrorType).catch(() => {});
 
         lastErrorType = this.classifyError(attemptStatus, attemptBody);
         lastErrorMsg = attemptBody;
@@ -937,6 +1056,7 @@ export class AIOrchestrator {
     const retentionDays = config?.retentionDays || 30;
 
     const persistentCooldowns = await this.getPersistentCooldowns(projectId, token);
+    const persistentStats = await this.getPersistentStats(projectId, token);
     const telemetry = await this.getTelemetry(projectId, token);
     const now = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
@@ -990,6 +1110,32 @@ export class AIOrchestrator {
       userCost[usr] = (userCost[usr] || 0) + (record.estimatedCost || 0);
     }
 
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const res = await firestoreFetch(projectId, `aiTelemetrySummary/${todayStr}`, token);
+      if (res.ok) {
+        const raw = await res.json() as any;
+        const sum = fromFirestoreDoc(raw);
+        if (sum && typeof sum.requests === 'number' && sum.requests > requestsToday) {
+          requestsToday = sum.requests;
+          tokensToday = sum.tokens || 0;
+          promptTokensToday = sum.promptTokens || 0;
+          completionTokensToday = sum.completionTokens || 0;
+          costToday = sum.cost || 0;
+          cachedResponses = sum.cachedResponses || 0;
+          if (sum.totalLatencyMs) totalLatencyMs = sum.totalLatencyMs;
+          if (sum.retries) totalRetries = sum.retries;
+          if (sum.failovers) totalFailovers = sum.failovers;
+          if (sum.successes) successCount = sum.successes;
+          if (sum.featureCost) Object.assign(featureCost, sum.featureCost);
+          if (sum.workspaceCost) Object.assign(workspaceCost, sum.workspaceCost);
+          if (sum.userCost) Object.assign(userCost, sum.userCost);
+        }
+      }
+    } catch (err) {
+      console.warn('[AIOrchestrator] Summary fetch failed in getOperationalStats:', err);
+    }
+
     const cacheHitRate = requestsToday > 0 ? Math.round((cachedResponses / requestsToday) * 100) : 0;
     // Cost savings: assume a cached response would have cost the average non-cached cost
     const avgNonCachedCost = (requestsToday - cachedResponses) > 0
@@ -1002,7 +1148,14 @@ export class AIOrchestrator {
     const avgLatency = successCount > 0 ? totalLatencyMs / successCount : 0;
 
     // Provider Aggregates
-    const googleProvStats = providerLocalStats.get('google') || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+    const localGoogleProv = providerLocalStats.get('google') || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+    const persistGoogleProv = persistentStats.providers['google'] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+    const googleProvStats = {
+      requests: localGoogleProv.requests + persistGoogleProv.requests,
+      success: localGoogleProv.success + persistGoogleProv.success,
+      failure: localGoogleProv.failure + persistGoogleProv.failure,
+      totalLatencyMs: localGoogleProv.totalLatencyMs + persistGoogleProv.totalLatencyMs
+    };
     const googleSuccessRate = googleProvStats.requests > 0 ? (googleProvStats.success / googleProvStats.requests) * 100 : 100;
     const googleLatency = googleProvStats.success > 0 ? googleProvStats.totalLatencyMs / googleProvStats.success : 0;
 
@@ -1017,7 +1170,17 @@ export class AIOrchestrator {
     // Models Aggregates
     const models = this.DEFAULT_MODELS.map(m => {
       const override = modelOverrides[m.id];
-      const stats = modelLocalStats.get(m.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0, lastSuccess: '', lastFailure: '', lastFailureReason: '' };
+      const localStats = modelLocalStats.get(m.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0, lastSuccess: '', lastFailure: '', lastFailureReason: '' };
+      const persistStats = persistentStats.models[m.id] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0, lastSuccess: '', lastFailure: '', lastFailureReason: '' };
+      const stats = {
+        requests: localStats.requests + persistStats.requests,
+        success: localStats.success + persistStats.success,
+        failure: localStats.failure + persistStats.failure,
+        totalLatencyMs: localStats.totalLatencyMs + persistStats.totalLatencyMs,
+        lastSuccess: localStats.lastSuccess || persistStats.lastSuccess || '',
+        lastFailure: localStats.lastFailure || persistStats.lastFailure || '',
+        lastFailureReason: localStats.lastFailureReason || persistStats.lastFailureReason || ''
+      };
       const cd = persistentCooldowns[m.id] || 0;
       const cooldownRemaining = Math.max(0, cd - now);
 

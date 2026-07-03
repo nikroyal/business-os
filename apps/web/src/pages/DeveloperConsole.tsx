@@ -41,6 +41,41 @@ const ApiErrorDisplay: React.FC<{
   );
 };
 
+const getMetricClassification = (key: string): { label: string; title: string; color: string; bg: string } => {
+  const k = key.toLowerCase();
+  if (['firestore', 'user usage today'].includes(k)) return { label: 'L', title: 'Live: Computed instantly at runtime', color: '#059669', bg: '#D1FAE5' };
+  if (['gemini', 'queue health', 'workers', 'firebaseauth'].includes(k)) return { label: 'D', title: 'Derived: Computed from system runtime variables', color: '#2563EB', bg: '#DBEAFE' };
+  if (['fred', 'secedgar', 'resend'].includes(k)) return { label: 'C', title: 'Cached: Read from stored DB cache', color: '#7C3AED', bg: '#EDE9FE' };
+  if (['gemini daily tokens', 'finnhub daily requests', 'user reports count', 'finnhub requests', 'total token overhead'].includes(k)) return { label: 'A', title: 'Aggregated: Pre-calculated sums/totals', color: '#D97706', bg: '#FEF3C7' };
+  if (['daily cost estimate', 'monthly cost projection', 'estimated cost savings'].includes(k)) return { label: 'E', title: 'Estimated: Projected values or algorithms', color: '#DB2777', bg: '#FCE7F3' };
+  if (['feature flags toggles'].includes(k)) return { label: 'Config', title: 'Configuration: Operational toggles', color: '#4F46E5', bg: '#E0E7FF' };
+  if (['audit trail records'].includes(k)) return { label: 'H', title: 'Historical: Chronological database query', color: '#475569', bg: '#F1F5F9' };
+  return { label: 'S', title: 'Static/Mock: Placeholder baseline', color: '#64748B', bg: '#F8FAFC' };
+};
+
+const ClassificationBadge: React.FC<{ name: string }> = ({ name }) => {
+  const badge = getMetricClassification(name);
+  return (
+    <span 
+      title={badge.title} 
+      style={{ 
+        display: 'inline-block', 
+        padding: '1px 6px', 
+        borderRadius: '4px', 
+        fontSize: '0.65rem', 
+        fontWeight: 'bold', 
+        background: badge.bg, 
+        color: badge.color, 
+        marginLeft: '6px',
+        verticalAlign: 'middle',
+        letterSpacing: '0.02em'
+      }}
+    >
+      [{badge.label}]
+    </span>
+  );
+};
+
 export const DeveloperConsole: React.FC = () => {
   const { profile, isMockMode } = useAuth();
   const [activeTab, setActiveTab] = useState<'Health' | 'Queues' | 'Users' | 'FeatureFlags' | 'AuditLogs' | 'AIOrchestrator'>('Health');
@@ -319,25 +354,33 @@ export const DeveloperConsole: React.FC = () => {
       {/* Stats Quick-Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
         <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Firestore Latency</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
+            Firestore Latency <ClassificationBadge name="firestore" />
+          </span>
           <strong style={{ fontSize: '1.5rem', color: health?.firestore?.status === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {health?.firestore?.latency || 0} ms
           </strong>
         </div>
         <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Gemini Daily Tokens</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
+            Gemini Daily Tokens <ClassificationBadge name="gemini daily tokens" />
+          </span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {(apiAnalytics?.gemini?.totalTokens ?? apiAnalytics?.gemini?.totalTokensToday ?? 0).toLocaleString()}
           </strong>
         </div>
         <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Finnhub Requests</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
+            Finnhub Requests <ClassificationBadge name="finnhub requests" />
+          </span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {apiAnalytics?.finnhub?.requestsToday || 0} / 3000
           </strong>
         </div>
         <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>Queue Health</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
+            Queue Health <ClassificationBadge name="queue health" />
+          </span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--color-success-text)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {apiAnalytics?.sec?.queueHealth?.toUpperCase() || 'HEALTHY'}
           </strong>
@@ -347,7 +390,7 @@ export const DeveloperConsole: React.FC = () => {
       {/* Tab selection menu */}
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', marginBottom: '2rem', flexWrap: 'wrap', overflowX: 'auto' }}>
         {([
-          { id: 'Health', label: 'Platform Health', icon: Activity },
+          { id: 'Health', label: 'Overview (NOC)', icon: Activity },
           { id: 'Queues', label: 'Background Jobs', icon: Clock },
           { id: 'Users', label: 'User Directory', icon: Users },
           { id: 'FeatureFlags', label: 'Global Flags', icon: Sliders },
@@ -388,102 +431,215 @@ export const DeveloperConsole: React.FC = () => {
         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Querying operational console nodes...</div>
       )}
 
-      {/* Tab 1: Health Diagnostics */}
+      {/* Tab 1: System Operations Center (NOC Overview) */}
       {activeTab === 'Health' && statsError && (
         <ApiErrorDisplay endpoint="/api/admin/system-stats" error={statsError} onRetry={loadStats} />
       )}
       {activeTab === 'Health' && !statsError && health && apiAnalytics && (
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          {/* Diagnostic latency logs */}
-          <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
-            <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Service Status Latency Ratios</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                  <th style={{ padding: '0.5rem' }}>Service Node</th>
-                  <th style={{ padding: '0.5rem' }}>Operational Status</th>
-                  <th style={{ padding: '0.5rem' }}>Response Latency</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(health).map(([node, detail]: any) => {
-                  const s = (detail?.status || '').toLowerCase();
-                  const isGreen = ['operational', 'available', 'healthy'].includes(s);
-                  const isOrange = ['degraded', 'cache_empty', 'waiting_for_scheduled_sync'].includes(s);
-                  const isGray = ['not_configured'].includes(s);
-                  const color = isGreen 
-                    ? 'var(--color-success-text)' 
-                    : isOrange 
-                      ? 'var(--color-warning-text)' 
-                      : isGray 
-                        ? 'var(--text-muted)' 
-                        : 'var(--color-danger-text)';
-                  
-                  return (
-                    <tr key={node} style={{ borderBottom: '1px solid #E2DACD' }}>
-                      <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{node.toUpperCase()}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <span style={{ color, fontWeight: 'bold' }}>
-                          ● {(detail?.status || '').toUpperCase().replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{detail?.latency || 0} ms</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Token Costs summaries */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Top 2x2 Grid: Health Matrix & AI Overview */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
             
-            <div className="card" style={{ background: '#fff', padding: '1rem 1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
-              <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Gemini Cost Tracking</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    {apiAnalytics.gemini?.flashRequests !== undefined ? 'Flash API Calls:' : 'Total Requests Today:'}
-                  </span>
-                  <strong style={{ color: 'var(--text-primary)' }}>
-                    {apiAnalytics.gemini?.flashRequests ?? apiAnalytics.gemini?.requestsToday ?? 0}
-                  </strong>
+            {/* Panel 1: NOC Health Matrix */}
+            <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
+                <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={18} style={{ color: 'var(--color-accent)' }} /> NOC Health Matrix
+                </h3>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>9 NODES MONITORED</span>
+              </div>
+              
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.5rem' }}>Service Node</th>
+                    <th style={{ padding: '0.5rem' }}>Status</th>
+                    <th style={{ padding: '0.5rem', textAlign: 'right' }}>Latency</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(health).map(([node, detail]: any) => {
+                    const s = (detail?.status || '').toLowerCase();
+                    const isGreen = ['operational', 'available', 'healthy'].includes(s);
+                    const isOrange = ['degraded', 'cache_empty', 'waiting_for_scheduled_sync'].includes(s);
+                    const isGray = ['not_configured'].includes(s);
+                    const color = isGreen 
+                      ? 'var(--color-success-text)' 
+                      : isOrange 
+                        ? 'var(--color-warning-text)' 
+                        : isGray 
+                          ? 'var(--text-muted)' 
+                          : 'var(--color-danger-text)';
+                    
+                    return (
+                      <tr key={node} style={{ borderBottom: '1px solid #E2DACD' }}>
+                        <td style={{ padding: '0.6rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                          {node.toUpperCase()} <ClassificationBadge name={node} />
+                        </td>
+                        <td style={{ padding: '0.6rem 0.5rem' }}>
+                          <span style={{ color, fontWeight: 'bold' }}>
+                            ● {(detail?.status || '').toUpperCase().replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textAlign: 'right' }}>
+                          {detail?.latency || 0} ms
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Panel 2: AI Orchestrator Overview */}
+            <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
+                  <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Cpu size={18} style={{ color: 'var(--color-accent)' }} /> AI Orchestrator Overview
+                  </h3>
+                  <button onClick={() => setActiveTab('AIOrchestrator')} className="btn btn-sm btn-secondary" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
+                    View Operations Center →
+                  </button>
                 </div>
-                {apiAnalytics.gemini?.proRequests !== undefined && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Pro API Calls:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini?.proRequests}</strong>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Primary Routing Model:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Gemini 2.5 Flash <ClassificationBadge name="feature flags toggles" /></strong>
                   </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Total Token Overhead:</span>
-                  <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                    {(apiAnalytics.gemini?.totalTokens ?? apiAnalytics.gemini?.totalTokensToday ?? 0).toLocaleString()}
-                  </strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Active Fallback Model:</span>
+                    <strong style={{ color: 'var(--text-primary)' }}>Gemini 2.5 Pro <ClassificationBadge name="feature flags toggles" /></strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Total Daily Requests: <ClassificationBadge name="gemini daily tokens" /></span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini?.requestsToday ?? 0} calls</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Total Daily Tokens: <ClassificationBadge name="gemini daily tokens" /></span>
+                    <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{(apiAnalytics.gemini?.totalTokens ?? apiAnalytics.gemini?.totalTokensToday ?? 0).toLocaleString()}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Daily Token Billing Estimate: <ClassificationBadge name="daily cost estimate" /></span>
+                    <strong style={{ color: 'var(--color-success-text)', fontSize: '1rem' }}>${(apiAnalytics.gemini?.dailyCost ?? 0).toFixed(4)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Monthly Projection: <ClassificationBadge name="monthly cost projection" /></span>
+                    <strong style={{ color: 'var(--text-primary)' }}>${(apiAnalytics.gemini?.monthlyCostProjection ?? 0).toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.25rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio: <ClassificationBadge name="finnhub requests" /></span>
+                    <strong style={{ color: 'var(--color-warning-text)' }}>{apiAnalytics.gemini?.hitRate ?? apiAnalytics.gemini?.cacheHitRate ?? 0}% (${(apiAnalytics.gemini?.estimatedCostSavings ?? 0).toFixed(3)} saved)</strong>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Daily Cost Estimate:</span>
-                  <strong style={{ color: 'var(--color-success-text)' }}>
-                    ${(apiAnalytics.gemini?.dailyCost ?? 0).toFixed(2)}
-                  </strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio:</span>
-                  <strong style={{ color: 'var(--color-warning-text)' }}>
-                    {apiAnalytics.gemini?.hitRate ?? apiAnalytics.gemini?.cacheHitRate ?? 0}%
-                  </strong>
-                </div>
+              </div>
+
+              <div style={{ background: '#FAF8F5', border: '1px solid #E2DACD', padding: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Source: <strong>BusinessOS Edge Telemetry</strong></span>
+                <span>Status: <strong style={{ color: 'var(--color-success-text)' }}>LIVE MONITORING</strong></span>
               </div>
             </div>
 
+          </div>
+
+          {/* Bottom 2x2 Grid: Active Job Queues & Data Quality */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+            
+            {/* Panel 3: Active Job Queues */}
             <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
-              <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Data Quality Metrics</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>FRED Cached Indicators:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.fred?.cachedIndicators ?? 0}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Companies:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.companiesCached ?? 0}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>SEC Edgar Filings:</span> <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.filingsCached ?? 0}</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}><span style={{ color: 'var(--text-secondary)' }}>Finnhub 429 Errors:</span> <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics?.finnhub?.count429 ?? 0}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
+                <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={18} style={{ color: 'var(--color-accent)' }} /> Active Job Queues
+                </h3>
+                <button onClick={() => setActiveTab('Queues')} className="btn btn-sm btn-secondary" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
+                  Manage Queues →
+                </button>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.5rem' }}>Job Worker</th>
+                    <th style={{ padding: '0.5rem' }}>Status</th>
+                    <th style={{ padding: '0.5rem' }}>Last Run</th>
+                    <th style={{ padding: '0.5rem', textAlign: 'right' }}>Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {queues && Object.entries(queues).map(([key, q]: any) => {
+                    const status = (q?.status || 'idle').toLowerCase();
+                    const isGreen = ['idle', 'success', 'healthy', 'completed'].includes(status);
+                    const isOrange = ['running', 'degraded', 'awaiting_first_execution'].includes(status);
+                    const color = isGreen ? 'var(--color-success-text)' : isOrange ? 'var(--color-warning-text)' : 'var(--color-danger-text)';
+                    
+                    return (
+                      <tr key={key} style={{ borderBottom: '1px solid #E2DACD' }}>
+                        <td style={{ padding: '0.6rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                          {key} <ClassificationBadge name="firestore" />
+                        </td>
+                        <td style={{ padding: '0.6rem 0.5rem' }}>
+                          <span style={{ color, fontWeight: 'bold' }}>● {status.toUpperCase().replace(/_/g, ' ')}</span>
+                          {q?.failures > 0 && <span style={{ color: 'var(--color-danger-text)', fontSize: '0.7rem', marginLeft: '6px' }}>({q.failures} fail)</span>}
+                        </td>
+                        <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                          {q?.lastExecution ? new Date(q.lastExecution).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never'}
+                        </td>
+                        <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textAlign: 'right' }}>
+                          {q?.duration || 0}s
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Panel 4: Real-Time Audit Trail & Cache Quality */}
+            <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
+                  <h3 style={{ margin: 0, padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Shield size={18} style={{ color: 'var(--color-accent)' }} /> Real-Time Audit & Quality
+                  </h3>
+                  <button onClick={() => setActiveTab('AuditLogs')} className="btn btn-sm btn-secondary" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
+                    View Full Trail →
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>FRED Economic Cache: <ClassificationBadge name="fred" /></span> 
+                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.fred?.cachedIndicators ?? 0} indicators</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>SEC EDGAR Coverage: <ClassificationBadge name="secedgar" /></span> 
+                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.companiesCached ?? 0} companies ({apiAnalytics?.sec?.filingsCached ?? 0} filings)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Finnhub Rate Limits (429s): <ClassificationBadge name="finnhub daily requests" /></span> 
+                    <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics?.finnhub?.count429 ?? 0} errors today</strong>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block', marginBottom: '0.5rem' }}>Recent Administrative Events</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '120px', overflowY: 'auto' }}>
+                    {auditLogs.length > 0 ? (
+                      auditLogs.slice(0, 4).map((log, i) => (
+                        <div key={i} style={{ fontSize: '0.75rem', padding: '0.35rem 0.5rem', background: '#FAF8F5', borderLeft: '3px solid var(--color-accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{log.action}</span>
+                          <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                            {log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.5rem' }}>No recent audit trail events recorded today.</div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

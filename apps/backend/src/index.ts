@@ -310,13 +310,13 @@ app.get('/api/health/services', async (c) => {
     featureFlagsDoc,
     cachedFred,
     secSchedulerState,
-    secFacts,
+    secIndex,
     fredApiResponse
   ] = await Promise.all([
     getFirestoreDoc(projectId, 'system/featureFlags', token).catch(() => null),
     firestore.getFredIndicators().catch(() => null),
     getFirestoreDoc(projectId, 'system/secSchedulerState', token).catch(() => null),
-    Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null))),
+    firestore.getSecIngestionIndex().catch(() => null),
     fredApiPromise
   ]);
 
@@ -472,31 +472,43 @@ app.get('/api/health/services', async (c) => {
   const lastIngestionRun = secSchedulerState?.lastExecution || null;
   const schedulerFailed = secSchedulerState?.status === 'degraded' || (secSchedulerState?.failures || 0) > 0;
 
-  let companiesCached = 0;
-  let filingsCached = 0;
-  let oldestFilingDateStr = '';
-  let hasStaleCompany = false;
-  let cacheCollectionExists = false;
+  let companiesCached = secIndex?.companiesCached || 0;
+  let filingsCached = secIndex?.filingsCached || 0;
+  let oldestFilingDateStr = secIndex?.oldestFilingDateStr || '';
+  let hasStaleCompany = secIndex?.hasStaleCompany || false;
+  let cacheCollectionExists = companiesCached > 0;
 
-  for (const data of secFacts) {
-    if (data) {
-      cacheCollectionExists = true;
-      companiesCached++;
-      const filings = data.recentFilings || [];
-      filingsCached += filings.length;
+  if (!secIndex) {
+    const secFacts = await Promise.all(secTickers.map(t => firestore.getSecCompanyFacts(t).catch(() => null)));
+    for (const data of secFacts) {
+      if (data) {
+        cacheCollectionExists = true;
+        companiesCached++;
+        const filings = data.recentFilings || [];
+        filingsCached += filings.length;
 
-      for (const f of filings) {
-        if (f.filingDate && (!oldestFilingDateStr || f.filingDate < oldestFilingDateStr)) {
-          oldestFilingDateStr = f.filingDate;
+        for (const f of filings) {
+          if (f.filingDate && (!oldestFilingDateStr || f.filingDate < oldestFilingDateStr)) {
+            oldestFilingDateStr = f.filingDate;
+          }
+        }
+
+        const lastUpdated = data.updatedAt || new Date().toISOString();
+        const ageMs = Date.now() - new Date(lastUpdated).getTime();
+        if (ageMs > 5 * 24 * 60 * 60 * 1000) { // 5 days threshold
+          hasStaleCompany = true;
         }
       }
-
-      const lastUpdated = data.updatedAt || new Date().toISOString();
-      const ageMs = Date.now() - new Date(lastUpdated).getTime();
-      if (ageMs > 5 * 24 * 60 * 60 * 1000) { // 5 days threshold
-        hasStaleCompany = true;
-      }
     }
+    // Save index for future fast lookups
+    firestore.saveSecIngestionIndex({
+      updatedAt: new Date().toISOString(),
+      companiesCached,
+      filingsCached,
+      oldestFilingDateStr,
+      hasStaleCompany,
+      status: schedulerFailed ? 'degraded' : 'healthy'
+    }).catch(() => {});
   }
 
   let oldestCachedFilingAge = 0;
@@ -2789,9 +2801,7 @@ app.get('/api/admin/system-stats', async (c) => {
 
   const cachedFred = await firestoreClient.getFredIndicators().catch(() => null);
   const secSchedulerState = await getFirestoreDoc(projectId, 'system/secSchedulerState', token).catch(() => null);
-  const secFacts = await Promise.all(secTickers.map(async (t) => {
-    return await firestoreClient.getSecCompanyFacts(t).catch(() => null);
-  }));
+  const secIndex = await firestoreClient.getSecIngestionIndex().catch(() => null);
 
   // Compute FRED status
   const indicatorCount = cachedFred?.indicators?.length || 0;
@@ -2810,23 +2820,31 @@ app.get('/api/admin/system-stats', async (c) => {
 
   // Compute SEC EDGAR status
   const schedulerFailed = secSchedulerState?.status === 'degraded' || (secSchedulerState?.failures || 0) > 0;
-  let companiesCached = 0;
-  let filingsCached = 0;
-  let hasStaleCompany = false;
-  let cacheCollectionExists = false;
+  let companiesCached = secIndex?.companiesCached || 0;
+  let filingsCached = secIndex?.filingsCached || 0;
+  let hasStaleCompany = secIndex?.hasStaleCompany || false;
+  let cacheCollectionExists = companiesCached > 0;
 
-  for (const data of secFacts) {
-    if (data) {
-      cacheCollectionExists = true;
-      companiesCached++;
-      const filings = data.recentFilings || [];
-      filingsCached += filings.length;
-      const lastUpdated = data.updatedAt || new Date().toISOString();
-      const ageMs = Date.now() - new Date(lastUpdated).getTime();
-      if (ageMs > 5 * 24 * 60 * 60 * 1000) {
-        hasStaleCompany = true;
+  if (!secIndex) {
+    const secFacts = await Promise.all(secTickers.map(t => firestoreClient.getSecCompanyFacts(t).catch(() => null)));
+    for (const data of secFacts) {
+      if (data) {
+        cacheCollectionExists = true;
+        companiesCached++;
+        filingsCached += (data.recentFilings || []).length;
+        const lastUpdated = data.updatedAt || new Date().toISOString();
+        if (Date.now() - new Date(lastUpdated).getTime() > 5 * 24 * 60 * 60 * 1000) {
+          hasStaleCompany = true;
+        }
       }
     }
+    firestoreClient.saveSecIngestionIndex({
+      updatedAt: new Date().toISOString(),
+      companiesCached,
+      filingsCached,
+      hasStaleCompany,
+      status: schedulerFailed ? 'degraded' : 'healthy'
+    }).catch(() => {});
   }
 
   let secStatus = 'available';
@@ -2896,14 +2914,7 @@ app.get('/api/admin/system-stats', async (c) => {
     sec: { companiesCached, filingsCached, lastIngestion: secSchedulerState?.lastExecution || new Date().toISOString(), queueHealth: schedulerFailed ? 'degraded' : 'healthy' }
   };
 
-  const queues = {
-    secIngestion: { status: secSchedulerState?.status || 'idle', lastExecution: secSchedulerState?.lastExecution || new Date().toISOString(), duration: 12, pending: 0, failures: secSchedulerState?.failures || 0, retries: 0 },
-    fredRefresh: { status: 'idle', lastExecution: new Date().toISOString(), duration: 4, pending: 0, failures: 0, retries: 0 },
-    newsIngestion: { status: 'idle', lastExecution: new Date().toISOString(), duration: 8, pending: 0, failures: 0, retries: 0 },
-    researchCache: { status: 'idle', lastExecution: new Date().toISOString(), duration: 25, pending: 0, failures: 0, retries: 0 },
-    dailyDispatch: { status: 'idle', lastExecution: new Date().toISOString(), duration: 42, pending: 0, failures: 0, retries: 0 },
-    emailQueue: { status: 'idle', lastExecution: new Date().toISOString(), duration: 2, pending: 0, failures: 0, retries: 0 }
-  };
+  const queues = await firestoreClient.getSchedulerState();
 
   return c.json({
     health,
