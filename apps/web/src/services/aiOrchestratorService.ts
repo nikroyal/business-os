@@ -1,18 +1,74 @@
 import { authService } from './firebase';
 import { buildApiUrl } from './urlBuilder';
+import { getModelQuota } from './providerQuotaRegistry';
+
+export interface RollingWindowStats {
+  requests: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  avgLatencyMs: number;
+}
+
+export interface ModelRollingStats {
+  /** Rolling 1-minute window – the true operational RPM/TPM */
+  current1m: RollingWindowStats;
+  /** Rolling 5-minute window */
+  rolling5m: RollingWindowStats;
+  /** Rolling 1-hour window */
+  rolling1h: RollingWindowStats;
+}
+
+export interface LatencyPercentiles {
+  p50: number;
+  p95: number;
+  p99: number;
+  median: number;
+}
+
+export interface ModelReliabilityStats {
+  consecutiveFailures: number;
+  code400: number;
+  code401: number;
+  code403: number;
+  code404: number;
+  code408: number;
+  code429: number;
+  code500: number;
+  code502: number;
+  code503: number;
+  networkErrors: number;
+  timeouts: number;
+  cancelled: number;
+  authErrors: number;
+  unknownErrors: number;
+  /** Total failovers triggered from this model */
+  failovers: number;
+}
 
 export interface ModelStats {
   requests: number;
   success: number;
   failure: number;
   avgLatencyMs: number;
+  medianLatencyMs?: number;
   successRate: number;
   lastSuccess: string;
   lastFailure: string;
   lastFailureReason: string;
   todayRequests?: number;
+  todayPromptTokens?: number;
+  todayCompletionTokens?: number;
   todayTokens?: number;
   todayCost?: number;
+  estimatedMonthlyCost?: number;
+  cacheSavings?: number;
+  costAvoided?: number;
+  /** Requests served from BusinessOS cache (not sent to provider) */
+  cachedRequests?: number;
+  cacheHitRate?: number;
+  /** Total provider (upstream) requests dispatched */
+  providerRequests?: number;
   retriesCount?: number;
   fallbackCount?: number;
   cooldownCount?: number;
@@ -22,9 +78,35 @@ export interface ModelStats {
   tpmLimit?: number;
   rpdUsage?: number;
   rpdLimit?: number;
+  /** Remaining RPD quota for this model today */
   quotaRemaining?: number;
+  /** Daily quota utilization percentage (0-100) */
+  dailyUtilization?: number;
   quotaReset?: string;
   currentHealth?: string;
+  /** Per-model rolling operational metrics */
+  rolling?: ModelRollingStats;
+  /** Per-model latency percentiles */
+  percentiles?: LatencyPercentiles;
+  /** Per-model reliability counters */
+  reliability?: ModelReliabilityStats;
+}
+
+/**
+ * A single recorded fallback event with full audit metadata.
+ */
+export interface FallbackEvent {
+  id: string;
+  timestamp: string;
+  originalModel: string;
+  fallbackModel: string;
+  triggerReason: string;
+  retryCount: number;
+  recoveryTimeMs: number;
+  recovered: boolean;
+  user: string;
+  feature: string;
+  workspace: string;
 }
 
 export interface ModelMetadataWithStats {
@@ -100,6 +182,26 @@ export interface ProviderStats {
   averageLatencyMs: number;
 }
 
+export interface ReconciliationRow {
+  label: string;
+  /** Provider Reported = direct from API response headers/body */
+  googleValue: number;
+  /** BusinessOS Telemetry = aggregated from local telemetry records */
+  bosValue: number;
+  delta: number;
+  reason: string;
+  isMismatch: boolean;
+  /** The authoritative data source label */
+  dataSourceGoogle: 'Provider Reported' | 'Provider Tracked Upstream' | 'BusinessOS Telemetry' | 'BusinessOS Derived Analytics';
+  dataSourceBOS: 'Provider Reported' | 'Provider Tracked Upstream' | 'BusinessOS Telemetry' | 'BusinessOS Derived Analytics';
+  confidenceGoogle: string;
+  confidenceBOS: string;
+  lastUpdated: string;
+  refreshFrequency: string;
+  /** Tolerance threshold (%) before flagging as mismatch */
+  tolerancePct: number;
+}
+
 export interface OrchestratorStats {
   overview: OverviewStats;
   provider?: ProviderStats;
@@ -125,11 +227,19 @@ export interface OrchestratorStats {
       requests: number;
       quotaRemaining: number;
       lastUpdated: string;
+      /** Quota limits from the centralized registry */
+      rpmLimit: number;
+      tpmLimit: number;
+      rpdLimit: number;
     };
     businessos: {
       rpm: number;
       tpm: number;
       rpd: number;
+      /** Average RPM Today (daily total / elapsed minutes) – not rolling */
+      avgRpmToday: number;
+      /** Average TPM Today (daily total / elapsed minutes) – not rolling */
+      avgTpmToday: number;
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
@@ -145,6 +255,10 @@ export interface OrchestratorStats {
       completionTokens: { delta: number; reason: string };
       totalTokens: { delta: number; reason: string };
     };
+    /** Enriched reconciliation rows with full data source metadata */
+    rows?: ReconciliationRow[];
+    /** Whether any row exceeds tolerance threshold */
+    hasAlert?: boolean;
   };
   telemetryAlert?: {
     id: string;
@@ -179,6 +293,66 @@ export interface OrchestratorStats {
       docId?: string;
     }>;
   } | null;
+  /** Global rolling operational throughput (all models combined) */
+  rolling?: {
+    current1m: { requests: number; promptTokens: number; completionTokens: number; totalTokens: number; avgLatencyMs: number };
+    rolling5m: { requests: number; totalTokens: number; avgLatencyMs: number };
+    rolling1h: { requests: number; totalTokens: number; avgLatencyMs: number };
+  };
+  /** Global latency percentiles across all models */
+  globalPercentiles?: LatencyPercentiles;
+  /** Error analytics breakdown by error code */
+  errorAnalytics?: Array<{
+    code: string;
+    label: string;
+    count: number;
+    percentage: number;
+    trend: 'up' | 'down' | 'stable';
+    lastOccurrence: string | null;
+  }>;
+  /** Fallback system analytics */
+  fallbackAnalytics?: {
+    overloadedModels: Record<string, number>;
+    fallbackPaths: Array<{ path: string; count: number; successRate: number }>;
+    retrySuccessRate: number;
+    recoveryRate: number;
+    recentEvents: FallbackEvent[];
+  };
+  /** Quota forecasting */
+  forecasting?: {
+    dailyExhaustionHours: number;
+    dailyQuotaRisk: 'Low Risk' | 'Medium Risk' | 'High Risk';
+    monthlyExhaustionDays: number;
+    monthlyBudgetRisk: 'Low Risk' | 'Medium Risk' | 'High Risk';
+    /** Forecast basis – today, 7d avg, 30d avg */
+    forecastBasis: 'today' | '7d_avg' | '30d_avg';
+    avgDailyRequestsToday: number;
+    avgDailyRequests7d: number;
+    avgDailyRequests30d: number;
+  };
+  /** AI Operations Health Score (0-100) */
+  healthScore?: {
+    score: number;
+    status: 'Excellent' | 'Healthy' | 'Warning' | 'Critical';
+    components: {
+      successRate: number;
+      latency: number;
+      failovers: number;
+      retries: number;
+      providerAvailability: number;
+      quotaRemaining: number;
+      errorRate: number;
+      telemetryHealth: number;
+    };
+  };
+  /** Historical trend data across multiple time horizons */
+  trends?: {
+    trend1h: Array<{ date: string; requests: number; tokens: number; cost: number; cacheHitRate: number; avgLatencyMs: number; successRate: number; failovers: number }>;
+    trend24h: Array<{ date: string; requests: number; tokens: number; cost: number; cacheHitRate: number; avgLatencyMs: number; successRate: number; failovers: number }>;
+    trend7d: Array<{ date: string; requests: number; tokens: number; cost: number; cacheHitRate: number; avgLatencyMs: number; successRate: number; failovers: number }>;
+    trend30d: Array<{ date: string; requests: number; tokens: number; cost: number; cacheHitRate: number; avgLatencyMs: number; successRate: number; failovers: number }>;
+    trend90d: Array<{ date: string; requests: number; tokens: number; cost: number; cacheHitRate: number; avgLatencyMs: number; successRate: number; failovers: number }>;
+  };
 }
 
 export interface TelemetryRecord {
@@ -201,6 +375,12 @@ export interface TelemetryRecord {
   cachedResponse: boolean;
   /** 'provider' = official API usageMetadata; 'estimated' = character-division fallback. */
   tokenCountSource?: 'provider' | 'estimated';
+  /** HTTP status code if failure */
+  httpStatus?: number;
+  /** Whether this request triggered a model fallback */
+  triggeredFallback?: boolean;
+  /** Recovery time in ms if a fallback occurred */
+  recoveryTimeMs?: number;
 }
 
 export interface OrchestratorConfig {
@@ -735,6 +915,70 @@ class AIOrchestratorService {
         }
       };
       
+      // Enrich every model with quotas from the centralized registry
+      defaultStats.models = defaultStats.models.map(m => {
+        const quota = getModelQuota(m.id);
+        return {
+          ...m,
+          contextWindow: quota.contextWindow,
+          maxOutput: quota.maxOutputTokens,
+          inputCostPer1M: quota.inputCostPer1M,
+          outputCostPer1M: quota.outputCostPer1M,
+          availabilityTier: quota.availabilityTier,
+          stats: {
+            ...m.stats,
+            rpmLimit: quota.rpmLimit,
+            tpmLimit: quota.tpmLimit,
+            rpdLimit: quota.rpdLimit,
+            quotaRemaining: quota.rpdLimit,
+            rolling: {
+              current1m: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, avgLatencyMs: 0 },
+              rolling5m: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, avgLatencyMs: 0 },
+              rolling1h: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, avgLatencyMs: 0 },
+            },
+            percentiles: { p50: 0, p95: 0, p99: 0, median: 0 },
+            reliability: {
+              consecutiveFailures: 0,
+              code400: 0, code401: 0, code403: 0, code404: 0, code408: 0,
+              code429: 0, code500: 0, code502: 0, code503: 0,
+              networkErrors: 0, timeouts: 0, cancelled: 0, authErrors: 0, unknownErrors: 0,
+              failovers: 0,
+            },
+            currentHealth: 'Healthy',
+          }
+        };
+      });
+
+      // Enrich mock stats with providerComparison defaults reading from registry
+      const primaryQuota = getModelQuota('gemini-3.5-flash');
+      (defaultStats as any).providerComparison = {
+        google: {
+          rpm: 0, tpm: 0, rpd: 0,
+          promptTokens: 0, completionTokens: 0, totalTokens: 0,
+          requests: 0,
+          quotaRemaining: primaryQuota.rpdLimit,
+          rpmLimit: primaryQuota.rpmLimit,
+          tpmLimit: primaryQuota.tpmLimit,
+          rpdLimit: primaryQuota.rpdLimit,
+          lastUpdated: new Date().toISOString(),
+        },
+        businessos: {
+          rpm: 0, tpm: 0, rpd: 0,
+          avgRpmToday: 0, avgTpmToday: 0,
+          promptTokens: 0, completionTokens: 0, totalTokens: 0,
+          requests: 0, estimatedCost: 0, cacheHits: 0, cacheSavings: 0,
+          lastUpdated: new Date().toISOString(),
+        },
+        differences: {
+          requests: { delta: 0, reason: 'Matching' },
+          promptTokens: { delta: 0, reason: 'Matching' },
+          completionTokens: { delta: 0, reason: 'Matching' },
+          totalTokens: { delta: 0, reason: 'Matching' },
+        },
+        rows: [],
+        hasAlert: false,
+      };
+
       localStorage.setItem('mock_ai_orchestrator_stats', JSON.stringify(defaultStats));
       return defaultStats;
     }

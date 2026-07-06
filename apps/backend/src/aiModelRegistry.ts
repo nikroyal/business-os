@@ -239,7 +239,11 @@ export class AIOrchestrator {
       contextWindow: 1048576,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 15,
+      tpmLimit: 1000000,
+      rpdLimit: 1500,
+      availabilityTier: 'Standard'
     },
     {
       id: 'gemini-3.1-pro-preview',
@@ -269,7 +273,11 @@ export class AIOrchestrator {
       contextWindow: 2097152,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 2,
+      tpmLimit: 32000,
+      rpdLimit: 50,
+      availabilityTier: 'Enterprise'
     },
     {
       id: 'gemini-2.5-pro',
@@ -299,7 +307,11 @@ export class AIOrchestrator {
       contextWindow: 2097152,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 2,
+      tpmLimit: 32000,
+      rpdLimit: 50,
+      availabilityTier: 'Enterprise'
     },
     {
       id: 'gemini-2.5-flash',
@@ -329,7 +341,11 @@ export class AIOrchestrator {
       contextWindow: 1048576,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 15,
+      tpmLimit: 1000000,
+      rpdLimit: 1500,
+      availabilityTier: 'Standard'
     },
     {
       id: 'gemini-3.1-flash-lite',
@@ -359,7 +375,11 @@ export class AIOrchestrator {
       contextWindow: 1048576,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 15,
+      tpmLimit: 1000000,
+      rpdLimit: 1500,
+      availabilityTier: 'Standard'
     },
     {
       id: 'gemini-2.5-flash-lite',
@@ -389,7 +409,11 @@ export class AIOrchestrator {
       contextWindow: 1048576,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 15,
+      tpmLimit: 1000000,
+      rpdLimit: 1500,
+      availabilityTier: 'Standard'
     },
     {
       id: 'gemini-flash-latest',
@@ -419,7 +443,11 @@ export class AIOrchestrator {
       contextWindow: 1048576,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 15,
+      tpmLimit: 1000000,
+      rpdLimit: 1500,
+      availabilityTier: 'Standard'
     },
     {
       id: 'gemini-pro-latest',
@@ -449,7 +477,11 @@ export class AIOrchestrator {
       contextWindow: 2097152,
       maxOutput: 8192,
       supportsImageOutput: false,
-      supportsVideo: true
+      supportsVideo: true,
+      rpmLimit: 2,
+      tpmLimit: 32000,
+      rpdLimit: 50,
+      availabilityTier: 'Enterprise'
     }
   ];
 
@@ -1294,9 +1326,61 @@ export class AIOrchestrator {
     const dailyAnalyticsMap: Record<string, { date: string; cost: number; requests: number; tokens: number; latency: number; failures: number; fallbacks: number }> = {};
     const costByModel: Record<string, number> = {};
 
+    interface RollingStats {
+      requests: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      latencySum: number;
+      successCount: number;
+    }
+
+    const time1m = now - 60 * 1000;
+    const time5m = now - 5 * 60 * 1000;
+    const time1h = now - 60 * 60 * 1000;
+
+    const createEmptyRolling = (): RollingStats => ({ requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, latencySum: 0, successCount: 0 });
+
+    const globalRolling1m = createEmptyRolling();
+    const globalRolling5m = createEmptyRolling();
+    const globalRolling1h = createEmptyRolling();
+
+    const modelRolling1m: Record<string, RollingStats> = {};
+    const modelRolling5m: Record<string, RollingStats> = {};
+    const modelRolling1h: Record<string, RollingStats> = {};
+
+    const globalLatencies: number[] = [];
+    const modelLatencies: Record<string, number[]> = {};
+
+    const errorAnalytics: Record<string, { count: number; lastOccurrence: string }> = {
+      '400': { count: 0, lastOccurrence: '' },
+      '401': { count: 0, lastOccurrence: '' },
+      '403': { count: 0, lastOccurrence: '' },
+      '404': { count: 0, lastOccurrence: '' },
+      '408': { count: 0, lastOccurrence: '' },
+      '429': { count: 0, lastOccurrence: '' },
+      '500': { count: 0, lastOccurrence: '' },
+      '502': { count: 0, lastOccurrence: '' },
+      '503': { count: 0, lastOccurrence: '' },
+      'network': { count: 0, lastOccurrence: '' },
+      'timeout': { count: 0, lastOccurrence: '' },
+      'cancelled': { count: 0, lastOccurrence: '' },
+      'authentication': { count: 0, lastOccurrence: '' },
+      'unknown': { count: 0, lastOccurrence: '' }
+    };
+
+    const fallbackEvents: any[] = [];
+    const fallbackPathCounts: Record<string, number> = {};
+    const overloadedModels: Record<string, number> = {};
+    let fallbackRetriesSucceeded = 0;
+    let fallbackRetriesTotal = 0;
+
+    const modelReliability: Record<string, { success: number; failure: number; retries: number; failovers: number; code429: number; code500: number; code503: number; consecutiveFailures: number }> = {};
+
     for (const record of telemetry) {
       const recTime = new Date(record.timestamp).getTime();
       const isToday = recTime >= startOfToday;
+      const modelId = record.selectedModel || 'gemini-3.5-flash';
 
       totalRequests30d++;
 
@@ -1334,7 +1418,6 @@ export class AIOrchestrator {
       const usr = record.user || 'Unknown';
       userCost[usr] = (userCost[usr] || 0) + (record.estimatedCost || 0);
 
-      const modelId = record.selectedModel || 'gemini-3.5-flash';
       costByModel[modelId] = (costByModel[modelId] || 0) + (record.estimatedCost || 0);
 
       if (!featureByModel[modelId]) featureByModel[modelId] = {};
@@ -1372,6 +1455,136 @@ export class AIOrchestrator {
       d.latency += (record.latency || 0);
       if (!record.success) d.failures++;
       if (record.fallbackModel && record.fallbackModel !== '') d.fallbacks++;
+
+      // Metric correctness & latency calculations
+      if (record.success && record.latency) {
+        globalLatencies.push(record.latency);
+        if (!modelLatencies[modelId]) modelLatencies[modelId] = [];
+        modelLatencies[modelId].push(record.latency);
+      }
+
+      if (!modelRolling1m[modelId]) modelRolling1m[modelId] = createEmptyRolling();
+      if (!modelRolling5m[modelId]) modelRolling5m[modelId] = createEmptyRolling();
+      if (!modelRolling1h[modelId]) modelRolling1h[modelId] = createEmptyRolling();
+      if (!modelReliability[modelId]) modelReliability[modelId] = { success: 0, failure: 0, retries: 0, failovers: 0, code429: 0, code500: 0, code503: 0, consecutiveFailures: 0 };
+
+      if (record.success) {
+        modelReliability[modelId].success++;
+        modelReliability[modelId].consecutiveFailures = 0;
+      } else {
+        modelReliability[modelId].failure++;
+        modelReliability[modelId].consecutiveFailures++;
+
+        let errorClass = 'unknown';
+        const errLower = (record.errorClassification || record.lastFailureReason || '').toLowerCase();
+        if (errLower.includes('400')) { errorClass = '400'; modelReliability[modelId].code500++; }
+        else if (errLower.includes('401')) errorClass = '401';
+        else if (errLower.includes('403')) errorClass = '403';
+        else if (errLower.includes('404')) errorClass = '404';
+        else if (errLower.includes('408') || errLower.includes('timeout')) errorClass = '408';
+        else if (errLower.includes('429') || errLower.includes('rate limit')) { errorClass = '429'; modelReliability[modelId].code429++; }
+        else if (errLower.includes('500')) { errorClass = '500'; modelReliability[modelId].code500++; }
+        else if (errLower.includes('502')) errorClass = '502';
+        else if (errLower.includes('503') || errLower.includes('unavailable')) { errorClass = '503'; modelReliability[modelId].code503++; }
+        else if (errLower.includes('network') || errLower.includes('connection')) errorClass = 'network';
+        else if (errLower.includes('cancel')) errorClass = 'cancelled';
+        else if (errLower.includes('auth')) errorClass = 'authentication';
+
+        if (errorAnalytics[errorClass]) {
+          errorAnalytics[errorClass].count++;
+          if (!errorAnalytics[errorClass].lastOccurrence || recTime > new Date(errorAnalytics[errorClass].lastOccurrence).getTime()) {
+            errorAnalytics[errorClass].lastOccurrence = record.timestamp;
+          }
+        }
+      }
+
+      modelReliability[modelId].retries += (record.retryCount || 0);
+      if (record.fallbackModel && record.fallbackModel !== '') {
+        modelReliability[modelId].failovers++;
+      }
+
+      if (recTime >= time1m) {
+        globalRolling1m.requests++;
+        globalRolling1m.promptTokens += (record.promptTokens || 0);
+        globalRolling1m.completionTokens += (record.completionTokens || 0);
+        globalRolling1m.totalTokens += (record.totalTokens || 0);
+        if (record.success) {
+          globalRolling1m.latencySum += (record.latency || 0);
+          globalRolling1m.successCount++;
+        }
+        const m1 = modelRolling1m[modelId];
+        m1.requests++;
+        m1.promptTokens += (record.promptTokens || 0);
+        m1.completionTokens += (record.completionTokens || 0);
+        m1.totalTokens += (record.totalTokens || 0);
+        if (record.success) {
+          m1.latencySum += (record.latency || 0);
+          m1.successCount++;
+        }
+      }
+
+      if (recTime >= time5m) {
+        globalRolling5m.requests++;
+        globalRolling5m.promptTokens += (record.promptTokens || 0);
+        globalRolling5m.completionTokens += (record.completionTokens || 0);
+        globalRolling5m.totalTokens += (record.totalTokens || 0);
+        if (record.success) {
+          globalRolling5m.latencySum += (record.latency || 0);
+          globalRolling5m.successCount++;
+        }
+        const m5 = modelRolling5m[modelId];
+        m5.requests++;
+        m5.promptTokens += (record.promptTokens || 0);
+        m5.completionTokens += (record.completionTokens || 0);
+        m5.totalTokens += (record.totalTokens || 0);
+        if (record.success) {
+          m5.latencySum += (record.latency || 0);
+          m5.successCount++;
+        }
+      }
+
+      if (recTime >= time1h) {
+        globalRolling1h.requests++;
+        globalRolling1h.promptTokens += (record.promptTokens || 0);
+        globalRolling1h.completionTokens += (record.completionTokens || 0);
+        globalRolling1h.totalTokens += (record.totalTokens || 0);
+        if (record.success) {
+          globalRolling1h.latencySum += (record.latency || 0);
+          globalRolling1h.successCount++;
+        }
+        const m1h = modelRolling1h[modelId];
+        m1h.requests++;
+        m1h.promptTokens += (record.promptTokens || 0);
+        m1h.completionTokens += (record.completionTokens || 0);
+        m1h.totalTokens += (record.totalTokens || 0);
+        if (record.success) {
+          m1h.latencySum += (record.latency || 0);
+          m1h.successCount++;
+        }
+      }
+
+      if (record.fallbackModel && record.fallbackModel !== '') {
+        const path = `${modelId} -> ${record.fallbackModel}`;
+        fallbackPathCounts[path] = (fallbackPathCounts[path] || 0) + 1;
+        overloadedModels[modelId] = (overloadedModels[modelId] || 0) + 1;
+
+        fallbackEvents.push({
+          originalModel: modelId,
+          fallbackModel: record.fallbackModel,
+          triggerReason: record.errorClassification || 'Rate Limited / Timeout',
+          retryCount: record.retryCount || 0,
+          recoveryTime: record.latency || 0,
+          user: record.user || 'Unknown',
+          feature: record.feature || 'Unknown',
+          workspace: record.workspace || 'Unknown',
+          timestamp: record.timestamp
+        });
+
+        fallbackRetriesTotal++;
+        if (record.success) {
+          fallbackRetriesSucceeded++;
+        }
+      }
     }
 
     try {
@@ -1400,6 +1613,16 @@ export class AIOrchestrator {
       console.warn('[AIOrchestrator] Summary fetch failed in getOperationalStats:', err);
     }
 
+    const calculatePercentiles = (arr: number[]) => {
+      if (arr.length === 0) return { p50: 0, p95: 0, p99: 0 };
+      const sorted = [...arr].sort((a, b) => a - b);
+      return {
+        p50: sorted[Math.floor(sorted.length * 0.50)] || 0,
+        p95: sorted[Math.floor(sorted.length * 0.95)] || 0,
+        p99: sorted[Math.floor(sorted.length * 0.99)] || 0
+      };
+    };
+
     const cacheHitRate = requestsToday > 0 ? Math.round((cachedResponses / requestsToday) * 100) : 0;
     const avgNonCachedCost = (requestsToday - cachedResponses) > 0
       ? costToday / (requestsToday - cachedResponses)
@@ -1418,6 +1641,7 @@ export class AIOrchestrator {
       failure: localGoogleProv.failure + persistGoogleProv.failure,
       totalLatencyMs: localGoogleProv.totalLatencyMs + persistGoogleProv.totalLatencyMs
     };
+
     const googleSuccessRate = googleProvStats.requests > 0 ? (googleProvStats.success / googleProvStats.requests) * 100 : 100;
     const googleLatency = googleProvStats.success > 0 ? googleProvStats.totalLatencyMs / googleProvStats.success : 0;
 
@@ -1449,20 +1673,24 @@ export class AIOrchestrator {
       const avgModelLatency = stats.success > 0 ? stats.totalLatencyMs / stats.requests : 0;
 
       const today = modelTodayStats[m.id] || { requests: 0, tokens: 0, cost: 0, retries: 0, fallbacks: 0 };
-      const rpmUsage = Math.round((today.requests / 1440) * 10) / 10;
-      const tpmUsage = Math.round(today.tokens / 1440);
-      const rpdUsage = today.requests;
-      const rpmLimit = m.category === 'Flash' ? 15 : 2;
-      const tpmLimit = m.category === 'Flash' ? 1000000 : 32000;
-      const rpdLimit = m.category === 'Flash' ? 1500 : 50;
-      const quotaRemaining = Math.max(0, rpdLimit - rpdUsage);
+      const quotaRemaining = Math.max(0, m.rpdLimit - today.requests);
+
+      const latencies = modelLatencies[m.id] || [];
+      const percentiles = calculatePercentiles(latencies);
+
+      const r1m = modelRolling1m[m.id] || createEmptyRolling();
+      const r5m = modelRolling5m[m.id] || createEmptyRolling();
+      const r1h = modelRolling1h[m.id] || createEmptyRolling();
+
+      const rel = modelReliability[m.id] || { success: 0, failure: 0, retries: 0, failovers: 0, code429: 0, code500: 0, code503: 0, consecutiveFailures: 0 };
+
       const currentHealth = cooldownRemaining > 0
         ? `Cooldown (${Math.ceil(cooldownRemaining / 1000)}s)`
-        : successRate < 80
-        ? 'Rate Limited'
-        : successRate < 95
-        ? 'High Demand'
-        : 'Operational';
+        : stats.requests > 0 && successRate < 80
+        ? 'Disabled'
+        : successRate < 95 && stats.requests > 0
+        ? 'Warning'
+        : 'Healthy';
 
       return {
         ...m,
@@ -1486,15 +1714,39 @@ export class AIOrchestrator {
           retriesCount: today.retries,
           fallbackCount: today.fallbacks,
           cooldownCount: cooldownRemaining > 0 ? 1 : 0,
-          rpmUsage,
-          rpmLimit,
-          tpmUsage,
-          tpmLimit,
-          rpdUsage,
-          rpdLimit,
+          rpmLimit: m.rpmLimit,
+          tpmLimit: m.tpmLimit,
+          rpdLimit: m.rpdLimit,
           quotaRemaining,
           quotaReset: 'Midnight UTC',
-          currentHealth
+          currentHealth,
+          rolling: {
+            current1m: {
+              requests: r1m.requests,
+              promptTokens: r1m.promptTokens,
+              completionTokens: r1m.completionTokens,
+              totalTokens: r1m.totalTokens,
+              avgLatencyMs: r1m.successCount > 0 ? Math.round(r1m.latencySum / r1m.successCount) : 0
+            },
+            rolling5m: {
+              requests: r5m.requests,
+              totalTokens: r5m.totalTokens,
+              avgLatencyMs: r5m.successCount > 0 ? Math.round(r5m.latencySum / r5m.successCount) : 0
+            },
+            rolling1h: {
+              requests: r1h.requests,
+              totalTokens: r1h.totalTokens,
+              avgLatencyMs: r1h.successCount > 0 ? Math.round(r1h.latencySum / r1h.successCount) : 0
+            }
+          },
+          percentiles,
+          reliability: {
+            consecutiveFailures: rel.consecutiveFailures,
+            code429: rel.code429,
+            code500: rel.code500,
+            code503: rel.code503,
+            failovers: rel.failovers
+          }
         }
       };
     });
@@ -1632,6 +1884,165 @@ export class AIOrchestrator {
       }
     };
 
+    // Advanced Observability v3 Aggregations
+    let healthScore = 100;
+    healthScore -= (100 - overallSuccessRate) * 1.5;
+    if (avgLatency > 1500) healthScore -= 10;
+    else if (avgLatency > 800) healthScore -= 5;
+    healthScore -= totalFailovers * 2;
+    healthScore -= totalRetries * 0.5;
+    if (telemetryAlert) healthScore -= 20;
+
+    healthScore = Math.max(0, Math.min(100, Math.round(healthScore)));
+    let healthStatus = 'Excellent';
+    if (healthScore < 50) healthStatus = 'Critical';
+    else if (healthScore < 75) healthStatus = 'Warning';
+    else if (healthScore < 90) healthStatus = 'Healthy';
+
+    const healthScoreObj = {
+      score: healthScore,
+      status: healthStatus
+    };
+
+    const dailyQuotaExhaustionHours = requestsToday > 0 
+      ? (Math.max(0, dailyQuotaLimit - requestsToday) / (requestsToday / Math.max(1, elapsedMinutes / 60)))
+      : 24;
+    const dailyQuotaRisk = dailyQuotaExhaustionHours < 6 ? 'High Risk' : dailyQuotaExhaustionHours < 18 ? 'Medium Risk' : 'Low Risk';
+
+    const monthlyBudgetExhaustionDays = costToday > 0
+      ? (Math.max(0, 100 - costToday) / (costToday / Math.max(1, elapsedMinutes / 1440)))
+      : 30;
+    const monthlyBudgetRisk = monthlyBudgetExhaustionDays < 5 ? 'High Risk' : monthlyBudgetExhaustionDays < 15 ? 'Medium Risk' : 'Low Risk';
+
+    const forecasting = {
+      dailyExhaustionHours: isFinite(dailyQuotaExhaustionHours) ? Math.round(dailyQuotaExhaustionHours * 10) / 10 : 24,
+      dailyQuotaRisk,
+      monthlyExhaustionDays: isFinite(monthlyBudgetExhaustionDays) ? Math.round(monthlyBudgetExhaustionDays * 10) / 10 : 30,
+      monthlyBudgetRisk
+    };
+
+    const fallbackAnalytics = {
+      events: fallbackEvents.slice(-50),
+      overloadedModels,
+      fallbackPaths: Object.entries(fallbackPathCounts).map(([path, count]) => ({ path, count })),
+      retrySuccessRate: fallbackRetriesTotal > 0 ? Math.round((fallbackRetriesSucceeded / fallbackRetriesTotal) * 100) : 100,
+      recoveryRate: fallbackRetriesTotal > 0 ? Math.round((fallbackRetriesSucceeded / fallbackRetriesTotal) * 100) : 100
+    };
+
+    const errorAnalyticsSummary = Object.entries(errorAnalytics).map(([code, data]) => {
+      const percentage = (successCount + data.count) > 0 ? Math.round((data.count / (successCount + data.count)) * 100) : 0;
+      return {
+        code,
+        count: data.count,
+        percentage,
+        lastOccurrence: data.lastOccurrence
+      };
+    });
+
+    const trend1h: any[] = [];
+    const trend24h: any[] = [];
+    const trend7d: any[] = [];
+    const trend30d: any[] = [];
+    const trend90d: any[] = [];
+
+    trend7d.push(...dailyAnalytics.slice(-7));
+    trend30d.push(...dailyAnalytics.slice(-30));
+    trend90d.push(...dailyAnalytics.slice(-90));
+
+    const hourMap: Record<string, { label: string; requests: number; tokens: number; cost: number; latencySum: number; successCount: number; failovers: number }> = {};
+    for (let i = 23; i >= 0; i--) {
+      const hTime = now - i * 60 * 60 * 1000;
+      const hDate = new Date(hTime);
+      const key = `${hDate.getFullYear()}-${hDate.getMonth()+1}-${hDate.getDate()} H${hDate.getHours()}`;
+      hourMap[key] = {
+        label: `${hDate.getHours()}:00`,
+        requests: 0,
+        tokens: 0,
+        cost: 0,
+        latencySum: 0,
+        successCount: 0,
+        failovers: 0
+      };
+    }
+    for (const record of telemetry) {
+      const recTime = new Date(record.timestamp).getTime();
+      if (recTime >= now - 24 * 60 * 60 * 1000) {
+        const hDate = new Date(recTime);
+        const key = `${hDate.getFullYear()}-${hDate.getMonth()+1}-${hDate.getDate()} H${hDate.getHours()}`;
+        if (hourMap[key]) {
+          hourMap[key].requests++;
+          hourMap[key].tokens += (record.totalTokens || 0);
+          hourMap[key].cost += (record.estimatedCost || 0);
+          hourMap[key].failovers += (record.fallbackModel && record.fallbackModel !== '' ? 1 : 0);
+          if (record.success) {
+            hourMap[key].latencySum += (record.latency || 0);
+            hourMap[key].successCount++;
+          }
+        }
+      }
+    }
+    trend24h.push(...Object.values(hourMap).map(h => ({
+      date: h.label,
+      requests: h.requests,
+      tokens: h.tokens,
+      cost: h.cost,
+      avgLatencyMs: h.successCount > 0 ? Math.round(h.latencySum / h.successCount) : 0,
+      failovers: h.failovers,
+      successRate: h.requests > 0 ? Math.round((h.successCount / h.requests) * 100) : 100
+    })));
+
+    const minMap: Record<string, { label: string; requests: number; tokens: number; cost: number; latencySum: number; successCount: number; failovers: number }> = {};
+    for (let i = 11; i >= 0; i--) {
+      const mTime = now - i * 5 * 60 * 1000;
+      const mDate = new Date(mTime);
+      const key = `${mDate.getFullYear()}-${mDate.getMonth()+1}-${mDate.getDate()} H${mDate.getHours()} M${Math.floor(mDate.getMinutes()/5)*5}`;
+      minMap[key] = {
+        label: `${mDate.getHours()}:${String(Math.floor(mDate.getMinutes()/5)*5).padStart(2, '0')}`,
+        requests: 0,
+        tokens: 0,
+        cost: 0,
+        latencySum: 0,
+        successCount: 0,
+        failovers: 0
+      };
+    }
+    for (const record of telemetry) {
+      const recTime = new Date(record.timestamp).getTime();
+      if (recTime >= now - 60 * 60 * 1000) {
+        const mDate = new Date(recTime);
+        const key = `${mDate.getFullYear()}-${mDate.getMonth()+1}-${mDate.getDate()} H${mDate.getHours()} M${Math.floor(mDate.getMinutes()/5)*5}`;
+        if (minMap[key]) {
+          minMap[key].requests++;
+          minMap[key].tokens += (record.totalTokens || 0);
+          minMap[key].cost += (record.estimatedCost || 0);
+          minMap[key].failovers += (record.fallbackModel && record.fallbackModel !== '' ? 1 : 0);
+          if (record.success) {
+            minMap[key].latencySum += (record.latency || 0);
+            minMap[key].successCount++;
+          }
+        }
+      }
+    }
+    trend1h.push(...Object.values(minMap).map(m => ({
+      date: m.label,
+      requests: m.requests,
+      tokens: m.tokens,
+      cost: m.cost,
+      avgLatencyMs: m.successCount > 0 ? Math.round(m.latencySum / m.successCount) : 0,
+      failovers: m.failovers,
+      successRate: m.requests > 0 ? Math.round((m.successCount / m.requests) * 100) : 100
+    })));
+
+    const trends = {
+      trend1h,
+      trend24h,
+      trend7d,
+      trend30d,
+      trend90d
+    };
+
+    const globalPercentiles = calculatePercentiles(globalLatencies);
+
     return {
       overview: {
         activeProvider: 'Google Gemini',
@@ -1674,7 +2085,32 @@ export class AIOrchestrator {
       },
       providerComparison,
       telemetryAlert,
-      telemetryDiagnostics
+      telemetryDiagnostics,
+      healthScore: healthScoreObj,
+      forecasting,
+      fallbackAnalytics,
+      errorAnalytics: errorAnalyticsSummary,
+      trends,
+      globalPercentiles,
+      rolling: {
+        current1m: {
+          requests: globalRolling1m.requests,
+          promptTokens: globalRolling1m.promptTokens,
+          completionTokens: globalRolling1m.completionTokens,
+          totalTokens: globalRolling1m.totalTokens,
+          avgLatencyMs: globalRolling1m.successCount > 0 ? Math.round(globalRolling1m.latencySum / globalRolling1m.successCount) : 0
+        },
+        rolling5m: {
+          requests: globalRolling5m.requests,
+          totalTokens: globalRolling5m.totalTokens,
+          avgLatencyMs: globalRolling5m.successCount > 0 ? Math.round(globalRolling5m.latencySum / globalRolling5m.successCount) : 0
+        },
+        rolling1h: {
+          requests: globalRolling1h.requests,
+          totalTokens: globalRolling1h.totalTokens,
+          avgLatencyMs: globalRolling1h.successCount > 0 ? Math.round(globalRolling1h.latencySum / globalRolling1h.successCount) : 0
+        }
+      }
     };
   }
 

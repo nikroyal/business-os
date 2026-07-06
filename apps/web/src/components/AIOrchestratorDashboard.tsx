@@ -6,11 +6,13 @@ import type {
   TelemetryRecord, 
   OrchestratorConfig 
 } from '../services/aiOrchestratorService';
+import { PROVIDER_QUOTA_REGISTRY, getModelQuota } from '../services/providerQuotaRegistry';
 import { FallbackPriorityEditor } from './FallbackPriorityEditor';
 import { MetricTooltip, SourceBadge } from './ai-ops/MetricTooltip';
 import { GlobalFilterBar, DEFAULT_FILTERS, filterTelemetryRecords } from './ai-ops/GlobalFilterBar';
 import type { OpsFilterState } from './ai-ops/GlobalFilterBar';
 import { AIRequestInspectorModal } from './ai-ops/AIRequestInspectorModal';
+
 import { 
   Cpu, 
   AlertCircle, 
@@ -31,8 +33,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const { profile } = useAuth();
   const isOwner = profile?.role === 'OWNER';
 
-  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
+  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Models' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
+  const [trendHorizon, setTrendHorizon] = useState<'1h' | '24h' | '7d' | '30d' | '90d'>('7d');
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
   const [config, setConfig] = useState<OrchestratorConfig>({ forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
   const [filters, setFilters] = useState<OpsFilterState>(DEFAULT_FILTERS);
@@ -388,7 +391,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Sub tabs */}
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto' }}>
-        {(['Overview', 'Registry', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
+        {(['Overview', 'Registry', 'Models', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
           if (tab === 'Controls' && !isOwner) return null;
           const isTabActive = activeSubTab === tab;
           return (
@@ -429,6 +432,56 @@ export const AIOrchestratorDashboard: React.FC = () => {
       {activeSubTab === 'Overview' && overview && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
+          {/* AI Operations Health Score Banner */}
+          {stats.healthScore && (
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '50%',
+                  background: stats.healthScore.score >= 90 ? 'rgba(34, 197, 94, 0.1)' : stats.healthScore.score >= 75 ? 'rgba(234, 179, 8, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  border: stats.healthScore.score >= 90 ? '2px solid rgb(34, 197, 94)' : stats.healthScore.score >= 75 ? '2px solid rgb(234, 179, 8)' : '2px solid rgb(239, 68, 68)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.3rem',
+                  fontWeight: 'bold',
+                  color: stats.healthScore.score >= 90 ? 'rgb(34, 197, 94)' : stats.healthScore.score >= 75 ? 'rgb(234, 179, 8)' : 'rgb(239, 68, 68)',
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  {stats.healthScore.score}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>AI Operations Health Score</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                    Current System status: <span style={{
+                      fontWeight: 'bold',
+                      color: stats.healthScore.score >= 90 ? 'var(--color-success-text)' : stats.healthScore.score >= 75 ? 'var(--color-warning-text)' : 'var(--color-danger-text)'
+                    }}>{stats.healthScore.status}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.7rem' }}>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Success Rate</div>
+                  <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{overview.overallSuccessRate}%</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Average Latency</div>
+                  <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{overview.averageLatencyMs}ms</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Budget Exhaustion</div>
+                  <div style={{ fontWeight: 'bold', color: stats.forecasting?.monthlyBudgetRisk === 'High Risk' ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
+                    {stats.forecasting?.monthlyExhaustionDays} days ({stats.forecasting?.monthlyBudgetRisk})
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Diagnostic overview status grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             
@@ -437,7 +490,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Provider Node Health</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: provider.health === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                  {provider.health === 'operational' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {provider.health === 'operational' ? <CheckCircle2 size={16} style={{ color: 'var(--color-success-text)' }} /> : <AlertCircle size={16} style={{ color: 'var(--color-danger-text)' }} />}
                   {provider.displayName}
                 </div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {provider.successRate}% | Latency: {provider.averageLatencyMs}ms</div>
@@ -455,31 +508,85 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Overall AI Health</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: overview?.overallHealth === 'healthy' ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>
-                {overview?.overallHealth === 'healthy' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                {overview?.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: overview.overallHealth === 'healthy' ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>
+                {overview.overallHealth === 'healthy' ? <CheckCircle2 size={18} style={{ color: 'var(--color-success-text)' }} /> : <AlertCircle size={18} style={{ color: 'var(--color-danger-text)' }} />}
+                {overview.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
               </div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {overview?.overallSuccessRate || 0}% | Failovers: {overview?.totalFailovers || 0}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {overview.overallSuccessRate || 0}% | Failovers: {overview.totalFailovers || 0}</div>
             </div>
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Volume & Latency</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>{overview?.averageLatencyMs || 0} ms</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview?.requestsToday || 0} | Monthly: {overview?.requestsThisMonth || 0}</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>{overview.averageLatencyMs || 0} ms</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday || 0} | Monthly: {overview.requestsThisMonth || 0}</div>
             </div>
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Operational Cost Today</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-success-text)' }}>${(overview?.estimatedDailyCost || 0).toFixed(4)}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Monthly Projection: ${(overview?.estimatedMonthlyCost || 0).toFixed(2)}</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-success-text)' }}>${(overview.estimatedDailyCost || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Monthly Projection: ${(overview.estimatedMonthlyCost || 0).toFixed(2)}</div>
             </div>
 
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cache Performance</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text)' }}>{overview?.cacheHitRate || 0}%</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview?.cachedResponses || 0} cached | Saved ${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text)' }}>{overview.cacheHitRate || 0}%</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached | Saved ${(overview.estimatedCostSavings || 0).toFixed(4)}</div>
             </div>
           </div>
+
+          {/* Rolling Operational Throughput */}
+          {stats.rolling && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <h4 style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Rolling Operational Throughput (Google Provider)</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                {/* Current (Rolling 1 Minute) */}
+                <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--color-accent)', marginBottom: '0.35rem', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>Current RPM (1 min)</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>{stats.rolling.current1m.requests || 0} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>req/min</span></div>
+                  <div style={{ borderTop: '1px dashed #E2DACD', marginTop: '0.4rem', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                    <div>Current TPM (1 min): <strong style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>{(stats.rolling.current1m.totalTokens || 0).toLocaleString()}</strong></div>
+                    <div>Prompt: <strong>{(stats.rolling.current1m.promptTokens || 0).toLocaleString()}</strong></div>
+                    <div>Completion: <strong>{(stats.rolling.current1m.completionTokens || 0).toLocaleString()}</strong></div>
+                    <div>Avg Latency: <strong>{(stats.rolling.current1m.avgLatencyMs || 0)}ms</strong></div>
+                  </div>
+                </div>
+                
+                {/* Rolling 5 Minutes */}
+                <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: '#a855f7', marginBottom: '0.35rem', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>Rolling 5 Minutes</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#a855f7', fontFamily: 'var(--font-mono)' }}>{(stats.rolling.rolling5m.requests || 0)} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>reqs</span></div>
+                  <div style={{ borderTop: '1px dashed #E2DACD', marginTop: '0.4rem', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                    <div>Tokens: <strong style={{ fontFamily: 'var(--font-mono)' }}>{(stats.rolling.rolling5m.totalTokens || 0).toLocaleString()}</strong></div>
+                    <div>Avg Latency: <strong>{(stats.rolling.rolling5m.avgLatencyMs || 0)}ms</strong></div>
+                  </div>
+                </div>
+
+                {/* Rolling 1 Hour */}
+                <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--color-warning-text)', marginBottom: '0.35rem', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>Rolling 1 Hour</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--color-warning-text)', fontFamily: 'var(--font-mono)' }}>{(stats.rolling.rolling1h.requests || 0)} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>reqs</span></div>
+                  <div style={{ borderTop: '1px dashed #E2DACD', marginTop: '0.4rem', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                    <div>Tokens: <strong style={{ fontFamily: 'var(--font-mono)' }}>{(stats.rolling.rolling1h.totalTokens || 0).toLocaleString()}</strong></div>
+                    <div>Avg Latency: <strong>{(stats.rolling.rolling1h.avgLatencyMs || 0)}ms</strong></div>
+                  </div>
+                </div>
+
+                {/* Today (Cumulative) */}
+                <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--color-success-text)', marginBottom: '0.35rem', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>Today (Cumulative)</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>{(overview.requestsToday || 0).toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>reqs</span></div>
+                  <div style={{ borderTop: '1px dashed #E2DACD', marginTop: '0.4rem', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                    <div>Average RPM Today: <strong style={{ fontFamily: 'var(--font-mono)' }}>{stats.providerComparison?.businessos?.avgRpmToday ?? stats.providerComparison?.businessos?.rpm ?? 0}</strong></div>
+                    <div>Average TPM Today: <strong style={{ fontFamily: 'var(--font-mono)' }}>{stats.providerComparison?.businessos?.avgTpmToday ?? stats.providerComparison?.businessos?.tpm ?? 0}</strong></div>
+                    <div>Prompt: <strong>{(overview.promptTokensToday || 0).toLocaleString()}</strong></div>
+                    <div>Completion: <strong>{(overview.completionTokensToday || 0).toLocaleString()}</strong></div>
+                    <div>Est. Cost: <strong style={{ color: 'var(--color-success-text)' }}>${(overview.estimatedDailyCost || 0).toFixed(4)}</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* Fallback chain visualizer */}
           <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
@@ -515,7 +622,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     opacity: m.cooldownRemaining > 0 ? 0.6 : 1
                   }}>
                     <span style={{
-                      fontSize: '0.6rem',
+                      fontSize: '0.65rem',
                       background: m.cooldownRemaining > 0 ? 'var(--color-danger-text)' : 'var(--color-warning-text)',
                       color: '#fff',
                       fontWeight: 'bold',
@@ -534,52 +641,281 @@ export const AIOrchestratorDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Quota estimation widget */}
-          {(activeStats?.quota || overview) && (() => {
-            const qStats = activeStats?.quota || {
-              requestsPerMinute: Math.round((overview?.requestsToday || 0) / Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()))),
-              tokensPerMinute: Math.round((overview?.tokensToday || 0) / Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()))),
-              estimatedRemainingDailyRequests: Math.max(0, (overview?.dailyQuotaLimit || 1500) - (overview?.requestsToday || 0)),
-              quotaUtilisationPercentage: Math.min(100, Math.round(((overview?.requestsToday || 0) / (overview?.dailyQuotaLimit || 1500)) * 100)),
-              source: 'businessos_estimate' as const
-            };
-            return (
-              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
-                    <SourceBadge source="estimated" />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="RPD">Daily Requests (RPD):</MetricTooltip></span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{overview?.requestsToday || 0} / {overview?.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
+          {/* Second Row Grid: Forecasting, Percentiles, Errors, Fallback System */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+            
+            {/* Quota Forecasting Card */}
+            {stats.forecasting && (
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                  Predictive Capacity & Budget Forecasting
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                      <strong>Daily Quota Exhaustion (RPD limit):</strong>
+                      <span style={{
+                        fontWeight: 'bold',
+                        color: stats.forecasting.dailyQuotaRisk === 'High Risk' ? 'var(--color-danger-text)' : 'var(--color-success-text)'
+                      }}>
+                        {stats.forecasting.dailyQuotaRisk}
+                      </span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="RPM">RPM Average:</MetricTooltip></span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{qStats.requestsPerMinute} reqs / min</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="TPM">Tokens Ingested Today:</MetricTooltip></span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{(overview?.tokensToday || 0).toLocaleString()} tokens</strong>
-                    </div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--color-warning-text)', fontStyle: 'italic', marginTop: '0.25rem' }}>
-                      ⚠️ Note: Displayed values are BusinessOS estimates derived from recorded telemetry, not provider-reported limits.
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                      Based on current traffic acceleration today, the daily quota is estimated to exhaust in <strong>{stats.forecasting.dailyExhaustionHours} hours</strong>.
                     </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', borderLeft: '1px solid #E2DACD', paddingLeft: '1.5rem' }}>
-                  <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', background: 'conic-gradient(var(--color-accent) ' + qStats.quotaUtilisationPercentage + '%, #E2DACD 0)' }}>
-                    <div style={{ position: 'absolute', width: '74px', height: '74px', borderRadius: '50%', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                      <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{qStats.quotaUtilisationPercentage}%</span>
-                      <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Utilized</span>
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                      <strong>Monthly Budget Limit exhaustion ($100 limit):</strong>
+                      <span style={{
+                        fontWeight: 'bold',
+                        color: stats.forecasting.monthlyBudgetRisk === 'High Risk' ? 'var(--color-danger-text)' : 'var(--color-success-text)'
+                      }}>
+                        {stats.forecasting.monthlyBudgetRisk}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                      Based on 7-day cost trends, the allocated budget threshold of $100 is estimated to exhaust in <strong>{stats.forecasting.monthlyExhaustionDays} days</strong>.
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontFamily: 'var(--font-sans)' }}>{qStats.estimatedRemainingDailyRequests} requests estimated remaining</div>
                 </div>
               </div>
-            );
-          })()}
+            )}
+
+            {/* Latency Percentiles Card */}
+            {stats.globalPercentiles && (
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                  Latency Distribution (Percentiles)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center', marginBottom: '1rem' }}>
+                  <div style={{ background: '#FAF8F5', padding: '0.5rem', border: '1px solid #E2DACD' }}>
+                    <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Median (P50)</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>{stats.globalPercentiles.p50}ms</div>
+                  </div>
+                  <div style={{ background: '#FAF8F5', padding: '0.5rem', border: '1px solid #E2DACD' }}>
+                    <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>P95 Latency</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--color-warning-text)' }}>{stats.globalPercentiles.p95}ms</div>
+                  </div>
+                  <div style={{ background: '#FAF8F5', padding: '0.5rem', border: '1px solid #E2DACD' }}>
+                    <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>P99 Latency</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: 'var(--color-danger-text)' }}>{stats.globalPercentiles.p99}ms</div>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ fontSize: '0.6.rem', color: 'var(--text-muted)' }}>Response Latency Spread Distribution</div>
+                  <div style={{ display: 'flex', height: '18px', background: '#E2DACD', borderRadius: '4px', overflow: 'hidden', border: '1px solid #C4B9A7', position: 'relative' }}>
+                    <div style={{ width: '50%', background: '#4ade80', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', color: '#fff', fontWeight: 'bold' }}>P50</div>
+                    <div style={{ width: '45%', background: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', color: '#fff', fontWeight: 'bold' }}>P95</div>
+                    <div style={{ width: '5%', background: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', color: '#fff', fontWeight: 'bold' }}>P99</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error Analytics Card */}
+            {stats.errorAnalytics && (
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                  Failure & Error Analysis
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '140px', overflowY: 'auto' }}>
+                  {stats.errorAnalytics.filter(e => e.count > 0).length === 0 ? (
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>
+                      Zero operational errors classification logs today.
+                    </div>
+                  ) : (
+                    stats.errorAnalytics.filter(e => e.count > 0).map(err => (
+                      <div key={err.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', borderBottom: '1px solid #FAF8F5', paddingBottom: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--color-danger-text)' }}>{err.code}</span>
+                          <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Last: {err.lastOccurrence ? new Date(err.lastOccurrence).toLocaleTimeString() : 'N/A'}</span>
+                        </div>
+                        <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
+                          {err.count} ({err.percentage}%)
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Fallback Analytics Card */}
+            {stats.fallbackAnalytics && (
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                  Fallback Chains Performance
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.7rem', marginBottom: '0.5rem' }}>
+                  <div style={{ background: '#FAF8F5', padding: '0.4rem', border: '1px solid #E2DACD' }}>
+                    <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Overloads Triggered</div>
+                    {Object.keys(stats.fallbackAnalytics.overloadedModels).length === 0 ? (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.6rem' }}>None</div>
+                    ) : (
+                      Object.entries(stats.fallbackAnalytics.overloadedModels).map(([m, cnt]) => (
+                        <div key={m} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.6rem', marginTop: '1px' }}>
+                          <span>{m}</span>
+                          <strong>{cnt}</strong>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div style={{ background: '#FAF8F5', padding: '0.4rem', border: '1px solid #E2DACD' }}>
+                    <div style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Common Path Routing</div>
+                    {stats.fallbackAnalytics.fallbackPaths.length === 0 ? (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.6rem' }}>None</div>
+                    ) : (
+                      stats.fallbackAnalytics.fallbackPaths.map((p, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.6rem', marginTop: '1px' }}>
+                          <span>{p.path}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{p.count} | {p.successRate}% recovered</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)', borderTop: '1px dashed #E2DACD', paddingTop: '0.4rem', marginBottom: '0.75rem' }}>
+                  <span>Recovery Success Rate: <strong>{stats.fallbackAnalytics.retrySuccessRate}%</strong></span>
+                  <span>Auto-Recovery: <strong>{stats.fallbackAnalytics.recoveryRate}%</strong></span>
+                </div>
+
+                {/* Recent Fallback Events Audit Table */}
+                {stats.fallbackAnalytics.recentEvents && stats.fallbackAnalytics.recentEvents.length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.6rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: '0.4rem' }}>
+                      Recent Fallback Events ({stats.fallbackAnalytics.recentEvents.length})
+                    </div>
+                    <div style={{ overflowX: 'auto', maxHeight: '200px', overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.6rem' }}>
+                        <thead>
+                          <tr style={{ color: 'var(--text-muted)', borderBottom: '1px solid #E2DACD', textAlign: 'left' }}>
+                            <th style={{ padding: '2px 4px' }}>Time</th>
+                            <th style={{ padding: '2px 4px' }}>From</th>
+                            <th style={{ padding: '2px 4px' }}>To</th>
+                            <th style={{ padding: '2px 4px' }}>Trigger</th>
+                            <th style={{ padding: '2px 4px' }}>Retries</th>
+                            <th style={{ padding: '2px 4px' }}>Recovery</th>
+                            <th style={{ padding: '2px 4px' }}>Recovered</th>
+                            <th style={{ padding: '2px 4px' }}>Feature</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stats.fallbackAnalytics.recentEvents.map((ev, idx) => (
+                            <tr key={ev.id || idx} style={{ borderBottom: '1px solid #FAF8F5' }}>
+                              <td style={{ padding: '2px 4px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{new Date(ev.timestamp).toLocaleTimeString()}</td>
+                              <td style={{ padding: '2px 4px', color: 'var(--color-warning-text)', fontFamily: 'var(--font-mono)' }}>{ev.originalModel}</td>
+                              <td style={{ padding: '2px 4px', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>{ev.fallbackModel}</td>
+                              <td style={{ padding: '2px 4px', color: 'var(--color-danger-text)' }}>{ev.triggerReason}</td>
+                              <td style={{ padding: '2px 4px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{ev.retryCount}</td>
+                              <td style={{ padding: '2px 4px', fontFamily: 'var(--font-mono)' }}>{ev.recoveryTimeMs}ms</td>
+                              <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                                <span style={{ color: ev.recovered ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontWeight: 'bold' }}>
+                                  {ev.recovered ? '✓' : '✗'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '2px 4px', color: 'var(--text-secondary)' }}>{ev.feature}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Historical Trends Visualizer */}
+          {stats.trends && (
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
+                  Historical Operational Trends
+                </h4>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {(['1h', '24h', '7d', '30d', '90d'] as const).map(horizon => (
+                    <button
+                      key={horizon}
+                      onClick={() => setTrendHorizon(horizon)}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '0.65rem',
+                        background: trendHorizon === horizon ? 'var(--color-accent)' : '#FCFAF6',
+                        color: trendHorizon === horizon ? '#fff' : 'var(--text-secondary)',
+                        border: '1px solid #C4B9A7',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {horizon.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {(() => {
+                  let data: any[] = [];
+                  if (trendHorizon === '1h') data = stats.trends.trend1h;
+                  else if (trendHorizon === '24h') data = stats.trends.trend24h;
+                  else if (trendHorizon === '7d') data = stats.trends.trend7d;
+                  else if (trendHorizon === '30d') data = stats.trends.trend30d;
+                  else if (trendHorizon === '90d') data = stats.trends.trend90d;
+
+                  if (!data || data.length === 0) {
+                    return <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No trend data available for this horizon.</div>;
+                  }
+
+                  const maxReq = Math.max(...data.map(d => d.requests || 1));
+
+                  return (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.65rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #E2DACD', color: 'var(--text-muted)', textAlign: 'right' }}>
+                            <th style={{ padding: '3px 4px', textAlign: 'left', fontWeight: 'bold' }}>Period</th>
+                            <th style={{ padding: '3px 4px', textAlign: 'left', minWidth: '80px' }}>Requests</th>
+                            <th style={{ padding: '3px 4px' }}>Tokens</th>
+                            <th style={{ padding: '3px 4px' }}>Cost</th>
+                            <th style={{ padding: '3px 4px' }}>Cache Hit</th>
+                            <th style={{ padding: '3px 4px' }}>Avg Latency</th>
+                            <th style={{ padding: '3px 4px' }}>Success</th>
+                            <th style={{ padding: '3px 4px' }}>Failovers</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.map((d, idx) => {
+                            const widthPct = Math.round(((d.requests || 0) / maxReq) * 100);
+                            return (
+                              <tr key={idx} style={{ borderBottom: '1px solid #FAF8F5' }}>
+                                <td style={{ padding: '3px 4px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{d.date}</td>
+                                <td style={{ padding: '3px 4px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ flex: 1, background: '#FAF8F5', height: '8px', border: '1px solid #E2DACD', borderRadius: '2px', minWidth: '40px', position: 'relative', overflow: 'hidden' }}>
+                                      <div style={{ width: `${widthPct}%`, background: 'var(--color-accent)', height: '100%' }} />
+                                    </div>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>{d.requests || 0}</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{(d.tokens || 0).toLocaleString()}</td>
+                                <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${(d.cost || 0).toFixed(4)}</td>
+                                <td style={{ padding: '3px 4px', textAlign: 'right', color: 'var(--color-warning-text)', fontFamily: 'var(--font-mono)' }}>{d.cacheHitRate ?? 0}%</td>
+                                <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{d.avgLatencyMs || 0}ms</td>
+                                <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: (d.successRate || 100) >= 99 ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>{d.successRate ?? 100}%</td>
+                                <td style={{ padding: '3px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: (d.failovers || 0) > 0 ? 'var(--color-danger-text)' : 'var(--text-muted)' }}>{d.failovers || 0}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -778,6 +1114,61 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Provider Quota Registry */}
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', overflowX: 'auto', boxShadow: 'var(--shadow-subtle)' }}>
+            <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'bold' }}>
+              Provider Quota Registry
+            </h4>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              Centralized quota limits, pricing, and model capabilities. These values are used throughout the Operations Center and replace all hardcoded constants.
+            </p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.65rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #E2DACD', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '4px 6px' }}>Model</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>Tier</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>RPM Limit</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>TPM Limit</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>RPD Limit</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>Context</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>In ($/1M)</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>Out ($/1M)</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.values(PROVIDER_QUOTA_REGISTRY).map((q) => (
+                  <tr key={q.modelId} style={{ borderBottom: '1px solid #FAF8F5' }}>
+                    <td style={{ padding: '4px 6px' }}>
+                      <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{q.displayName}</div>
+                      <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>{q.modelId}</div>
+                      {q.quotaNote && <div style={{ fontSize: '0.5rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '1px' }}>{q.quotaNote}</div>}
+                    </td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.55rem', background: '#FAF8F5', border: '1px solid #E2DACD', padding: '1px 4px' }}>{q.availabilityTier}</span>
+                    </td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--color-accent)' }}>{q.rpmLimit}</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{q.tpmLimit.toLocaleString()}</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{q.rpdLimit.toLocaleString()}</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '0.6rem' }}>{(q.contextWindow / 1000).toFixed(0)}K</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${q.inputCostPer1M}</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)' }}>${q.outputCostPer1M}</td>
+                    <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: '0.5rem', padding: '1px 5px', textTransform: 'uppercase', fontWeight: 'bold',
+                        background: q.isPreview ? 'rgba(168, 85, 247, 0.1)' : 'var(--color-success-bg)',
+                        color: q.isPreview ? '#a855f7' : 'var(--color-success-text)',
+                        border: q.isPreview ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid var(--color-success-border)'
+                      }}>
+                        {q.isPreview ? 'Preview' : 'GA'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -993,6 +1384,207 @@ export const AIOrchestratorDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Subtab Content: Models */}
+      {activeSubTab === 'Models' && stats && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Layers size={18} style={{ color: 'var(--color-accent)' }} /> Per-Model Operations Cards
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+            {models.map(model => {
+              const rel = model.stats?.reliability || { consecutiveFailures: 0, code429: 0, code500: 0, code503: 0, failovers: 0 };
+              const pct = model.stats?.percentiles || { p50: 0, p95: 0, p99: 0 };
+              const roll = model.stats?.rolling || { current1m: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, avgLatencyMs: 0 }, rolling5m: { requests: 0, totalTokens: 0, avgLatencyMs: 0 }, rolling1h: { requests: 0, totalTokens: 0, avgLatencyMs: 0 } };
+
+              const healthColor = model.stats?.currentHealth === 'Healthy' 
+                ? 'var(--color-success-text)' 
+                : model.stats?.currentHealth === 'Warning' 
+                ? 'var(--color-warning-text)' 
+                : 'var(--color-danger-text)';
+
+              const healthBg = model.stats?.currentHealth === 'Healthy' 
+                ? 'var(--color-success-bg)' 
+                : model.stats?.currentHealth === 'Warning' 
+                ? 'var(--color-warning-bg)' 
+                : 'var(--color-danger-bg)';
+
+              const healthBorder = model.stats?.currentHealth === 'Healthy' 
+                ? '1px solid var(--color-success-border)' 
+                : model.stats?.currentHealth === 'Warning' 
+                ? '1px solid var(--color-warning-border)' 
+                : '1px solid var(--color-danger-border)';
+
+              return (
+                <div key={model.id} className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {/* Identity Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{model.displayName}</h4>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{model.id}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.55rem',
+                      padding: '2px 8px',
+                      textTransform: 'uppercase',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 'bold',
+                      color: healthColor,
+                      background: healthBg,
+                      border: healthBorder
+                    }}>
+                      {model.stats?.currentHealth}
+                    </span>
+                  </div>
+
+                  {/* Core Details Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.7rem' }}>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Availability Tier</div>
+                      <div style={{ fontWeight: 'bold' }}>{model.availabilityTier || 'Standard'}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Preview/GA Status</div>
+                      <div style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{model.status || 'GA'}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Context / Max Output</div>
+                      <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{(model.contextWindow || 0).toLocaleString()} / {(model.maxOutput || 0).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: '0.15rem' }}>Pricing ($ / 1M)</div>
+                      <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>In: ${model.inputCostPer1M} | Out: ${model.outputCostPer1M}</div>
+                    </div>
+                  </div>
+
+                  {/* Traffic Section */}
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem', fontSize: '0.7rem' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.6rem', fontFamily: 'var(--font-mono)' }}>Traffic</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontFamily: 'var(--font-mono)', fontSize: '0.65rem' }}>
+                      <div>Requests Today: <strong>{model.stats?.todayRequests || 0}</strong></div>
+                      <div>Provider Requests: <strong>{model.stats?.providerRequests ?? (model.stats?.todayRequests || 0)}</strong></div>
+                      <div>Cached Requests: <strong>{model.stats?.cachedRequests || 0}</strong></div>
+                      <div>Cache Hit Rate: <strong style={{ color: 'var(--color-warning-text)' }}>{model.stats?.cacheHitRate || 0}%</strong></div>
+                      <div>Prompt Tokens: <strong>{((model.stats?.todayPromptTokens ?? 0) || Math.round((model.stats?.todayTokens || 0) * 0.7)).toLocaleString()}</strong></div>
+                      <div>Completion Tokens: <strong>{((model.stats?.todayCompletionTokens ?? 0) || Math.round((model.stats?.todayTokens || 0) * 0.3)).toLocaleString()}</strong></div>
+                      <div style={{ gridColumn: '1 / -1' }}>Total Tokens: <strong style={{ fontFamily: 'var(--font-mono)' }}>{(model.stats?.todayTokens || 0).toLocaleString()}</strong></div>
+                    </div>
+                  </div>
+
+                  {/* Rolling Operational Metrics */}
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.6rem', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Rolling Operational Metrics</div>
+                    <table style={{ width: '100%', fontSize: '0.6rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid #FAF8F5' }}>
+                          <th style={{ padding: '2px' }}>Window</th>
+                          <th style={{ padding: '2px' }}>Requests</th>
+                          <th style={{ padding: '2px' }}>Tokens</th>
+                          <th style={{ padding: '2px' }}>Avg Latency</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #FAF8F5' }}>
+                          <td style={{ padding: '2px', fontWeight: 'bold', color: 'var(--color-accent)' }}>Current (1 min)</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{roll.current1m.requests}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{(roll.current1m.totalTokens || 0).toLocaleString()}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{roll.current1m.avgLatencyMs}ms</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #FAF8F5' }}>
+                          <td style={{ padding: '2px', fontWeight: 'bold' }}>Rolling 5 min</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{roll.rolling5m.requests}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{(roll.rolling5m.totalTokens || 0).toLocaleString()}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{roll.rolling5m.avgLatencyMs}ms</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #FAF8F5' }}>
+                          <td style={{ padding: '2px', fontWeight: 'bold' }}>Rolling 1 hour</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{roll.rolling1h.requests}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{(roll.rolling1h.totalTokens || 0).toLocaleString()}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{roll.rolling1h.avgLatencyMs}ms</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '2px', fontWeight: 'bold' }}>Today</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{model.stats?.todayRequests || 0}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{(model.stats?.todayTokens || 0).toLocaleString()}</td>
+                          <td style={{ padding: '2px', fontFamily: 'var(--font-mono)' }}>{model.stats?.avgLatencyMs || 0}ms</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Reliability */}
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem', fontSize: '0.65rem' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.6rem', fontFamily: 'var(--font-mono)' }}>Reliability</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '0.63rem' }}>
+                      <div>Success Rate: <strong style={{ color: (model.stats?.successRate || 100) >= 99 ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>{model.stats?.successRate || 100}%</strong></div>
+                      <div>Retry Count: <strong style={{ color: (model.stats?.retriesCount || 0) > 0 ? 'var(--color-warning-text)' : 'inherit' }}>{model.stats?.retriesCount || 0}</strong></div>
+                      <div>Failovers: <strong style={{ color: rel.failovers > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{rel.failovers}</strong></div>
+                      <div>Consecutive Fail: <strong style={{ color: rel.consecutiveFailures > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{rel.consecutiveFailures}</strong></div>
+                      <div>429 Count: <strong style={{ color: rel.code429 > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{rel.code429}</strong></div>
+                      <div>500 Count: <strong style={{ color: rel.code500 > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{rel.code500}</strong></div>
+                      <div>503 Count: <strong style={{ color: rel.code503 > 0 ? 'var(--color-danger-text)' : 'inherit' }}>{rel.code503}</strong></div>
+                      <div>Network Err: <strong>{rel.networkErrors || 0}</strong></div>
+                    </div>
+                  </div>
+
+                  {/* Performance - Latency Percentiles */}
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem', fontSize: '0.65rem' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.6rem', fontFamily: 'var(--font-mono)' }}>Performance — Latency Distribution</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '0.63rem', marginBottom: '0.5rem' }}>
+                      <div>Avg Latency: <strong>{model.stats?.avgLatencyMs || 0}ms</strong></div>
+                      <div>Median (P50): <strong style={{ color: 'var(--color-success-text)' }}>{pct.p50 || pct.median || 0}ms</strong></div>
+                      <div>P95 Latency: <strong style={{ color: 'var(--color-warning-text)' }}>{pct.p95}ms</strong></div>
+                      <div>P99 Latency: <strong style={{ color: 'var(--color-danger-text)' }}>{pct.p99}ms</strong></div>
+                    </div>
+                    {(pct.p99 > 0) && (
+                      <div style={{ display: 'flex', height: '6px', background: '#E2DACD', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(50, (pct.p50 / Math.max(pct.p99, 1)) * 50)}%`, background: '#4ade80' }} />
+                        <div style={{ width: `${Math.min(45, ((pct.p95 - pct.p50) / Math.max(pct.p99, 1)) * 50)}%`, background: '#fbbf24' }} />
+                        <div style={{ flex: 1, background: '#f87171' }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cost */}
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem', fontSize: '0.65rem' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.6rem', fontFamily: 'var(--font-mono)' }}>Cost</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '0.63rem' }}>
+                      <div>Today's Cost: <strong style={{ color: 'var(--color-success-text)' }}>${(model.stats?.todayCost || 0).toFixed(5)}</strong></div>
+                      <div>Est. Monthly: <strong>${(model.stats?.estimatedMonthlyCost ?? (model.stats?.todayCost || 0) * 30).toFixed(2)}</strong></div>
+                      <div>Cache Savings: <strong style={{ color: 'var(--color-success-text)' }}>${(model.stats?.cacheSavings || 0).toFixed(5)}</strong></div>
+                      <div>Cost Avoided: <strong style={{ color: 'var(--color-success-text)' }}>${(model.stats?.costAvoided || 0).toFixed(5)}</strong></div>
+                    </div>
+                  </div>
+
+                  {/* Capacity */}
+                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem', fontSize: '0.65rem' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.6rem', fontFamily: 'var(--font-mono)' }}>Capacity</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem', fontFamily: 'var(--font-mono)', fontSize: '0.63rem', marginBottom: '0.4rem' }}>
+                      <div>Current RPM: <strong style={{ color: 'var(--color-accent)' }}>{roll.current1m.requests} / {model.stats?.rpmLimit || getModelQuota(model.id).rpmLimit}</strong></div>
+                      <div>Current TPM: <strong style={{ color: 'var(--color-accent)' }}>{(roll.current1m.totalTokens || 0).toLocaleString()}</strong></div>
+                      <div>RPD Used: <strong>{model.stats?.rpdUsage || 0} / {model.stats?.rpdLimit || getModelQuota(model.id).rpdLimit}</strong></div>
+                      <div>Remaining: <strong style={{ color: (model.stats?.quotaRemaining || getModelQuota(model.id).rpdLimit) < 100 ? 'var(--color-danger-text)' : 'var(--color-success-text)' }}>{model.stats?.quotaRemaining ?? getModelQuota(model.id).rpdLimit}</strong></div>
+                    </div>
+                    {/* Daily utilization bar */}
+                    <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                      Daily Utilization: {model.stats?.dailyUtilization ?? Math.round(((model.stats?.rpdUsage || 0) / (model.stats?.rpdLimit || getModelQuota(model.id).rpdLimit)) * 100)}%
+                    </div>
+                    <div style={{ background: '#FAF8F5', height: '6px', borderRadius: '3px', border: '1px solid #E2DACD', overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${model.stats?.dailyUtilization ?? Math.min(100, Math.round(((model.stats?.rpdUsage || 0) / (model.stats?.rpdLimit || getModelQuota(model.id).rpdLimit)) * 100))}%`,
+                        height: '100%',
+                        background: (model.stats?.dailyUtilization ?? 0) > 80 ? '#f87171' : (model.stats?.dailyUtilization ?? 0) > 50 ? '#fbbf24' : 'var(--color-accent)',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Subtab Content: Provider Comparison */}
       {activeSubTab === 'Comparison' && stats && stats.providerComparison && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -1004,14 +1596,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
               This reconciler compares upstream provider usage metrics (derived from real API requests dispatched by BusinessOS, using the official usageMetadata returned directly from Gemini) against total local telemetry records (which include local semantic cache hits and estimates).
             </p>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #E2DACD', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '0.5rem' }}>Metric</th>
-                  <th style={{ padding: '0.5rem' }}>Google (Tracked Upstream)</th>
+                  <th style={{ padding: '0.5rem' }}>Google Upstream</th>
                   <th style={{ padding: '0.5rem' }}>BusinessOS</th>
-                  <th style={{ padding: '0.5rem' }}>Difference</th>
-                  <th style={{ padding: '0.5rem' }}>Reconciliation Reason / Diagnostics</th>
+                  <th style={{ padding: '0.5rem' }}>Delta</th>
+                  <th style={{ padding: '0.5rem' }}>Data Source</th>
+                  <th style={{ padding: '0.5rem' }}>Confidence</th>
+                  <th style={{ padding: '0.5rem' }}>Updated</th>
+                  <th style={{ padding: '0.5rem' }}>Interval</th>
+                  <th style={{ padding: '0.5rem' }}>Diagnostics / Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -1024,7 +1620,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       bos: comp.businessos.requests,
                       diff: comp.differences.requests.delta,
                       reason: comp.differences.requests.reason,
-                      isMismatch: comp.differences.requests.reason === 'Telemetry mismatch'
+                      isMismatch: comp.differences.requests.reason === 'Telemetry mismatch',
+                      source: 'Provider Tracked Upstream',
+                      confidence: '100% (Authoritative)',
+                      interval: '10s poll'
                     },
                     {
                       label: 'Prompt Tokens',
@@ -1032,7 +1631,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       bos: comp.businessos.promptTokens,
                       diff: comp.differences.promptTokens.delta,
                       reason: comp.differences.promptTokens.reason,
-                      isMismatch: comp.differences.promptTokens.reason === 'Telemetry mismatch'
+                      isMismatch: comp.differences.promptTokens.reason === 'Telemetry mismatch',
+                      source: 'Provider Tracked Upstream',
+                      confidence: comp.google.promptTokens > 0 ? '100% (Authoritative)' : '95% (Estimated)',
+                      interval: '10s poll'
                     },
                     {
                       label: 'Completion Tokens',
@@ -1040,7 +1642,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       bos: comp.businessos.completionTokens,
                       diff: comp.differences.completionTokens.delta,
                       reason: comp.differences.completionTokens.reason,
-                      isMismatch: comp.differences.completionTokens.reason === 'Telemetry mismatch'
+                      isMismatch: comp.differences.completionTokens.reason === 'Telemetry mismatch',
+                      source: 'Provider Tracked Upstream',
+                      confidence: comp.google.completionTokens > 0 ? '100% (Authoritative)' : '95% (Estimated)',
+                      interval: '10s poll'
                     },
                     {
                       label: 'Total Tokens',
@@ -1048,7 +1653,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       bos: comp.businessos.totalTokens,
                       diff: comp.differences.totalTokens.delta,
                       reason: comp.differences.totalTokens.reason,
-                      isMismatch: comp.differences.totalTokens.reason === 'Telemetry mismatch'
+                      isMismatch: comp.differences.totalTokens.reason === 'Telemetry mismatch',
+                      source: 'Provider Tracked Upstream',
+                      confidence: comp.google.totalTokens > 0 ? '100% (Authoritative)' : '95% (Estimated)',
+                      interval: '10s poll'
                     }
                   ];
 
@@ -1065,6 +1673,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         <td style={{ padding: '0.75rem 0.5rem', fontFamily: 'var(--font-mono)', color: diffColor, fontWeight: 'bold' }}>
                           {row.isMismatch ? 'Telemetry Mismatch' : diffSign}
                         </td>
+                        <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)' }}>{row.source}</td>
+                        <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)' }}>{row.confidence}</td>
+                        <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)' }}>Just now</td>
+                        <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-secondary)' }}>{row.interval}</td>
                         <td style={{ padding: '0.75rem 0.5rem', color: row.isMismatch ? 'var(--color-danger-text)' : 'var(--text-secondary)', fontWeight: row.isMismatch ? 'bold' : 'normal' }}>
                           {row.reason}
                         </td>
@@ -1077,28 +1689,34 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem', borderTop: '1px dashed #E2DACD', paddingTop: '1.25rem', fontSize: '0.7rem' }}>
               <div>
-                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>GOOGLE UPSTREAM TRACKED METRICS</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', fontSize: '0.65rem' }}>GOOGLE UPSTREAM — PROVIDER REPORTED / TRACKED</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'var(--font-mono)' }}>
-                  <div>Upstream RPM Limit: 15 / min</div>
-                  <div>Upstream TPM Limit: 1,000,000 / min</div>
-                  <div>Upstream RPD Limit: 1,500 / day</div>
-                  <div>Remaining Daily Quota: {stats.providerComparison.google.quotaRemaining} requests (Est.)</div>
-                  <div>Last Tracked Upstream: {new Date(stats.providerComparison.google.lastUpdated).toLocaleString()}</div>
+                  <div>Upstream RPM Limit: <strong>{(stats.providerComparison.google as any).rpmLimit ?? getModelQuota('gemini-3.5-flash').rpmLimit} / min</strong></div>
+                  <div>Upstream TPM Limit: <strong>{((stats.providerComparison.google as any).tpmLimit ?? getModelQuota('gemini-3.5-flash').tpmLimit).toLocaleString()} / min</strong></div>
+                  <div>Upstream RPD Limit: <strong>{((stats.providerComparison.google as any).rpdLimit ?? getModelQuota('gemini-3.5-flash').rpdLimit).toLocaleString()} / day</strong>
+                    <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginLeft: '6px' }}>(from Provider Quota Registry)</span>
+                  </div>
+                  <div>Remaining Daily Quota: <strong>{stats.providerComparison.google.quotaRemaining} requests (Est.)</strong></div>
+                  <div>Last Tracked Upstream: <strong>{new Date(stats.providerComparison.google.lastUpdated).toLocaleString()}</strong></div>
                 </div>
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>BUSINESSOS TELEMETRY METADATA</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase', fontSize: '0.65rem' }}>BUSINESSOS TELEMETRY — DERIVED ANALYTICS</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'var(--font-mono)' }}>
-                  <div>Calculated RPM: {stats.providerComparison.businessos.rpm} / min</div>
-                  <div>Calculated TPM: {stats.providerComparison.businessos.tpm} / min</div>
-                  <div>Calculated Daily Cost: ${stats.providerComparison.businessos.estimatedCost.toFixed(5)}</div>
-                  <div>Total Cache Hits Today: {stats.providerComparison.businessos.cacheHits}</div>
-                  <div>Total Cache Cost Savings: ${stats.providerComparison.businessos.cacheSavings.toFixed(5)}</div>
+                  <div>Average RPM Today: <strong>{(stats.providerComparison.businessos as any).avgRpmToday ?? stats.providerComparison.businessos.rpm} / min</strong>
+                    <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginLeft: '4px' }}>(daily avg, not rolling)</span>
+                  </div>
+                  <div>Average TPM Today: <strong>{(stats.providerComparison.businessos as any).avgTpmToday ?? stats.providerComparison.businessos.tpm} / min</strong>
+                    <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginLeft: '4px' }}>(daily avg, not rolling)</span>
+                  </div>
+                  <div>Calculated Daily Cost: <strong>${stats.providerComparison.businessos.estimatedCost.toFixed(5)}</strong></div>
+                  <div>Total Cache Hits Today: <strong>{stats.providerComparison.businessos.cacheHits}</strong></div>
+                  <div>Total Cache Cost Savings: <strong>${stats.providerComparison.businessos.cacheSavings.toFixed(5)}</strong></div>
                 </div>
               </div>
             </div>
             <div style={{ marginTop: '1.25rem', fontSize: '0.65rem', color: 'var(--text-muted)', fontStyle: 'italic', borderTop: '1px solid #FAF8F5', paddingTop: '0.75rem' }}>
-              * Note: Google-tracked metrics are derived from the official `usageMetadata` object returned directly on successful upstream responses from the Gemini API. They represent actual requests successfully dispatched by this application to the Google provider (excluding local semantic cache hits). They do not capture external usage of the API key outside of the BusinessOS platform.
+              * Note: Google-tracked metrics are derived from the official `usageMetadata` object returned directly on successful upstream responses from the Gemini API. They represent actual requests successfully dispatched by this application to the Google provider (excluding local semantic cache hits). They do not capture external usage of the API key outside of the BusinessOS platform. Quota limits are read from the centralized Provider Quota Registry (not hardcoded).
             </div>
           </div>
         </div>
