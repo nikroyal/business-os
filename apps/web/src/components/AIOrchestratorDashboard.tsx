@@ -43,6 +43,73 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const [testingHealth, setTestingHealth] = useState<string | null>(null);
   const [error, setError] = useState<{ status: string; message: string } | null>(null);
 
+  const filteredTimeline = React.useMemo(() => filterTelemetryRecords(timeline, filters), [timeline, filters]);
+
+  const isFilterActive = filters.timeRange !== '30d' || filters.provider !== 'all' || filters.model !== 'all' || filters.user !== 'all' || filters.workspace !== 'all' || filters.feature !== 'all' || filters.status !== 'all' || filters.searchQuery !== '';
+
+  const activeStats = React.useMemo(() => {
+    if (!stats) return null;
+    if (!isFilterActive) return stats;
+
+    const featCost: Record<string, number> = {};
+    const wsCost: Record<string, number> = {};
+    const usrCost: Record<string, number> = {};
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let cachedCount = 0;
+    let totalCost = 0;
+    let costSavings = 0;
+    let totalFailovers = 0;
+    let totalRetries = 0;
+    let totalLatency = 0;
+
+    filteredTimeline.forEach(rec => {
+      promptTokens += rec.promptTokens || 0;
+      completionTokens += rec.completionTokens || 0;
+      totalCost += rec.estimatedCost || 0;
+      totalRetries += rec.retryCount || 0;
+      totalLatency += rec.latency || 0;
+      if (rec.cachedResponse) {
+        cachedCount++;
+        costSavings += (rec.estimatedCost || 0.001);
+      }
+      if (rec.fallbackModel && rec.fallbackModel !== rec.selectedModel) {
+        totalFailovers++;
+      }
+      if (rec.feature) featCost[rec.feature] = (featCost[rec.feature] || 0) + (rec.estimatedCost || 0);
+      if (rec.workspace) wsCost[rec.workspace] = (wsCost[rec.workspace] || 0) + (rec.estimatedCost || 0);
+      if (rec.user) usrCost[rec.user] = (usrCost[rec.user] || 0) + (rec.estimatedCost || 0);
+    });
+
+    const reqCount = filteredTimeline.length;
+    const cacheHitRate = reqCount > 0 ? Math.round((cachedCount / reqCount) * 100) : 0;
+    const avgLatency = reqCount > 0 ? Math.round(totalLatency / reqCount) : 0;
+
+    return {
+      ...stats,
+      overview: {
+        ...stats.overview,
+        requestsToday: reqCount,
+        tokensToday: promptTokens + completionTokens,
+        promptTokensToday: promptTokens,
+        completionTokensToday: completionTokens,
+        cachedResponses: cachedCount,
+        cacheHitRate,
+        estimatedCostSavings: costSavings,
+        estimatedDailyCost: totalCost,
+        totalFailovers,
+        totalRetries,
+        averageLatencyMs: avgLatency
+      },
+      breakdowns: {
+        ...stats.breakdowns,
+        featureCost: featCost,
+        workspaceCost: wsCost,
+        userCost: usrCost
+      }
+    };
+  }, [stats, filteredTimeline, isFilterActive]);
+
   const loadData = async (showRefresher = false) => {
     if (showRefresher) setRefreshing(true);
     else setLoading(true);
@@ -226,73 +293,6 @@ export const AIOrchestratorDashboard: React.FC = () => {
       </div>
     );
   }
-
-  const filteredTimeline = React.useMemo(() => filterTelemetryRecords(timeline, filters), [timeline, filters]);
-
-  const isFilterActive = filters.timeRange !== '30d' || filters.provider !== 'all' || filters.model !== 'all' || filters.user !== 'all' || filters.workspace !== 'all' || filters.feature !== 'all' || filters.status !== 'all' || filters.searchQuery !== '';
-
-  const activeStats = React.useMemo(() => {
-    if (!stats) return null;
-    if (!isFilterActive) return stats;
-
-    const featCost: Record<string, number> = {};
-    const wsCost: Record<string, number> = {};
-    const usrCost: Record<string, number> = {};
-    let promptTokens = 0;
-    let completionTokens = 0;
-    let cachedCount = 0;
-    let totalCost = 0;
-    let costSavings = 0;
-    let totalFailovers = 0;
-    let totalRetries = 0;
-    let totalLatency = 0;
-
-    filteredTimeline.forEach(rec => {
-      promptTokens += rec.promptTokens || 0;
-      completionTokens += rec.completionTokens || 0;
-      totalCost += rec.estimatedCost || 0;
-      totalRetries += rec.retryCount || 0;
-      totalLatency += rec.latency || 0;
-      if (rec.cachedResponse) {
-        cachedCount++;
-        costSavings += (rec.estimatedCost || 0.001);
-      }
-      if (rec.fallbackModel && rec.fallbackModel !== rec.selectedModel) {
-        totalFailovers++;
-      }
-      if (rec.feature) featCost[rec.feature] = (featCost[rec.feature] || 0) + (rec.estimatedCost || 0);
-      if (rec.workspace) wsCost[rec.workspace] = (wsCost[rec.workspace] || 0) + (rec.estimatedCost || 0);
-      if (rec.user) usrCost[rec.user] = (usrCost[rec.user] || 0) + (rec.estimatedCost || 0);
-    });
-
-    const reqCount = filteredTimeline.length;
-    const cacheHitRate = reqCount > 0 ? Math.round((cachedCount / reqCount) * 100) : 0;
-    const avgLatency = reqCount > 0 ? Math.round(totalLatency / reqCount) : 0;
-
-    return {
-      ...stats,
-      overview: {
-        ...stats.overview,
-        requestsToday: reqCount,
-        tokensToday: promptTokens + completionTokens,
-        promptTokensToday: promptTokens,
-        completionTokensToday: completionTokens,
-        cachedResponses: cachedCount,
-        cacheHitRate,
-        estimatedCostSavings: costSavings,
-        estimatedDailyCost: totalCost,
-        totalFailovers,
-        totalRetries,
-        averageLatencyMs: avgLatency
-      },
-      breakdowns: {
-        ...stats.breakdowns,
-        featureCost: featCost,
-        workspaceCost: wsCost,
-        userCost: usrCost
-      }
-    };
-  }, [stats, filteredTimeline, isFilterActive]);
 
   const overview = activeStats?.overview;
   const provider = activeStats?.provider;
