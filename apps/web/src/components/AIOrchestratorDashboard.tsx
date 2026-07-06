@@ -1001,14 +1001,14 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <Layers size={18} style={{ color: 'var(--color-accent)' }} /> Provider vs BusinessOS Telemetry Reconciler
             </h3>
             <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              This reconciler compares upstream provider usage metrics directly against local BusinessOS telemetry records to verify billing accuracy, semantic cache hit savings, and identify any telemetry propagation pipeline failures.
+              This reconciler compares upstream provider usage metrics (derived from real API requests dispatched by BusinessOS, using the official usageMetadata returned directly from Gemini) against total local telemetry records (which include local semantic cache hits and estimates).
             </p>
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #E2DACD', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '0.5rem' }}>Metric</th>
-                  <th style={{ padding: '0.5rem' }}>Google (Official)</th>
+                  <th style={{ padding: '0.5rem' }}>Google (Tracked Upstream)</th>
                   <th style={{ padding: '0.5rem' }}>BusinessOS</th>
                   <th style={{ padding: '0.5rem' }}>Difference</th>
                   <th style={{ padding: '0.5rem' }}>Reconciliation Reason / Diagnostics</th>
@@ -1077,13 +1077,13 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem', borderTop: '1px dashed #E2DACD', paddingTop: '1.25rem', fontSize: '0.7rem' }}>
               <div>
-                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>GOOGLE OFFICIAL METADATA</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>GOOGLE UPSTREAM TRACKED METRICS</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'var(--font-mono)' }}>
-                  <div>Official RPM Limit: 15 / min</div>
-                  <div>Official TPM Limit: 1,000,000 / min</div>
-                  <div>Official RPD Limit: 1,500 / day</div>
-                  <div>Remaining Daily Quota: {stats.providerComparison.google.quotaRemaining} requests</div>
-                  <div>Last Updated Upstream: {new Date(stats.providerComparison.google.lastUpdated).toLocaleString()}</div>
+                  <div>Upstream RPM Limit: 15 / min</div>
+                  <div>Upstream TPM Limit: 1,000,000 / min</div>
+                  <div>Upstream RPD Limit: 1,500 / day</div>
+                  <div>Remaining Daily Quota: {stats.providerComparison.google.quotaRemaining} requests (Est.)</div>
+                  <div>Last Tracked Upstream: {new Date(stats.providerComparison.google.lastUpdated).toLocaleString()}</div>
                 </div>
               </div>
               <div>
@@ -1096,6 +1096,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   <div>Total Cache Cost Savings: ${stats.providerComparison.businessos.cacheSavings.toFixed(5)}</div>
                 </div>
               </div>
+            </div>
+            <div style={{ marginTop: '1.25rem', fontSize: '0.65rem', color: 'var(--text-muted)', fontStyle: 'italic', borderTop: '1px solid #FAF8F5', paddingTop: '0.75rem' }}>
+              * Note: Google-tracked metrics are derived from the official `usageMetadata` object returned directly on successful upstream responses from the Gemini API. They represent actual requests successfully dispatched by this application to the Google provider (excluding local semantic cache hits). They do not capture external usage of the API key outside of the BusinessOS platform.
             </div>
           </div>
         </div>
