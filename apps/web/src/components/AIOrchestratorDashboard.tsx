@@ -8,7 +8,8 @@ import type {
 } from '../services/aiOrchestratorService';
 import { FallbackPriorityEditor } from './FallbackPriorityEditor';
 import { MetricTooltip, SourceBadge } from './ai-ops/MetricTooltip';
-import { GlobalFilterBar, DEFAULT_FILTERS, filterTelemetryRecords, OpsFilterState } from './ai-ops/GlobalFilterBar';
+import { GlobalFilterBar, DEFAULT_FILTERS, filterTelemetryRecords } from './ai-ops/GlobalFilterBar';
+import type { OpsFilterState } from './ai-ops/GlobalFilterBar';
 import { AIRequestInspectorModal } from './ai-ops/AIRequestInspectorModal';
 import { 
   Cpu, 
@@ -23,11 +24,7 @@ import {
   Download,
   AlertTriangle,
   Zap,
-  Search,
-  Eye,
-  Filter,
-  ArrowRight,
-  ShieldAlert
+  Eye
 } from 'lucide-react';
 
 export const AIOrchestratorDashboard: React.FC = () => {
@@ -298,6 +295,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
   }, [stats, filteredTimeline, isFilterActive]);
 
   const overview = activeStats?.overview;
+  const provider = activeStats?.provider;
   const models = activeStats?.models || [];
   const activeForced = models.find(m => m.isForced);
   const primaryModel = activeForced ? activeForced : models.find(m => m.enabled && m.cooldownRemaining === 0);
@@ -405,21 +403,21 @@ export const AIOrchestratorDashboard: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             
             {/* Provider Health vs Model Health */}
-            {stats.provider && (
+            {provider && (
               <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Provider Node Health</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: stats.provider?.health === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
-                  {stats.provider?.health === 'operational' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                  {stats.provider?.displayName}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: provider.health === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
+                  {provider.health === 'operational' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {provider.displayName}
                 </div>
-                <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {stats.provider?.successRate}% | Latency: {stats.provider?.averageLatencyMs}ms</div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {provider.successRate}% | Latency: {provider.averageLatencyMs}ms</div>
                 {isOwner && (
                   <button
-                    onClick={() => handleHealthTest('provider', stats.provider?.id || '')}
+                    onClick={() => handleHealthTest('provider', provider.id)}
                     disabled={testingHealth !== null}
                     style={{ fontSize: '0.65rem', background: '#FCFAF6', color: 'var(--text-secondary)', border: '1px solid #C4B9A7', padding: '2px 8px', marginTop: '0.5rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
                   >
-                    {testingHealth === stats.provider?.id ? 'Testing...' : 'Test Connection'}
+                    {testingHealth === provider.id ? 'Testing...' : 'Test Connection'}
                   </button>
                 )}
               </div>
@@ -507,8 +505,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
           </div>
 
           {/* Quota estimation widget */}
-          {(stats.quota || overview) && (() => {
-            const qStats = stats.quota || {
+          {(activeStats?.quota || overview) && (() => {
+            const qStats = activeStats?.quota || {
               requestsPerMinute: Math.round((overview?.requestsToday || 0) / Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()))),
               tokensPerMinute: Math.round((overview?.tokensToday || 0) / Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()))),
               estimatedRemainingDailyRequests: Math.max(0, (overview?.dailyQuotaLimit || 1500) - (overview?.requestsToday || 0)),
@@ -520,12 +518,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                     <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
-                    <SourceBadge source="estimated" lastUpdated={stats.timestamp} />
+                    <SourceBadge source="estimated" />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="RPD">Daily Requests (RPD):</MetricTooltip></span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
+                      <strong style={{ color: 'var(--text-primary)' }}>{overview?.requestsToday || 0} / {overview?.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="RPM">RPM Average:</MetricTooltip></span>
@@ -533,7 +531,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="TPM">Tokens Ingested Today:</MetricTooltip></span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{overview.tokensToday.toLocaleString()} tokens</strong>
+                      <strong style={{ color: 'var(--text-primary)' }}>{(overview?.tokensToday || 0).toLocaleString()} tokens</strong>
                     </div>
                     <div style={{ fontSize: '0.65rem', color: 'var(--color-warning-text)', fontStyle: 'italic', marginTop: '0.25rem' }}>
                       ⚠️ Note: Displayed values are BusinessOS estimates derived from recorded telemetry, not provider-reported limits.

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Filter, Calendar, RefreshCw, X, Search, Layers, User, Briefcase, Cpu, CheckCircle2 } from 'lucide-react';
-import type { TelemetryRecord, OrchestratorStats } from '../../services/aiOrchestratorService';
+import { Calendar, X, Search } from 'lucide-react';
+import type { TelemetryRecord } from '../../services/aiOrchestratorService';
 
 export interface OpsFilterState {
   timeRange: '24h' | '7d' | '30d' | '90d' | 'custom';
@@ -305,7 +305,8 @@ export const filterTelemetryRecords = (timeline: TelemetryRecord[], filters: Ops
 
   return timeline.filter(rec => {
     // Time check
-    if (rec.timestamp < startTime || rec.timestamp > endTime) return false;
+    const recTime = new Date(rec.timestamp).getTime();
+    if (recTime < startTime || recTime > endTime) return false;
 
     // Provider check
     if (filters.provider !== 'all') {

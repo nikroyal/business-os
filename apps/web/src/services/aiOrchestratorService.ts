@@ -122,6 +122,7 @@ export interface TelemetryRecord {
   user: string;
   workspace: string;
   feature: string;
+  provider?: string;
   selectedModel: string;
   fallbackModel: string;
   promptTokens: number;

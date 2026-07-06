@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HelpCircle, ShieldAlert, CheckCircle2, Cpu, Clock, RefreshCw, Database } from 'lucide-react';
+import { HelpCircle, CheckCircle2, Clock, Database } from 'lucide-react';
 
 export interface MetricDoc {
   fullName: string;

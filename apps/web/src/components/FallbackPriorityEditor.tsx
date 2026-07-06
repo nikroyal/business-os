@@ -187,7 +187,9 @@ export const FallbackPriorityEditor: React.FC<FallbackPriorityEditorProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 {isOwner && (
-                  <Move size={14} style={{ color: '#C4B9A7', cursor: 'grab', flexShrink: 0 }} title="Drag to reorder" />
+                  <span title="Drag to reorder" style={{ display: 'inline-flex' }}>
+                    <Move size={14} style={{ color: '#C4B9A7', cursor: 'grab', flexShrink: 0 }} />
+                  </span>
                 )}
                 <span style={{ fontSize: '1rem', color: isEnabled ? 'var(--color-primary)' : '#888', fontWeight: 'bold' }}>
                   {numBall}

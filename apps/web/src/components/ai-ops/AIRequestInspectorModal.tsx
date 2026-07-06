@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CheckCircle2, AlertCircle, Database, Cpu, Clock, DollarSign, Layers, User, Briefcase, RefreshCw, Terminal, Shield, ArrowRight } from 'lucide-react';
+import { X, AlertCircle, Cpu, Layers, User, Terminal, ArrowRight } from 'lucide-react';
 import type { TelemetryRecord } from '../../services/aiOrchestratorService';
 import { SourceBadge } from './MetricTooltip';
 
@@ -188,7 +188,7 @@ export const AIRequestInspectorModal: React.FC<AIRequestInspectorModalProps> = (
               <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#06b6d4', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Cpu size={15} /> Token Telemetry & Billing Attribution
               </h4>
-              <SourceBadge source={isCached ? 'cached' : (record.tokenCountSource === 'live' ? 'live' : 'estimated')} lastUpdated={record.timestamp} />
+              <SourceBadge source={isCached ? 'cached' : (record.tokenCountSource === 'provider' ? 'live' : 'estimated')} lastUpdated={record.timestamp} />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
