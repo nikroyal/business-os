@@ -531,9 +531,14 @@ export class AIOrchestrator {
     return 'UNKNOWN_PROVIDER_ERROR';
   }
 
-  public static async recordTelemetry(projectId: string, telemetry: any, token?: string): Promise<void> {
+  public static async recordTelemetry(projectId: string, telemetry: any, token?: string): Promise<{ success: boolean; docId: string; error?: string; summarySuccess: boolean; summaryError?: string }> {
+    const docId = `telemetry_${Date.now()}_${crypto.randomUUID()}`;
+    let success = false;
+    let error = '';
+    let summarySuccess = false;
+    let summaryError: string | undefined;
+
     try {
-      const docId = `telemetry_${Date.now()}_${crypto.randomUUID()}`;
       const doc = { fields: {} as any };
       for (const [k, v] of Object.entries(telemetry)) {
         doc.fields[k] = toFirestoreValue(v);
@@ -543,17 +548,38 @@ export class AIOrchestrator {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
-      if (!res.ok) {
+      if (res.ok) {
+        success = true;
+        // Clear alert on success
+        await firestoreFetch(projectId, 'system/telemetryAlerts', token, {
+          method: 'DELETE'
+        }).catch(() => {});
+      } else {
         const text = await res.text();
-        console.error(`[AIOrchestrator] Telemetry write failed (HTTP ${res.status}): ${text}`);
+        error = `HTTP ${res.status}: ${text}`;
+        console.error(`[AIOrchestrator] Telemetry write failed: ${error}`);
+        await this.raiseTelemetryAlert(projectId, 'aiTelemetry Write', error, token);
       }
-      this.updateTelemetrySummary(projectId, telemetry, token).catch(() => {});
-    } catch (e) {
+    } catch (e: any) {
+      error = e.message || String(e);
       console.error('[AIOrchestrator] Telemetry save failed:', e);
+      await this.raiseTelemetryAlert(projectId, 'aiTelemetry Write', error, token);
     }
+
+    if (success) {
+      try {
+        const summaryRes = await this.updateTelemetrySummary(projectId, telemetry, token);
+        summarySuccess = summaryRes.success;
+        summaryError = summaryRes.error;
+      } catch (e: any) {
+        summaryError = e.message || String(e);
+      }
+    }
+
+    return { success, docId, error, summarySuccess, summaryError };
   }
 
-  private static async updateTelemetrySummary(projectId: string, telemetry: any, token?: string): Promise<void> {
+  private static async updateTelemetrySummary(projectId: string, telemetry: any, token?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const dateStr = new Date(telemetry.timestamp || Date.now()).toISOString().split('T')[0];
       let summary: any = {
@@ -614,12 +640,14 @@ export class AIOrchestrator {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
-      if (!writeRes.ok) {
-        const text = await writeRes.text();
-        console.error(`[AIOrchestrator] Summary update failed (HTTP ${writeRes.status}): ${text}`);
+      if (writeRes.ok) {
+        return { success: true };
+      } else {
+        const errText = await writeRes.text();
+        return { success: false, error: `HTTP ${writeRes.status}: ${errText}` };
       }
-    } catch (e) {
-      console.warn('[AIOrchestrator] Failed to update telemetry summary:', e);
+    } catch (e: any) {
+      return { success: false, error: e.message || String(e) };
     }
   }
 
@@ -639,7 +667,15 @@ export class AIOrchestrator {
     return { models: {}, providers: {} };
   }
 
-  private static async updatePersistentStats(projectId: string, modelId: string, providerId: string, latencyMs: number, success: boolean, reason?: string, token?: string): Promise<void> {
+  private static async updatePersistentStats(
+    projectId: string,
+    modelId: string,
+    providerId: string,
+    latencyMs: number,
+    success: boolean,
+    reason?: string,
+    token?: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       const current = await this.getPersistentStats(projectId, token);
       const m = current.models[modelId] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
@@ -668,12 +704,16 @@ export class AIOrchestrator {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
-      if (!writeRes.ok) {
+      if (writeRes.ok) {
+        return { success: true };
+      } else {
         const text = await writeRes.text();
         console.error(`[AIOrchestrator] Persistent stats update failed (HTTP ${writeRes.status}): ${text}`);
+        return { success: false, error: `HTTP ${writeRes.status}: ${text}` };
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[AIOrchestrator] Failed to update persistent stats:', e);
+      return { success: false, error: e.message || String(e) };
     }
   }
 
@@ -924,6 +964,8 @@ export class AIOrchestrator {
     let finalPromptTokens = 0;
     let finalCompletionTokens = 0;
     let tokenCountSource: 'provider' | 'estimated' = 'estimated';
+    let modelLatency = 0;
+    let attemptSuccess = false;
 
     // 4. Try models in fallback chain
     for (let i = 0; i < chain.length; i++) {
@@ -945,7 +987,6 @@ export class AIOrchestrator {
       const provStats = providerLocalStats.get(model.provider) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
       provStats.requests++;
 
-      let attemptSuccess = false;
       let attemptStatus = 200;
       let attemptBody = '';
       const modelStartTime = Date.now();
@@ -984,7 +1025,7 @@ export class AIOrchestrator {
         }
       }
 
-      const modelLatency = Date.now() - modelStartTime;
+      modelLatency = Date.now() - modelStartTime;
 
       if (attemptSuccess) {
         modelStats.success++;
@@ -995,7 +1036,6 @@ export class AIOrchestrator {
         provStats.success++;
         provStats.totalLatencyMs += modelLatency;
         providerLocalStats.set(model.provider, provStats);
-        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, true, undefined, token).catch(() => {});
         break;
       } else {
         modelStats.failure++;
@@ -1005,7 +1045,6 @@ export class AIOrchestrator {
 
         provStats.failure++;
         providerLocalStats.set(model.provider, provStats);
-        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, false, lastErrorType, token).catch(() => {});
 
         lastErrorType = this.classifyError(attemptStatus, attemptBody);
         lastErrorMsg = attemptBody;
@@ -1046,12 +1085,49 @@ export class AIOrchestrator {
       retryCount: retriesCount,
       estimatedCost: cost,
       cachedResponse: false,
-      // Distinguishes official provider-reported counts from character-division estimates.
-      // Consumers should display or flag this field when presenting token metrics.
       tokenCountSource
     };
 
-    this.recordTelemetry(projectId, telemetry, token).catch((e: any) => console.error('[AIOrchestrator] Async telemetry save failed:', e));
+    let statsResult = { success: true, error: '' };
+    try {
+      const res = await this.updatePersistentStats(projectId, finalModelId, 'google', modelLatency, attemptSuccess, attemptSuccess ? undefined : lastErrorType, token);
+      statsResult = { success: res.success, error: res.error || '' };
+    } catch (e: any) {
+      statsResult = { success: false, error: e.message || String(e) };
+    }
+
+    const telemetryResult = await this.recordTelemetry(projectId, telemetry, token);
+
+    // Save diagnostics to Firestore
+    const dateStr = new Date().toISOString().split('T')[0];
+    try {
+      const diagDoc = {
+        timestamp: new Date().toISOString(),
+        requestId: telemetryResult.docId,
+        stages: [
+          { name: 'User Request', status: 'success', time: new Date(startTime).toISOString(), executionTimeMs: Date.now() - startTime },
+          { name: 'AI Orchestrator', status: 'success', details: `Resolved model to ${finalModelId}` },
+          { name: 'Provider Selected', status: 'success', details: `Selected provider: Google` },
+          { name: 'Gemini Request', status: attemptSuccess ? 'success' : 'failed', latencyMs: modelLatency, attempts: retriesCount + 1, error: attemptSuccess ? '' : lastErrorMsg },
+          { name: 'usageMetadata Received', status: tokenCountSource === 'provider' ? 'success' : 'fallback', promptTokens: finalPromptTokens, completionTokens: finalCompletionTokens, source: tokenCountSource },
+          { name: 'Telemetry Write', status: telemetryResult.success ? 'success' : 'failed', docId: `aiTelemetry/${telemetryResult.docId}`, error: telemetryResult.error || '' },
+          { name: 'Daily Summary Update', status: telemetryResult.summarySuccess ? 'success' : 'failed', docId: `aiTelemetrySummary/${dateStr}`, error: telemetryResult.summaryError || '' },
+          { name: 'Model Stats Update', status: statsResult.success ? 'success' : 'failed', docId: 'system/aiOrchestratorStats', error: statsResult.error || '' }
+        ]
+      };
+
+      const doc = { fields: {} as any };
+      for (const [k, v] of Object.entries(diagDoc)) {
+        doc.fields[k] = toFirestoreValue(v);
+      }
+      await firestoreFetch(projectId, 'system/telemetryDiagnostics', token, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+    } catch (diagErr) {
+      console.warn('[AIOrchestrator] Failed to save telemetry diagnostics:', diagErr);
+    }
 
     if (!finalPayload) {
       throw new Error(`AIOrchestrator: Request failed. Error Class: ${lastErrorType} - ${lastErrorMsg}`);
@@ -1204,6 +1280,11 @@ export class AIOrchestrator {
     let cachedResponses = 0;
     let totalRequests30d = 0;
 
+    let cachedPromptTokens = 0;
+    let cachedCompletionTokens = 0;
+    let cachedTotalTokens = 0;
+    let latestNonCachedTime: string | null = null;
+
     const featureCost: Record<string, number> = {};
     const workspaceCost: Record<string, number> = {};
     const userCost: Record<string, number> = {};
@@ -1225,7 +1306,16 @@ export class AIOrchestrator {
         promptTokensToday += (record.promptTokens || 0);
         completionTokensToday += (record.completionTokens || 0);
         costToday += (record.estimatedCost || 0);
-        if (record.cachedResponse) cachedResponses++;
+        if (record.cachedResponse) {
+          cachedResponses++;
+          cachedPromptTokens += (record.promptTokens || 0);
+          cachedCompletionTokens += (record.completionTokens || 0);
+          cachedTotalTokens += (record.totalTokens || 0);
+        } else {
+          if (!latestNonCachedTime || new Date(record.timestamp).getTime() > new Date(latestNonCachedTime).getTime()) {
+            latestNonCachedTime = record.timestamp;
+          }
+        }
       }
 
       if (record.success) successCount++;
@@ -1451,6 +1541,97 @@ export class AIOrchestrator {
     const tokensPerMinute = tokensToday / 1440;
     const dailyQuotaLimit: number = config?.dailyQuotaLimit || 1500;
 
+    let telemetryAlert: any = null;
+    try {
+      const alertRes = await firestoreFetch(projectId, 'system/telemetryAlerts', token);
+      if (alertRes.ok) {
+        const rawAlert = await alertRes.json() as any;
+        telemetryAlert = fromFirestoreDoc(rawAlert);
+      }
+    } catch (e) {
+      // Ignore if not present
+    }
+
+    let telemetryDiagnostics: any = null;
+    try {
+      const diagRes = await firestoreFetch(projectId, 'system/telemetryDiagnostics', token);
+      if (diagRes.ok) {
+        const rawDiag = await diagRes.json() as any;
+        telemetryDiagnostics = fromFirestoreDoc(rawDiag);
+      }
+    } catch (e) {
+      // Ignore if not present
+    }
+
+    const elapsedMinutes = Math.max(1, (new Date().getHours() * 60 + new Date().getMinutes()));
+    const bosRpm = Math.round((requestsToday / elapsedMinutes) * 100) / 100;
+    const bosTpm = Math.round(tokensToday / elapsedMinutes);
+    const officialRequests = Math.max(0, requestsToday - cachedResponses);
+    const officialPromptTokens = Math.max(0, promptTokensToday - cachedPromptTokens);
+    const officialCompletionTokens = Math.max(0, completionTokensToday - cachedCompletionTokens);
+    const officialTotalTokens = Math.max(0, tokensToday - cachedTotalTokens);
+    const officialRpm = Math.round((officialRequests / elapsedMinutes) * 100) / 100;
+    const officialTpm = Math.round(officialTotalTokens / elapsedMinutes);
+    const officialRpd = officialRequests;
+
+    const deltaRequests = requestsToday - officialRequests;
+    const deltaPrompt = promptTokensToday - officialPromptTokens;
+    const deltaCompletion = completionTokensToday - officialCompletionTokens;
+    const deltaTotal = tokensToday - officialTotalTokens;
+
+    const providerComparison = {
+      google: {
+        rpm: officialRpm,
+        tpm: officialTpm,
+        rpd: officialRpd,
+        promptTokens: officialPromptTokens,
+        completionTokens: officialCompletionTokens,
+        totalTokens: officialTotalTokens,
+        requests: officialRequests,
+        quotaRemaining: Math.max(0, 1500 - officialRpd),
+        lastUpdated: latestNonCachedTime || new Date().toISOString()
+      },
+      businessos: {
+        rpm: bosRpm,
+        tpm: bosTpm,
+        rpd: requestsToday,
+        promptTokens: promptTokensToday,
+        completionTokens: completionTokensToday,
+        totalTokens: tokensToday,
+        requests: requestsToday,
+        estimatedCost: costToday,
+        cacheHits: cachedResponses,
+        cacheSavings: estimatedCostSavings,
+        lastUpdated: new Date().toISOString()
+      },
+      differences: {
+        requests: {
+          delta: deltaRequests,
+          reason: deltaRequests === cachedResponses
+            ? `${cachedResponses} responses served from semantic cache.`
+            : 'Telemetry mismatch'
+        },
+        promptTokens: {
+          delta: deltaPrompt,
+          reason: deltaPrompt === cachedPromptTokens
+            ? `${cachedPromptTokens} prompt tokens saved via semantic cache.`
+            : 'Telemetry mismatch'
+        },
+        completionTokens: {
+          delta: deltaCompletion,
+          reason: deltaCompletion === cachedCompletionTokens
+            ? `${cachedCompletionTokens} completion tokens saved via semantic cache.`
+            : 'Telemetry mismatch'
+        },
+        totalTokens: {
+          delta: deltaTotal,
+          reason: deltaTotal === cachedTotalTokens
+            ? `${cachedTotalTokens} total tokens saved via semantic cache.`
+            : 'Telemetry mismatch'
+        }
+      }
+    };
+
     return {
       overview: {
         activeProvider: 'Google Gemini',
@@ -1490,8 +1671,67 @@ export class AIOrchestrator {
         estimatedRemainingDailyRequests: Math.max(0, dailyQuotaLimit - requestsToday),
         quotaUtilisationPercentage: Math.round(Math.min(100, (requestsToday / dailyQuotaLimit) * 100)),
         source: 'businessos_estimate' as const
-      }
+      },
+      providerComparison,
+      telemetryAlert,
+      telemetryDiagnostics
     };
+  }
+
+  public static async raiseTelemetryAlert(
+    projectId: string, 
+    metric: string, 
+    errorDetails: string, 
+    token?: string
+  ): Promise<void> {
+    try {
+      const alertId = `alert_tel_${Date.now()}`;
+      const alertDoc = {
+        id: alertId,
+        priority: 'high',
+        category: 'system',
+        title: 'Telemetry Pipeline Failure',
+        message: `Expected telemetry write to succeed, but observed write failure. Expected: Telemetry Log. Observed: Write Blocked. Missing: ${metric}. Suspected Failure Point: Firestore Write Security Rules or Network Error. Details: ${errorDetails}`,
+        timestamp: new Date().toISOString(),
+        source: 'AI Orchestrator Telemetry Audit',
+        read: false,
+        expectedValue: 'Success (HTTP 200/201)',
+        observedValue: 'Failure',
+        missingMetric: metric,
+        suspectedFailurePoint: 'Firestore REST Write',
+        recommendedAction: 'Verify Bearer token validity and Firestore Security Rules for the aiTelemetry collection.'
+      };
+
+      const doc = { fields: {} as any };
+      for (const [k, v] of Object.entries(alertDoc)) {
+        doc.fields[k] = toFirestoreValue(v);
+      }
+      await firestoreFetch(projectId, 'system/telemetryAlerts', token, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+
+      const auditId = `audit_${Date.now()}`;
+      const auditDoc = {
+        id: auditId,
+        timestamp: new Date().toISOString(),
+        action: 'TELEMETRY_PIPELINE_FAILURE',
+        userId: 'system',
+        details: JSON.stringify(alertDoc)
+      };
+      const auditDocFields = { fields: {} as any };
+      for (const [k, v] of Object.entries(auditDoc)) {
+        auditDocFields.fields[k] = toFirestoreValue(v);
+      }
+      await firestoreFetch(projectId, `auditLog/${auditId}`, token, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(auditDocFields)
+      });
+    } catch (e) {
+      console.error('[AIOrchestrator] Failed to raise telemetry alert:', e);
+    }
   }
 }
 

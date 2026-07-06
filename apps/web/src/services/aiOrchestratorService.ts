@@ -114,6 +114,71 @@ export interface OrchestratorStats {
     dailyAnalytics?: Array<{ date: string; cost: number; requests: number; tokens: number; latency: number; failures: number; fallbacks: number; avgLatencyMs: number }>;
   };
   quota?: QuotaStats;
+  providerComparison?: {
+    google: {
+      rpm: number;
+      tpm: number;
+      rpd: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      requests: number;
+      quotaRemaining: number;
+      lastUpdated: string;
+    };
+    businessos: {
+      rpm: number;
+      tpm: number;
+      rpd: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      requests: number;
+      estimatedCost: number;
+      cacheHits: number;
+      cacheSavings: number;
+      lastUpdated: string;
+    };
+    differences: {
+      requests: { delta: number; reason: string };
+      promptTokens: { delta: number; reason: string };
+      completionTokens: { delta: number; reason: string };
+      totalTokens: { delta: number; reason: string };
+    };
+  };
+  telemetryAlert?: {
+    id: string;
+    priority: string;
+    category: string;
+    title: string;
+    message: string;
+    timestamp: string;
+    source: string;
+    read: boolean;
+    expectedValue?: string;
+    observedValue?: string;
+    missingMetric?: string;
+    suspectedFailurePoint?: string;
+    recommendedAction?: string;
+  } | null;
+  telemetryDiagnostics?: {
+    timestamp: string;
+    requestId: string;
+    stages: Array<{
+      name: string;
+      status: string;
+      time?: string;
+      executionTimeMs?: number;
+      details?: string;
+      latencyMs?: number;
+      attempts?: number;
+      error?: string;
+      promptTokens?: number;
+      completionTokens?: number;
+      source?: string;
+      docId?: string;
+    }>;
+  } | null;
 }
 
 export interface TelemetryRecord {

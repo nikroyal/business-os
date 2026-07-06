@@ -31,7 +31,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const { profile } = useAuth();
   const isOwner = profile?.role === 'OWNER';
 
-  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Usage' | 'Timeline' | 'Controls'>('Overview');
+  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
   const [config, setConfig] = useState<OrchestratorConfig>({ forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
@@ -327,6 +327,36 @@ export const AIOrchestratorDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Telemetry Failure Alert Banner */}
+      {stats?.telemetryAlert && (
+        <div style={{
+          backgroundColor: 'var(--color-danger-bg)',
+          border: '1px solid var(--color-danger-border)',
+          color: 'var(--color-danger-text)',
+          fontSize: '0.8rem',
+          padding: '1rem 1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+          fontFamily: 'var(--font-sans)',
+          borderRadius: '4px',
+          boxShadow: 'var(--shadow-subtle)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}>
+            <AlertCircle style={{ color: 'var(--color-danger-text)' }} />
+            <span>CRITICAL OPERATIONS ALERT: Telemetry Pipeline Failure Detected</span>
+          </div>
+          <div style={{ paddingLeft: '1.5rem', fontSize: '0.75rem', lineHeight: '1.4' }}>
+            <div><strong>Observed Error:</strong> {stats.telemetryAlert.message}</div>
+            <div style={{ marginTop: '0.25rem' }}><strong>Missing Metric:</strong> {stats.telemetryAlert.missingMetric || 'N/A'}</div>
+            <div><strong>Suspected Failure Point:</strong> {stats.telemetryAlert.suspectedFailurePoint || 'N/A'}</div>
+            <div style={{ marginTop: '0.25rem', color: 'var(--color-danger-text)', fontWeight: 500 }}>
+              <strong>Recommended Action:</strong> {stats.telemetryAlert.recommendedAction || 'N/A'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -358,7 +388,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Sub tabs */}
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto' }}>
-        {(['Overview', 'Registry', 'Usage', 'Timeline', 'Controls'] as const).map(tab => {
+        {(['Overview', 'Registry', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
           if (tab === 'Controls' && !isOwner) return null;
           const isTabActive = activeSubTab === tab;
           return (
@@ -763,21 +793,41 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Prompt Tokens Today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>{(overview?.promptTokensToday || 0).toLocaleString()}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Input to AI models</div>
+              <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.5rem', paddingTop: '0.4rem', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div><strong>Source:</strong> Provider (Gemini usageMetadata)</div>
+                <div><strong>Updated:</strong> Just now (10s poll)</div>
+                <div><strong>Confidence:</strong> {stats?.providerComparison?.google?.promptTokens ? '100% (Authoritative)' : '95% (Estimated)'}</div>
+              </div>
             </div>
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Completion Tokens Today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#a855f7', fontFamily: 'var(--font-mono)' }}>{(overview?.completionTokensToday || 0).toLocaleString()}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Output from AI models</div>
+              <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.5rem', paddingTop: '0.4rem', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div><strong>Source:</strong> Provider (Gemini usageMetadata)</div>
+                <div><strong>Updated:</strong> Just now (10s poll)</div>
+                <div><strong>Confidence:</strong> {stats?.providerComparison?.google?.completionTokens ? '100% (Authoritative)' : '95% (Estimated)'}</div>
+              </div>
             </div>
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cached Responses Today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-warning-text)', fontFamily: 'var(--font-mono)' }}>{overview?.cachedResponses || 0}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Cache hit rate: {overview?.cacheHitRate || 0}%</div>
+              <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.5rem', paddingTop: '0.4rem', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div><strong>Source:</strong> Cached (Semantic Cache)</div>
+                <div><strong>Updated:</strong> Just now (10s poll)</div>
+                <div><strong>Confidence:</strong> 100%</div>
+              </div>
             </div>
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Est. Cost Savings (Cache)</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Avoided via cached responses</div>
+              <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.5rem', paddingTop: '0.4rem', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div><strong>Source:</strong> Derived (BusinessOS Pricing)</div>
+                <div><strong>Updated:</strong> Just now (10s poll)</div>
+                <div><strong>Confidence:</strong> 100%</div>
+              </div>
             </div>
           </div>
 
@@ -939,6 +989,219 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subtab Content: Provider Comparison */}
+      {activeSubTab === 'Comparison' && stats && stats.providerComparison && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Layers size={18} style={{ color: 'var(--color-accent)' }} /> Provider vs BusinessOS Telemetry Reconciler
+            </h3>
+            <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              This reconciler compares upstream provider usage metrics directly against local BusinessOS telemetry records to verify billing accuracy, semantic cache hit savings, and identify any telemetry propagation pipeline failures.
+            </p>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #E2DACD', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '0.5rem' }}>Metric</th>
+                  <th style={{ padding: '0.5rem' }}>Google (Official)</th>
+                  <th style={{ padding: '0.5rem' }}>BusinessOS</th>
+                  <th style={{ padding: '0.5rem' }}>Difference</th>
+                  <th style={{ padding: '0.5rem' }}>Reconciliation Reason / Diagnostics</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const comp = stats.providerComparison;
+                  const rows = [
+                    {
+                      label: 'Requests (RPD)',
+                      google: comp.google.requests,
+                      bos: comp.businessos.requests,
+                      diff: comp.differences.requests.delta,
+                      reason: comp.differences.requests.reason,
+                      isMismatch: comp.differences.requests.reason === 'Telemetry mismatch'
+                    },
+                    {
+                      label: 'Prompt Tokens',
+                      google: comp.google.promptTokens,
+                      bos: comp.businessos.promptTokens,
+                      diff: comp.differences.promptTokens.delta,
+                      reason: comp.differences.promptTokens.reason,
+                      isMismatch: comp.differences.promptTokens.reason === 'Telemetry mismatch'
+                    },
+                    {
+                      label: 'Completion Tokens',
+                      google: comp.google.completionTokens,
+                      bos: comp.businessos.completionTokens,
+                      diff: comp.differences.completionTokens.delta,
+                      reason: comp.differences.completionTokens.reason,
+                      isMismatch: comp.differences.completionTokens.reason === 'Telemetry mismatch'
+                    },
+                    {
+                      label: 'Total Tokens',
+                      google: comp.google.totalTokens,
+                      bos: comp.businessos.totalTokens,
+                      diff: comp.differences.totalTokens.delta,
+                      reason: comp.differences.totalTokens.reason,
+                      isMismatch: comp.differences.totalTokens.reason === 'Telemetry mismatch'
+                    }
+                  ];
+
+                  return rows.map((row, idx) => {
+                    const diffSign = row.diff > 0 ? `+${row.diff.toLocaleString()}` : row.diff.toLocaleString();
+                    const rowBg = row.isMismatch ? 'rgba(239, 68, 68, 0.08)' : idx % 2 === 0 ? '#FAF8F5' : '#fff';
+                    const diffColor = row.isMismatch ? 'var(--color-danger-text)' : row.diff > 0 ? 'var(--color-success-text)' : 'var(--text-secondary)';
+
+                    return (
+                      <tr key={row.label} style={{ background: rowBg, borderBottom: '1px solid #E2DACD' }}>
+                        <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold' }}>{row.label}</td>
+                        <td style={{ padding: '0.75rem 0.5rem', fontFamily: 'var(--font-mono)' }}>{row.google.toLocaleString()}</td>
+                        <td style={{ padding: '0.75rem 0.5rem', fontFamily: 'var(--font-mono)' }}>{row.bos.toLocaleString()}</td>
+                        <td style={{ padding: '0.75rem 0.5rem', fontFamily: 'var(--font-mono)', color: diffColor, fontWeight: 'bold' }}>
+                          {row.isMismatch ? 'Telemetry Mismatch' : diffSign}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.5rem', color: row.isMismatch ? 'var(--color-danger-text)' : 'var(--text-secondary)', fontWeight: row.isMismatch ? 'bold' : 'normal' }}>
+                          {row.reason}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem', borderTop: '1px dashed #E2DACD', paddingTop: '1.25rem', fontSize: '0.7rem' }}>
+              <div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>GOOGLE OFFICIAL METADATA</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'var(--font-mono)' }}>
+                  <div>Official RPM Limit: 15 / min</div>
+                  <div>Official TPM Limit: 1,000,000 / min</div>
+                  <div>Official RPD Limit: 1,500 / day</div>
+                  <div>Remaining Daily Quota: {stats.providerComparison.google.quotaRemaining} requests</div>
+                  <div>Last Updated Upstream: {new Date(stats.providerComparison.google.lastUpdated).toLocaleString()}</div>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>BUSINESSOS TELEMETRY METADATA</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'var(--font-mono)' }}>
+                  <div>Calculated RPM: {stats.providerComparison.businessos.rpm} / min</div>
+                  <div>Calculated TPM: {stats.providerComparison.businessos.tpm} / min</div>
+                  <div>Calculated Daily Cost: ${stats.providerComparison.businessos.estimatedCost.toFixed(5)}</div>
+                  <div>Total Cache Hits Today: {stats.providerComparison.businessos.cacheHits}</div>
+                  <div>Total Cache Cost Savings: ${stats.providerComparison.businessos.cacheSavings.toFixed(5)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subtab Content: Telemetry Diagnostics */}
+      {activeSubTab === 'Diagnostics' && stats && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Zap size={18} style={{ color: 'var(--color-accent)' }} /> Telemetry Pipeline Diagnostics
+            </h3>
+            <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              Real-time audit trace displaying execution latency, status, documents written, and validation audits for every stage of the AI orchestrator telemetry pipeline.
+            </p>
+
+            {!stats.telemetryDiagnostics ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: '#FAF8F5', border: '1px dashed #E2DACD', fontSize: '0.75rem' }}>
+                No diagnostics telemetry recorded yet. Perform an AI prompt request to generate pipeline diagnostics.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: 'var(--text-muted)', borderBottom: '1px solid #FAF8F5', paddingBottom: '0.5rem' }}>
+                  <span><strong>Last Pipeline Trace:</strong> {new Date(stats.telemetryDiagnostics.timestamp).toLocaleString()}</span>
+                  <span><strong>Telemetry Document Ref:</strong> {stats.telemetryDiagnostics.requestId || 'N/A'}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', paddingLeft: '1.5rem' }}>
+                  {/* Vertical Timeline line */}
+                  <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: '#E2DACD' }} />
+
+                  {stats.telemetryDiagnostics.stages.map((stage, idx) => {
+                    const isFailed = stage.status === 'failed';
+                    const isFallback = stage.status === 'fallback';
+                    const dotColor = isFailed ? 'var(--color-danger-text)' : isFallback ? 'var(--color-warning-text)' : 'var(--color-success-text)';
+                    const dotBg = isFailed ? 'var(--color-danger-bg)' : isFallback ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
+                    const dotBorder = isFailed ? '1px solid var(--color-danger-border)' : isFallback ? '1px solid var(--color-warning-border)' : '1px solid var(--color-success-border)';
+
+                    return (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+                        {/* Timeline dot */}
+                        <div style={{
+                          position: 'absolute',
+                          left: '-24px',
+                          top: '2px',
+                          width: '14px',
+                          height: '14px',
+                          borderRadius: '50%',
+                          background: dotBg,
+                          border: dotBorder,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 2
+                        }}>
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: dotColor }} />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{stage.name}</span>
+                          <span style={{
+                            fontSize: '0.55rem',
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            textTransform: 'uppercase',
+                            fontFamily: 'var(--font-mono)',
+                            fontWeight: 'bold',
+                            background: dotBg,
+                            color: dotColor,
+                            border: dotBorder
+                          }}>
+                            {stage.status}
+                          </span>
+                          {stage.executionTimeMs !== undefined && (
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              ({stage.executionTimeMs}ms)
+                            </span>
+                          )}
+                          {stage.latencyMs !== undefined && (
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              (latency: {stage.latencyMs}ms)
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', paddingLeft: '2px' }}>
+                          {stage.details && <div>{stage.details}</div>}
+                          {stage.docId && <div><strong>Document Path:</strong> <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem' }}>{stage.docId}</code></div>}
+                          {stage.attempts !== undefined && <div><strong>Attempts:</strong> {stage.attempts}</div>}
+                          {(stage.promptTokens !== undefined || stage.completionTokens !== undefined) && (
+                            <div>
+                              <strong>Tokens:</strong> {stage.promptTokens || 0} prompt / {stage.completionTokens || 0} completion ({stage.source} source)
+                            </div>
+                          )}
+                          {stage.error && (
+                            <div style={{ color: 'var(--color-danger-text)', marginTop: '2px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', fontSize: '0.65rem' }}>
+                              Error: {stage.error}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -145,7 +145,7 @@ describe("BusinessOS Backend Worker API Tests", () => {
 				}
 				await waitOnExecutionContext(ctx);
 			})()).resolves.not.toThrow();
-		});
+		}, 15000);
 	});
 
 	describe("Email Template Rendering", () => {

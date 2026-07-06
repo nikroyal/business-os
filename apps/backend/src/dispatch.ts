@@ -2137,7 +2137,7 @@ export class FirestoreClient {
     }
     const res = await fetch(`${this.baseUrl}/users/${userId}/alerts/${alert.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
