@@ -531,25 +531,29 @@ export class AIOrchestrator {
     return 'UNKNOWN_PROVIDER_ERROR';
   }
 
-  public static async recordTelemetry(projectId: string, telemetry: any): Promise<void> {
+  public static async recordTelemetry(projectId: string, telemetry: any, token?: string): Promise<void> {
     try {
       const docId = `telemetry_${Date.now()}_${crypto.randomUUID()}`;
       const doc = { fields: {} as any };
       for (const [k, v] of Object.entries(telemetry)) {
         doc.fields[k] = toFirestoreValue(v);
       }
-      await fetch(firestoreUrl(projectId, `aiTelemetry/${docId}`), {
+      const res = await firestoreFetch(projectId, `aiTelemetry/${docId}`, token, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
-      this.updateTelemetrySummary(projectId, telemetry).catch(() => {});
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[AIOrchestrator] Telemetry write failed (HTTP ${res.status}): ${text}`);
+      }
+      this.updateTelemetrySummary(projectId, telemetry, token).catch(() => {});
     } catch (e) {
       console.error('[AIOrchestrator] Telemetry save failed:', e);
     }
   }
 
-  private static async updateTelemetrySummary(projectId: string, telemetry: any): Promise<void> {
+  private static async updateTelemetrySummary(projectId: string, telemetry: any, token?: string): Promise<void> {
     try {
       const dateStr = new Date(telemetry.timestamp || Date.now()).toISOString().split('T')[0];
       let summary: any = {
@@ -570,7 +574,7 @@ export class AIOrchestrator {
         userCost: {}
       };
 
-      const res = await firestoreFetch(projectId, `aiTelemetrySummary/${dateStr}`);
+      const res = await firestoreFetch(projectId, `aiTelemetrySummary/${dateStr}`, token);
       if (res.ok) {
         const raw = await res.json() as any;
         const existing = fromFirestoreDoc(raw);
@@ -605,11 +609,15 @@ export class AIOrchestrator {
       for (const [k, v] of Object.entries(summary)) {
         doc.fields[k] = toFirestoreValue(v);
       }
-      await firestoreFetch(projectId, `aiTelemetrySummary/${dateStr}`, undefined, {
+      const writeRes = await firestoreFetch(projectId, `aiTelemetrySummary/${dateStr}`, token, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
+      if (!writeRes.ok) {
+        const text = await writeRes.text();
+        console.error(`[AIOrchestrator] Summary update failed (HTTP ${writeRes.status}): ${text}`);
+      }
     } catch (e) {
       console.warn('[AIOrchestrator] Failed to update telemetry summary:', e);
     }
@@ -631,9 +639,9 @@ export class AIOrchestrator {
     return { models: {}, providers: {} };
   }
 
-  private static async updatePersistentStats(projectId: string, modelId: string, providerId: string, latencyMs: number, success: boolean, reason?: string): Promise<void> {
+  private static async updatePersistentStats(projectId: string, modelId: string, providerId: string, latencyMs: number, success: boolean, reason?: string, token?: string): Promise<void> {
     try {
-      const current = await this.getPersistentStats(projectId);
+      const current = await this.getPersistentStats(projectId, token);
       const m = current.models[modelId] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
       m.requests++;
       m.totalLatencyMs += latencyMs;
@@ -655,11 +663,15 @@ export class AIOrchestrator {
       current.providers[providerId] = p;
 
       const doc = { fields: { models: toFirestoreValue(current.models), providers: toFirestoreValue(current.providers) } };
-      await firestoreFetch(projectId, 'system/aiOrchestratorStats', undefined, {
+      const writeRes = await firestoreFetch(projectId, 'system/aiOrchestratorStats', token, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
+      if (!writeRes.ok) {
+        const text = await writeRes.text();
+        console.error(`[AIOrchestrator] Persistent stats update failed (HTTP ${writeRes.status}): ${text}`);
+      }
     } catch (e) {
       console.warn('[AIOrchestrator] Failed to update persistent stats:', e);
     }
@@ -692,30 +704,38 @@ export class AIOrchestrator {
     return localCooldownCache;
   }
 
-  private static async setPersistentCooldown(projectId: string, modelId: string, until: number): Promise<void> {
+  private static async setPersistentCooldown(projectId: string, modelId: string, until: number, token?: string): Promise<void> {
     localCooldownCache[modelId] = until;
     try {
       const doc = { fields: {} as any };
       for (const [k, v] of Object.entries(localCooldownCache)) {
         doc.fields[k] = toFirestoreValue(v);
       }
-      await fetch(firestoreUrl(projectId, 'system/aiOrchestratorCooldowns'), {
+      const res = await firestoreFetch(projectId, 'system/aiOrchestratorCooldowns', token, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
       });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[AIOrchestrator] Cooldown write failed (HTTP ${res.status}): ${text}`);
+      }
     } catch (e) {
       console.error('[AIOrchestrator] Cooldown write failed:', e);
     }
   }
 
-  public static async flushCooldowns(projectId: string): Promise<void> {
+  public static async flushCooldowns(projectId: string, token?: string): Promise<void> {
     localCooldownCache = {};
     localCooldownCacheExpiry = 0;
     try {
-      await fetch(firestoreUrl(projectId, 'system/aiOrchestratorCooldowns'), {
+      const res = await firestoreFetch(projectId, 'system/aiOrchestratorCooldowns', token, {
         method: 'DELETE'
       });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[AIOrchestrator] Flush cooldowns failed (HTTP ${res.status}): ${text}`);
+      }
     } catch (e) {
       console.error('[AIOrchestrator] Flush cooldowns failed:', e);
     }
@@ -783,12 +803,12 @@ export class AIOrchestrator {
     return false;
   }
 
-  public static async clearTelemetry(projectId: string): Promise<void> {
+  public static async clearTelemetry(projectId: string, token?: string): Promise<void> {
     try {
-      const telemetry = await this.getTelemetry(projectId);
+      const telemetry = await this.getTelemetry(projectId, token);
       await Promise.all(
         telemetry.map(record =>
-          fetch(firestoreUrl(projectId, `aiTelemetry/${record.id}`), {
+          firestoreFetch(projectId, `aiTelemetry/${record.id}`, token, {
             method: 'DELETE'
           })
         )
@@ -807,13 +827,14 @@ export class AIOrchestrator {
     projectId: string,
     apiKey: string,
     userId: string,
-    workspaceId = 'default'
+    workspaceId = 'default',
+    token?: string
   ): Promise<{ data: any; originalModel: string; actualModel: string; retries: number; fallbackUsed: boolean; errorReason?: string }> {
     const startTime = Date.now();
     let retriesCount = 0;
     
     // 1. Fetch system configs and checks
-    const config = await this.getOrchestratorConfig(projectId);
+    const config = await this.getOrchestratorConfig(projectId, token);
     const maintenanceMode = config?.maintenanceMode || false;
     if (maintenanceMode) {
       throw new Error('AIOrchestrator: System is currently undergoing scheduled maintenance. Please try again shortly.');
@@ -823,7 +844,7 @@ export class AIOrchestrator {
     const modelOverrides = config?.modelOverrides || {};
 
     // 2. Fetch shared persistent cooldown state
-    const persistentCooldowns = await this.getPersistentCooldowns(projectId);
+    const persistentCooldowns = await this.getPersistentCooldowns(projectId, token);
 
     // Build model objects mapping configurations
     const registryList = this.DEFAULT_MODELS.map(m => {
@@ -974,7 +995,7 @@ export class AIOrchestrator {
         provStats.success++;
         provStats.totalLatencyMs += modelLatency;
         providerLocalStats.set(model.provider, provStats);
-        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, true).catch(() => {});
+        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, true, undefined, token).catch(() => {});
         break;
       } else {
         modelStats.failure++;
@@ -984,14 +1005,14 @@ export class AIOrchestrator {
 
         provStats.failure++;
         providerLocalStats.set(model.provider, provStats);
-        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, false, lastErrorType).catch(() => {});
+        this.updatePersistentStats(projectId, model.id, model.provider, modelLatency, false, lastErrorType, token).catch(() => {});
 
         lastErrorType = this.classifyError(attemptStatus, attemptBody);
         lastErrorMsg = attemptBody;
 
         if (['MODEL_OVERLOADED', 'DAILY_QUOTA_EXCEEDED', 'RATE_LIMITED'].includes(lastErrorType)) {
           const cooldownExpiry = Date.now() + model.cooldownDurationMs;
-          await this.setPersistentCooldown(projectId, model.id, cooldownExpiry);
+          await this.setPersistentCooldown(projectId, model.id, cooldownExpiry, token);
         }
       }
     }
@@ -1030,7 +1051,7 @@ export class AIOrchestrator {
       tokenCountSource
     };
 
-    this.recordTelemetry(projectId, telemetry).catch((e: any) => console.error('[AIOrchestrator] Async telemetry save failed:', e));
+    this.recordTelemetry(projectId, telemetry, token).catch((e: any) => console.error('[AIOrchestrator] Async telemetry save failed:', e));
 
     if (!finalPayload) {
       throw new Error(`AIOrchestrator: Request failed. Error Class: ${lastErrorType} - ${lastErrorMsg}`);
@@ -1053,7 +1074,8 @@ export class AIOrchestrator {
     projectId: string,
     apiKey: string,
     userId: string,
-    workspaceId = 'default'
+    workspaceId = 'default',
+    token?: string
   ): Promise<any> {
     const { data, fallbackUsed, actualModel } = await this.execute(
       'Editorial Commentary',
@@ -1063,7 +1085,8 @@ export class AIOrchestrator {
       projectId,
       apiKey,
       userId,
-      workspaceId
+      workspaceId,
+      token
     );
 
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;

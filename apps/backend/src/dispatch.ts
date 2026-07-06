@@ -2564,11 +2564,13 @@ export class GeminiClient {
   private apiKey: string;
   private projectId: string;
   private userId: string;
+  private token?: string;
 
-  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system') {
+  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system', token?: string) {
     this.apiKey = apiKey;
     this.projectId = projectId;
     this.userId = userId;
+    this.token = token;
   }
 
   async generateContentWithFailover(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<{ data: any; fallbackUsed: boolean; actualModel: string }> {
@@ -2579,7 +2581,9 @@ export class GeminiClient {
       model,
       this.projectId,
       this.apiKey,
-      this.userId
+      this.userId,
+      'default',
+      this.token
     );
     return { data, fallbackUsed, actualModel };
   }
@@ -2591,7 +2595,9 @@ export class GeminiClient {
       model,
       this.projectId,
       this.apiKey,
-      this.userId
+      this.userId,
+      'default',
+      this.token
     );
   }
 }

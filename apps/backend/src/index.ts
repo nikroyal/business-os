@@ -657,10 +657,12 @@ app.post('/api/commentary/generate', async (c) => {
       return c.json({ error: 'Missing systemPrompt or userPrompt parameters' }, 400);
     }
 
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
     const modelName = AIModelRegistry.resolveModel(model, 'Editorial Commentary');
     const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
     const userId = c.get('userId') || 'system';
-    const gemini = new GeminiClient(apiKey, projectId, userId);
+    const gemini = new GeminiClient(apiKey, projectId, userId, token);
     const { data, fallbackUsed, actualModel } = await gemini.generateContentWithFailover(systemPrompt, userPrompt, modelName);
 
     // If fallback was used, surface the informational message by injecting it into candidate text
@@ -873,7 +875,7 @@ app.get('/api/intelligence/company', async (c) => {
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   const firestore = new FirestoreClient(projectId, token);
   const finnhub = new FinnhubClient(finnhubKey, projectId, token);
-  const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
+  const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system', token);
 
   try {
     const key = `${symbol.toUpperCase()}:${exchange.toUpperCase()}`;
@@ -916,7 +918,7 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
       const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
       const finnhub = new FinnhubClient(finnhubKey, projectId, token);
-      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
+      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system', token);
       intel = await IntelligenceService.generateCompanyIntelligence(ticker, ex, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
     }
@@ -1018,7 +1020,7 @@ app.get('/api/intelligence/business-school/case', async (c) => {
       const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
       const finnhub = new FinnhubClient(finnhubKey, projectId, token);
-      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system');
+      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system', token);
       intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
       await firestore.saveCompanyIntelligence(intel);
     }
@@ -1078,7 +1080,7 @@ app.get('/api/market-intelligence', async (c) => {
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   const firestore = new FirestoreClient(projectId, token);
   const finnhub = new FinnhubClient(finnhubKey || '', projectId, token);
-  const gemini = new GeminiClient(geminiKey || '', projectId, userId);
+  const gemini = new GeminiClient(geminiKey || '', projectId, userId, token);
 
   try {
     const timestamp = new Date().toISOString();
@@ -1641,7 +1643,7 @@ app.post('/api/market-data/compile-research', async (c) => {
 
     const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
     const userId = c.get('userId') || 'system';
-    const gemini = new GeminiClient(apiKey, projectId, userId);
+    const gemini = new GeminiClient(apiKey, projectId, userId, token);
     const result = await gemini.generateCommentary(systemPrompt, userPrompt);
 
     // Calculate alerts and trends on backend deterministically
@@ -2503,7 +2505,7 @@ CRITICAL INSTRUCTIONS:
     `;
 
     const resolvedModel = AIModelRegistry.resolveModel(modelCopilot || geminiModel, 'Copilot');
-    const gemini = new GeminiClient(geminiKey, projectId, userId || 'system');
+    const gemini = new GeminiClient(geminiKey, projectId, userId || 'system', token);
     const geminiResult = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
 
     // Cost Tier Indicator Calculation
@@ -3035,8 +3037,10 @@ app.post('/api/admin/ai-orchestrator/health-test', async (c) => {
 
 app.post('/api/admin/ai-orchestrator/flush-cooldowns', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    await AIOrchestrator.flushCooldowns(projectId);
+    await AIOrchestrator.flushCooldowns(projectId, token);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: 'Failed to flush cooldowns', details: err.message }, 500);
@@ -3045,8 +3049,10 @@ app.post('/api/admin/ai-orchestrator/flush-cooldowns', async (c) => {
 
 app.post('/api/admin/ai-orchestrator/clear-telemetry', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   try {
-    await AIOrchestrator.clearTelemetry(projectId);
+    await AIOrchestrator.clearTelemetry(projectId, token);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: 'Failed to clear telemetry', details: err.message }, 500);
