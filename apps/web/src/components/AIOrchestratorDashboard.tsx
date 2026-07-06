@@ -7,6 +7,9 @@ import type {
   OrchestratorConfig 
 } from '../services/aiOrchestratorService';
 import { FallbackPriorityEditor } from './FallbackPriorityEditor';
+import { MetricTooltip, SourceBadge } from './ai-ops/MetricTooltip';
+import { GlobalFilterBar, DEFAULT_FILTERS, filterTelemetryRecords, OpsFilterState } from './ai-ops/GlobalFilterBar';
+import { AIRequestInspectorModal } from './ai-ops/AIRequestInspectorModal';
 import { 
   Cpu, 
   AlertCircle, 
@@ -19,7 +22,12 @@ import {
   Layers,
   Download,
   AlertTriangle,
-  Zap
+  Zap,
+  Search,
+  Eye,
+  Filter,
+  ArrowRight,
+  ShieldAlert
 } from 'lucide-react';
 
 export const AIOrchestratorDashboard: React.FC = () => {
@@ -30,6 +38,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
   const [config, setConfig] = useState<OrchestratorConfig>({ forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
+  const [filters, setFilters] = useState<OpsFilterState>(DEFAULT_FILTERS);
+  const [selectedRequest, setSelectedRequest] = useState<TelemetryRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -220,11 +230,83 @@ export const AIOrchestratorDashboard: React.FC = () => {
     );
   }
 
-  const overview = stats?.overview;
-  const models = stats?.models || [];
+  const filteredTimeline = React.useMemo(() => filterTelemetryRecords(timeline, filters), [timeline, filters]);
+
+  const isFilterActive = filters.timeRange !== '30d' || filters.provider !== 'all' || filters.model !== 'all' || filters.user !== 'all' || filters.workspace !== 'all' || filters.feature !== 'all' || filters.status !== 'all' || filters.searchQuery !== '';
+
+  const activeStats = React.useMemo(() => {
+    if (!stats) return null;
+    if (!isFilterActive) return stats;
+
+    const featCost: Record<string, number> = {};
+    const wsCost: Record<string, number> = {};
+    const usrCost: Record<string, number> = {};
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let cachedCount = 0;
+    let totalCost = 0;
+    let costSavings = 0;
+    let totalFailovers = 0;
+    let totalRetries = 0;
+    let totalLatency = 0;
+
+    filteredTimeline.forEach(rec => {
+      promptTokens += rec.promptTokens || 0;
+      completionTokens += rec.completionTokens || 0;
+      totalCost += rec.estimatedCost || 0;
+      totalRetries += rec.retryCount || 0;
+      totalLatency += rec.latency || 0;
+      if (rec.cachedResponse) {
+        cachedCount++;
+        costSavings += (rec.estimatedCost || 0.001);
+      }
+      if (rec.fallbackModel && rec.fallbackModel !== rec.selectedModel) {
+        totalFailovers++;
+      }
+      if (rec.feature) featCost[rec.feature] = (featCost[rec.feature] || 0) + (rec.estimatedCost || 0);
+      if (rec.workspace) wsCost[rec.workspace] = (wsCost[rec.workspace] || 0) + (rec.estimatedCost || 0);
+      if (rec.user) usrCost[rec.user] = (usrCost[rec.user] || 0) + (rec.estimatedCost || 0);
+    });
+
+    const reqCount = filteredTimeline.length;
+    const cacheHitRate = reqCount > 0 ? Math.round((cachedCount / reqCount) * 100) : 0;
+    const avgLatency = reqCount > 0 ? Math.round(totalLatency / reqCount) : 0;
+
+    return {
+      ...stats,
+      overview: {
+        ...stats.overview,
+        requestsToday: reqCount,
+        tokensToday: promptTokens + completionTokens,
+        promptTokensToday: promptTokens,
+        completionTokensToday: completionTokens,
+        cachedResponses: cachedCount,
+        cacheHitRate,
+        estimatedCostSavings: costSavings,
+        estimatedDailyCost: totalCost,
+        totalFailovers,
+        totalRetries,
+        averageLatencyMs: avgLatency
+      },
+      breakdowns: {
+        ...stats.breakdowns,
+        featureCost: featCost,
+        workspaceCost: wsCost,
+        userCost: usrCost
+      }
+    };
+  }, [stats, filteredTimeline, isFilterActive]);
+
+  const overview = activeStats?.overview;
+  const models = activeStats?.models || [];
   const activeForced = models.find(m => m.isForced);
   const primaryModel = activeForced ? activeForced : models.find(m => m.enabled && m.cooldownRemaining === 0);
   const fallbackChain = models.filter(m => m.enabled && m.id !== primaryModel?.id);
+
+  const handleDrillDown = (field: keyof OpsFilterState, value: string) => {
+    setFilters({ ...filters, [field]: value });
+    setActiveSubTab('Timeline');
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', color: 'var(--text-primary)' }}>
@@ -305,6 +387,15 @@ export const AIOrchestratorDashboard: React.FC = () => {
           );
         })}
       </div>
+
+      <GlobalFilterBar
+        filters={filters}
+        onFilterChange={setFilters}
+        timeline={timeline}
+        filteredCount={filteredTimeline.length}
+        totalCount={timeline.length}
+        availableModels={models.map(m => ({ id: m.id, displayName: m.displayName }))}
+      />
 
       {/* Subtab Content: Overview */}
       {activeSubTab === 'Overview' && overview && (
@@ -427,18 +518,21 @@ export const AIOrchestratorDashboard: React.FC = () => {
             return (
               <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Daily Requests:</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Estimated Quota Limits</h3>
+                    <SourceBadge source="estimated" lastUpdated={stats.timestamp} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="RPD">Daily Requests (RPD):</MetricTooltip></span>
                       <strong style={{ color: 'var(--text-primary)' }}>{overview.requestsToday} / {overview.dailyQuotaLimit?.toLocaleString() || '1,500'}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>RPM Average:</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="RPM">RPM Average:</MetricTooltip></span>
                       <strong style={{ color: 'var(--text-primary)' }}>{qStats.requestsPerMinute} reqs / min</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Tokens Ingested Today:</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}><MetricTooltip metricKey="TPM">Tokens Ingested Today:</MetricTooltip></span>
                       <strong style={{ color: 'var(--text-primary)' }}>{overview.tokensToday.toLocaleString()} tokens</strong>
                     </div>
                     <div style={{ fontSize: '0.65rem', color: 'var(--color-warning-text)', fontStyle: 'italic', marginTop: '0.25rem' }}>
@@ -700,7 +794,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   return Object.entries(stats?.breakdowns?.featureCost || {}).map(([feat, cost]) => {
                     const pct = total > 0 ? ((cost / total) * 100).toFixed(1) : '0';
                     return (
-                      <div key={feat} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                      <div 
+                        key={feat} 
+                        onClick={() => handleDrillDown('feature', feat)}
+                        title="Click to drill down into timeline logs for this feature"
+                        style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem', cursor: 'pointer', transition: 'background 0.15s' }}
+                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{feat}</span>
                           <span style={{ fontFamily: 'var(--font-mono)' }}>
@@ -731,7 +830,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   return Object.entries(stats?.breakdowns?.workspaceCost || {}).map(([ws, cost]) => {
                     const pct = total > 0 ? ((cost / total) * 100).toFixed(1) : '0';
                     return (
-                      <div key={ws} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                      <div 
+                        key={ws} 
+                        onClick={() => handleDrillDown('workspace', ws)}
+                        title="Click to drill down into timeline logs for this workspace"
+                        style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem', cursor: 'pointer', transition: 'background 0.15s' }}
+                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: 'var(--text-secondary)', fontWeight: 500, wordBreak: 'break-all' }}>{ws}</span>
                           <span style={{ fontFamily: 'var(--font-mono)' }}>
@@ -763,7 +867,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   return entries.slice(0, 10).map(([usr, cost], idx) => {
                     const pct = total > 0 ? ((cost / total) * 100).toFixed(1) : '0';
                     return (
-                      <div key={usr} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
+                      <div 
+                        key={usr} 
+                        onClick={() => handleDrillDown('user', usr)}
+                        title="Click to drill down into timeline logs for this user"
+                        style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem', cursor: 'pointer', transition: 'background 0.15s' }}
+                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: 'var(--text-secondary)', fontWeight: 500, wordBreak: 'break-all' }}>
                             <strong style={{ color: 'var(--text-primary)', marginRight: '4px' }}>#{idx + 1}</strong>
@@ -850,7 +959,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
             </button>
           </div>
           
-          {timeline.length > 0 ? (
+          {filteredTimeline.length > 0 ? (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
                 <thead>
@@ -865,11 +974,17 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Latency</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Cost</th>
                     <th style={{ padding: '0.4rem 0.25rem', textAlign: 'right' }}>Status</th>
+                    <th style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {timeline.map(record => (
-                    <tr key={record.id} style={{ borderBottom: '1px solid #E2DACD' }}>
+                  {filteredTimeline.map(record => (
+                    <tr 
+                      key={record.id} 
+                      onClick={() => setSelectedRequest(record)}
+                      style={{ borderBottom: '1px solid #E2DACD', cursor: 'pointer', transition: 'background 0.15s' }}
+                      title="Click to launch AI Request Inspector (DevTools view)"
+                    >
                       <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{new Date(record.timestamp).toLocaleTimeString()}</td>
                       <td style={{ padding: '0.5rem 0.25rem', fontWeight: 'bold' }}>{record.feature}</td>
                       <td style={{ padding: '0.5rem 0.25rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{(record.user || '').substring(0, 8)}...</td>
@@ -914,13 +1029,33 @@ export const AIOrchestratorDashboard: React.FC = () => {
                           </span>
                         )}
                       </td>
+                      <td style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedRequest(record); }}
+                          style={{
+                            background: '#FAF8F5',
+                            border: '1px solid #C4B9A7',
+                            color: 'var(--color-primary)',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '0.65rem',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                        >
+                          <Eye size={11} /> Inspect
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No telemetry has been recorded yet.</div>
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No telemetry events match active filter criteria.</div>
           )}
         </div>
       )}
@@ -1022,6 +1157,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
         </div>
       )}
 
+      <AIRequestInspectorModal
+        record={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+      />
     </div>
   );
 };
