@@ -35,6 +35,11 @@ export interface ModelMetadata {
   enabled: boolean;
   inputCostPer1M: number;
   outputCostPer1M: number;
+  fallbackEnabled: boolean;
+  contextWindow: number;
+  maxOutput: number;
+  supportsImageOutput: boolean;
+  supportsVideo: boolean;
 }
 
 // Provider Adapter Interface
@@ -229,11 +234,16 @@ export class AIOrchestrator {
       cooldownDurationMs: 300000, // 5 minutes
       enabled: true,
       inputCostPer1M: 0.075,
-      outputCostPer1M: 0.30
+      outputCostPer1M: 0.30,
+      fallbackEnabled: true,
+      contextWindow: 1048576,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
     },
     {
       id: 'gemini-3.1-pro-preview',
-      displayName: 'Gemini 3.1 Pro (Preview)',
+      displayName: 'Gemini 3.1 Pro',
       category: 'Pro',
       priority: 2,
       capabilityScore: 98,
@@ -254,7 +264,12 @@ export class AIOrchestrator {
       cooldownDurationMs: 300000,
       enabled: true,
       inputCostPer1M: 1.25,
-      outputCostPer1M: 5.00
+      outputCostPer1M: 5.00,
+      fallbackEnabled: true,
+      contextWindow: 2097152,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
     },
     {
       id: 'gemini-2.5-pro',
@@ -279,7 +294,12 @@ export class AIOrchestrator {
       cooldownDurationMs: 180000,
       enabled: true,
       inputCostPer1M: 1.25,
-      outputCostPer1M: 5.00
+      outputCostPer1M: 5.00,
+      fallbackEnabled: true,
+      contextWindow: 2097152,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
     },
     {
       id: 'gemini-2.5-flash',
@@ -304,13 +324,78 @@ export class AIOrchestrator {
       cooldownDurationMs: 120000,
       enabled: true,
       inputCostPer1M: 0.075,
-      outputCostPer1M: 0.30
+      outputCostPer1M: 0.30,
+      fallbackEnabled: true,
+      contextWindow: 1048576,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
+    },
+    {
+      id: 'gemini-3.1-flash-lite',
+      displayName: 'Gemini 3.1 Flash Lite',
+      category: 'Flash',
+      priority: 5,
+      capabilityScore: 85,
+      reasoningScore: 80,
+      speedScore: 98,
+      stabilityScore: 96,
+      status: 'production',
+      provider: 'google',
+      supportsGrounding: true,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: true,
+      supportsTools: true,
+      defaultTimeoutMs: 12000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.0375,
+      outputCostPer1M: 0.15,
+      fallbackEnabled: true,
+      contextWindow: 1048576,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
+    },
+    {
+      id: 'gemini-2.5-flash-lite',
+      displayName: 'Gemini 2.5 Flash Lite',
+      category: 'Flash',
+      priority: 6,
+      capabilityScore: 82,
+      reasoningScore: 78,
+      speedScore: 98,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'google',
+      supportsGrounding: true,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: true,
+      supportsTools: true,
+      defaultTimeoutMs: 12000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.0375,
+      outputCostPer1M: 0.15,
+      fallbackEnabled: true,
+      contextWindow: 1048576,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
     },
     {
       id: 'gemini-flash-latest',
       displayName: 'Gemini Flash (Latest Alias)',
       category: 'Flash',
-      priority: 5,
+      priority: 7,
       capabilityScore: 90,
       reasoningScore: 85,
       speedScore: 90,
@@ -329,13 +414,18 @@ export class AIOrchestrator {
       cooldownDurationMs: 120000,
       enabled: true,
       inputCostPer1M: 0.075,
-      outputCostPer1M: 0.30
+      outputCostPer1M: 0.30,
+      fallbackEnabled: true,
+      contextWindow: 1048576,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
     },
     {
       id: 'gemini-pro-latest',
       displayName: 'Gemini Pro (Latest Alias)',
       category: 'Pro',
-      priority: 6,
+      priority: 8,
       capabilityScore: 93,
       reasoningScore: 93,
       speedScore: 72,
@@ -354,7 +444,12 @@ export class AIOrchestrator {
       cooldownDurationMs: 180000,
       enabled: true,
       inputCostPer1M: 1.25,
-      outputCostPer1M: 5.00
+      outputCostPer1M: 5.00,
+      fallbackEnabled: true,
+      contextWindow: 2097152,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: true
     }
   ];
 
@@ -762,7 +857,20 @@ export class AIOrchestrator {
 
     // Filter and sort healthy active models
     const activeModels = registryList.filter(m => m.enabled);
-    const sortedFallbackChain = [...activeModels].sort((a, b) => a.priority - b.priority);
+    const reqModelObj = activeModels.find(m => m.id === requestedModel);
+    const isFlashTask = reqModelObj ? reqModelObj.category === 'Flash' : (taskType !== 'deep_research' && taskType !== 'report_generation' && taskType !== 'company_analysis');
+    const customOrder: string[] | undefined = isFlashTask ? config?.flashFallbackOrder : config?.proFallbackOrder;
+
+    const sortedFallbackChain = [...activeModels].sort((a, b) => {
+      if (customOrder && Array.isArray(customOrder)) {
+        const idxA = customOrder.indexOf(a.id);
+        const idxB = customOrder.indexOf(b.id);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+      }
+      return a.priority - b.priority;
+    });
 
     const chain: typeof sortedFallbackChain = [];
     const isCooldowned = (id: string) => {
@@ -770,7 +878,6 @@ export class AIOrchestrator {
       return Date.now() < until;
     };
 
-    const reqModelObj = activeModels.find(m => m.id === requestedModel);
     if (reqModelObj && !isCooldowned(requestedModel)) {
       chain.push(reqModelObj);
     }
@@ -1077,6 +1184,11 @@ export class AIOrchestrator {
     const featureCost: Record<string, number> = {};
     const workspaceCost: Record<string, number> = {};
     const userCost: Record<string, number> = {};
+    const featureByModel: Record<string, Record<string, { requests: number; tokens: number; cost: number }>> = {};
+    const userMap: Record<string, { requests: number; tokens: number; cost: number; totalLatencyMs: number; failures: number; fallbacks: number; modelCounts: Record<string, number> }> = {};
+    const modelTodayStats: Record<string, { requests: number; tokens: number; cost: number; retries: number; fallbacks: number }> = {};
+    const dailyAnalyticsMap: Record<string, { date: string; cost: number; requests: number; tokens: number; latency: number; failures: number; fallbacks: number }> = {};
+    const costByModel: Record<string, number> = {};
 
     for (const record of telemetry) {
       const recTime = new Date(record.timestamp).getTime();
@@ -1108,6 +1220,45 @@ export class AIOrchestrator {
 
       const usr = record.user || 'Unknown';
       userCost[usr] = (userCost[usr] || 0) + (record.estimatedCost || 0);
+
+      const modelId = record.selectedModel || 'gemini-3.5-flash';
+      costByModel[modelId] = (costByModel[modelId] || 0) + (record.estimatedCost || 0);
+
+      if (!featureByModel[modelId]) featureByModel[modelId] = {};
+      if (!featureByModel[modelId][feat]) featureByModel[modelId][feat] = { requests: 0, tokens: 0, cost: 0 };
+      featureByModel[modelId][feat].requests++;
+      featureByModel[modelId][feat].tokens += (record.totalTokens || 0);
+      featureByModel[modelId][feat].cost += (record.estimatedCost || 0);
+
+      if (!userMap[usr]) userMap[usr] = { requests: 0, tokens: 0, cost: 0, totalLatencyMs: 0, failures: 0, fallbacks: 0, modelCounts: {} };
+      userMap[usr].requests++;
+      userMap[usr].tokens += (record.totalTokens || 0);
+      userMap[usr].cost += (record.estimatedCost || 0);
+      userMap[usr].totalLatencyMs += (record.latency || 0);
+      if (!record.success) userMap[usr].failures++;
+      if (record.fallbackModel && record.fallbackModel !== '') userMap[usr].fallbacks++;
+      userMap[usr].modelCounts[modelId] = (userMap[usr].modelCounts[modelId] || 0) + 1;
+
+      if (isToday) {
+        if (!modelTodayStats[modelId]) modelTodayStats[modelId] = { requests: 0, tokens: 0, cost: 0, retries: 0, fallbacks: 0 };
+        modelTodayStats[modelId].requests++;
+        modelTodayStats[modelId].tokens += (record.totalTokens || 0);
+        modelTodayStats[modelId].cost += (record.estimatedCost || 0);
+        modelTodayStats[modelId].retries += (record.retryCount || 0);
+        if (record.fallbackModel && record.fallbackModel !== '') modelTodayStats[modelId].fallbacks++;
+      }
+
+      const dateStr = (record.timestamp || new Date().toISOString()).split('T')[0];
+      if (!dailyAnalyticsMap[dateStr]) {
+        dailyAnalyticsMap[dateStr] = { date: dateStr, cost: 0, requests: 0, tokens: 0, latency: 0, failures: 0, fallbacks: 0 };
+      }
+      const d = dailyAnalyticsMap[dateStr];
+      d.requests++;
+      d.cost += (record.estimatedCost || 0);
+      d.tokens += (record.totalTokens || 0);
+      d.latency += (record.latency || 0);
+      if (!record.success) d.failures++;
+      if (record.fallbackModel && record.fallbackModel !== '') d.fallbacks++;
     }
 
     try {
@@ -1137,7 +1288,6 @@ export class AIOrchestrator {
     }
 
     const cacheHitRate = requestsToday > 0 ? Math.round((cachedResponses / requestsToday) * 100) : 0;
-    // Cost savings: assume a cached response would have cost the average non-cached cost
     const avgNonCachedCost = (requestsToday - cachedResponses) > 0
       ? costToday / (requestsToday - cachedResponses)
       : 0;
@@ -1147,7 +1297,6 @@ export class AIOrchestrator {
     const overallSuccessRate = totalRequests > 0 ? (successCount / totalRequests) * 100 : 100;
     const avgLatency = successCount > 0 ? totalLatencyMs / successCount : 0;
 
-    // Provider Aggregates
     const localGoogleProv = providerLocalStats.get('google') || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
     const persistGoogleProv = persistentStats.providers['google'] || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
     const googleProvStats = {
@@ -1167,7 +1316,6 @@ export class AIOrchestrator {
       averageLatencyMs: Math.round(googleLatency)
     };
 
-    // Models Aggregates
     const models = this.DEFAULT_MODELS.map(m => {
       const override = modelOverrides[m.id];
       const localStats = modelLocalStats.get(m.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0, lastSuccess: '', lastFailure: '', lastFailureReason: '' };
@@ -1187,6 +1335,22 @@ export class AIOrchestrator {
       const successRate = stats.requests > 0 ? (stats.success / stats.requests) * 100 : 100;
       const avgModelLatency = stats.success > 0 ? stats.totalLatencyMs / stats.requests : 0;
 
+      const today = modelTodayStats[m.id] || { requests: 0, tokens: 0, cost: 0, retries: 0, fallbacks: 0 };
+      const rpmUsage = Math.round((today.requests / 1440) * 10) / 10;
+      const tpmUsage = Math.round(today.tokens / 1440);
+      const rpdUsage = today.requests;
+      const rpmLimit = m.category === 'Flash' ? 15 : 2;
+      const tpmLimit = m.category === 'Flash' ? 1000000 : 32000;
+      const rpdLimit = m.category === 'Flash' ? 1500 : 50;
+      const quotaRemaining = Math.max(0, rpdLimit - rpdUsage);
+      const currentHealth = cooldownRemaining > 0
+        ? `Cooldown (${Math.ceil(cooldownRemaining / 1000)}s)`
+        : successRate < 80
+        ? 'Rate Limited'
+        : successRate < 95
+        ? 'High Demand'
+        : 'Operational';
+
       return {
         ...m,
         enabled: override && override.enabled !== undefined ? override.enabled : m.enabled,
@@ -1202,15 +1366,66 @@ export class AIOrchestrator {
           successRate: Math.round(successRate),
           lastSuccess: stats.lastSuccess || '',
           lastFailure: stats.lastFailure || '',
-          lastFailureReason: stats.lastFailureReason || ''
+          lastFailureReason: stats.lastFailureReason || '',
+          todayRequests: today.requests,
+          todayTokens: today.tokens,
+          todayCost: today.cost,
+          retriesCount: today.retries,
+          fallbackCount: today.fallbacks,
+          cooldownCount: cooldownRemaining > 0 ? 1 : 0,
+          rpmUsage,
+          rpmLimit,
+          tpmUsage,
+          tpmLimit,
+          rpdUsage,
+          rpdLimit,
+          quotaRemaining,
+          quotaReset: 'Midnight UTC',
+          currentHealth
         }
       };
     });
 
+    const userBreakdown = Object.entries(userMap).map(([u, d]) => {
+      let favModel = 'None';
+      let maxC = -1;
+      for (const [mid, cnt] of Object.entries(d.modelCounts)) {
+        if (cnt > maxC) {
+          maxC = cnt;
+          favModel = mid;
+        }
+      }
+      return {
+        user: u,
+        requests: d.requests,
+        tokens: d.tokens,
+        cost: d.cost,
+        avgLatencyMs: d.requests > 0 ? Math.round(d.totalLatencyMs / d.requests) : 0,
+        failures: d.failures,
+        fallbacks: d.fallbacks,
+        favouriteModel: favModel
+      };
+    });
+
+    const dailyAnalytics = Object.values(dailyAnalyticsMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({
+        ...d,
+        avgLatencyMs: d.requests > 0 ? Math.round(d.latency / d.requests) : 0
+      }));
+
+    const costAnalytics = {
+      today: costToday,
+      thisWeek: dailyAnalytics.slice(-7).reduce((acc, d) => acc + d.cost, 0),
+      thisMonth: dailyAnalytics.slice(-30).reduce((acc, d) => acc + d.cost, 0),
+      projectedMonth: (costToday > 0 ? costToday * 30 : dailyAnalytics.reduce((acc, d) => acc + d.cost, 0)),
+      projectedYear: (costToday > 0 ? costToday * 365 : dailyAnalytics.reduce((acc, d) => acc + d.cost, 0) * 12),
+      byModel: costByModel,
+      byDay: dailyAnalytics
+    };
+
     const requestsPerMinute = requestsToday / 1440;
     const tokensPerMinute = tokensToday / 1440;
-
-    // Daily quota limit — configurable from Developer Console; defaults to 1500 (free tier)
     const dailyQuotaLimit: number = config?.dailyQuotaLimit || 1500;
 
     return {
@@ -1240,14 +1455,17 @@ export class AIOrchestrator {
       breakdowns: {
         featureCost,
         workspaceCost,
-        userCost
+        userCost,
+        featureByModel,
+        userBreakdown,
+        costAnalytics,
+        dailyAnalytics
       },
       quota: {
         requestsPerMinute: Math.round(requestsPerMinute * 10) / 10,
         tokensPerMinute: Math.round(tokensPerMinute),
         estimatedRemainingDailyRequests: Math.max(0, dailyQuotaLimit - requestsToday),
         quotaUtilisationPercentage: Math.round(Math.min(100, (requestsToday / dailyQuotaLimit) * 100)),
-        // Clearly mark this as BusinessOS-estimated, not provider-reported
         source: 'businessos_estimate' as const
       }
     };

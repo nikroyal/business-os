@@ -6,6 +6,7 @@ import type {
   TelemetryRecord, 
   OrchestratorConfig 
 } from '../services/aiOrchestratorService';
+import { FallbackPriorityEditor } from './FallbackPriorityEditor';
 import { 
   Cpu, 
   AlertCircle, 
@@ -114,6 +115,21 @@ export const AIOrchestratorDashboard: React.FC = () => {
       alert(`Save error: ${e.message || e}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveEditorConfig = async (newConfig: OrchestratorConfig): Promise<boolean> => {
+    if (!isOwner) return false;
+    try {
+      const ok = await aiOrchestratorService.saveConfig(newConfig);
+      if (ok) {
+        setConfig(newConfig);
+        loadData(true);
+      }
+      return ok;
+    } catch (e: any) {
+      console.error('Save editor config error:', e);
+      throw e;
     }
   };
 
@@ -448,6 +464,14 @@ export const AIOrchestratorDashboard: React.FC = () => {
       {/* Subtab Content: Registry */}
       {activeSubTab === 'Registry' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <FallbackPriorityEditor
+            models={models}
+            config={config}
+            isOwner={isOwner}
+            onSaveConfig={handleSaveEditorConfig}
+            onUpdateConfig={setConfig}
+          />
+
           {isOwner && (
             <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'var(--shadow-subtle)' }}>
               <div>
@@ -475,13 +499,19 @@ export const AIOrchestratorDashboard: React.FC = () => {
           )}
 
           <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', overflowX: 'auto', boxShadow: 'var(--shadow-subtle)' }}>
+            <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'bold' }}>
+              Complete AI Model Registry & Operational Metrics
+            </h4>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
                   <th style={{ padding: '0.5rem 0.25rem' }}>Model Details</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Priority</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Current runtime priority in chain">Priority</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Provider</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>C / R / S Scores</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Input Context Window and Maximum Output Tokens">Context / Max Out</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Supported Model Capabilities">Capabilities</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Estimated Cost per 1 Million Input/Output Tokens">Pricing ($/1M)</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Capability / Reasoning / Speed Scores">C / R / S Scores</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Status</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Success / Failure Rate</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'right' }}>Cooldown</th>
@@ -491,8 +521,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </thead>
               <tbody>
                 {models.map(model => {
-                  const mConfig = config.modelOverrides[model.id] || {};
-                  const isModelEnabled = mConfig.enabled !== undefined ? mConfig.enabled : model.enabled;
+                  const mConfig = config.modelOverrides?.[model.id] || {};
+                  const isModelEnabled = mConfig.enabled !== undefined ? mConfig.enabled : (model.enabled !== undefined ? model.enabled : true);
                   const currentPriority = mConfig.priority !== undefined ? mConfig.priority : model.priority;
 
                   return (
@@ -530,6 +560,23 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <span style={{ fontSize: '0.65rem', border: '1px solid #C4B9A7', background: '#FCFAF6', padding: '1px 6px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{model.provider}</span>
+                      </td>
+                      <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                        <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{(model.contextWindow || 1048576) >= 1000000 ? `${((model.contextWindow || 1048576)/1000000).toFixed(1).replace('.0', '')}M` : `${((model.contextWindow || 1048576)/1000).toFixed(0)}K`}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Max: {((model.maxOutput || 8192)/1000).toFixed(0)}K</div>
+                      </td>
+                      <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'center', maxWidth: '140px', margin: '0 auto' }}>
+                          {model.supportsGrounding && <span title="Supports Grounding with Google Search" style={{ fontSize: '0.55rem', background: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '3px', border: '1px solid #bae6fd' }}>Ground</span>}
+                          {model.supportsVision && <span title="Supports Vision / Image Input" style={{ fontSize: '0.55rem', background: '#f0fdf4', color: '#15803d', padding: '1px 4px', borderRadius: '3px', border: '1px solid #bbf7d0' }}>Vision</span>}
+                          {model.supportsAudio && <span title="Supports Audio Input" style={{ fontSize: '0.55rem', background: '#fef3c7', color: '#b45309', padding: '1px 4px', borderRadius: '3px', border: '1px solid #fde68a' }}>Audio</span>}
+                          {model.supportsVideo && <span title="Supports Video Input" style={{ fontSize: '0.55rem', background: '#f3e8ff', color: '#6b21a8', padding: '1px 4px', borderRadius: '3px', border: '1px solid #e9d5ff' }}>Video</span>}
+                          {model.supportsTools && <span title="Supports Tools / Function Calling" style={{ fontSize: '0.55rem', background: '#fce7f3', color: '#be185d', padding: '1px 4px', borderRadius: '3px', border: '1px solid #fbcfe8' }}>Tools</span>}
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                        <div style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>${(model.inputCostPer1M !== undefined ? model.inputCostPer1M : 0.075).toFixed(3)}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Out: ${(model.outputCostPer1M !== undefined ? model.outputCostPer1M : 0.30).toFixed(2)}</div>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <span style={{ color: '#06b6d4' }}>{model.capabilityScore}</span>
