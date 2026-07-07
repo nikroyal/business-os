@@ -40,6 +40,14 @@ export interface ModelMetadata {
   maxOutput: number;
   supportsImageOutput: boolean;
   supportsVideo: boolean;
+  /** Requests Per Minute limit (from provider quota registry) */
+  rpmLimit?: number;
+  /** Tokens Per Minute limit */
+  tpmLimit?: number;
+  /** Requests Per Day limit */
+  rpdLimit?: number;
+  /** Availability tier (Free, Pay-as-you-go, Enterprise, Reserved) */
+  availabilityTier?: string;
 }
 
 // Provider Adapter Interface
@@ -1673,7 +1681,7 @@ export class AIOrchestrator {
       const avgModelLatency = stats.success > 0 ? stats.totalLatencyMs / stats.requests : 0;
 
       const today = modelTodayStats[m.id] || { requests: 0, tokens: 0, cost: 0, retries: 0, fallbacks: 0 };
-      const quotaRemaining = Math.max(0, m.rpdLimit - today.requests);
+      const quotaRemaining = Math.max(0, (m.rpdLimit ?? 0) - today.requests);
 
       const latencies = modelLatencies[m.id] || [];
       const percentiles = calculatePercentiles(latencies);

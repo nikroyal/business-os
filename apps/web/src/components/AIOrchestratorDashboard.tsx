@@ -4,11 +4,12 @@ import { aiOrchestratorService } from '../services/aiOrchestratorService';
 import type { 
   OrchestratorStats, 
   TelemetryRecord, 
-  OrchestratorConfig 
+  OrchestratorConfig,
+  ModelReliabilityStats,
+  LatencyPercentiles
 } from '../services/aiOrchestratorService';
 import { PROVIDER_QUOTA_REGISTRY, getModelQuota } from '../services/providerQuotaRegistry';
 import { FallbackPriorityEditor } from './FallbackPriorityEditor';
-import { MetricTooltip, SourceBadge } from './ai-ops/MetricTooltip';
 import { GlobalFilterBar, DEFAULT_FILTERS, filterTelemetryRecords } from './ai-ops/GlobalFilterBar';
 import type { OpsFilterState } from './ai-ops/GlobalFilterBar';
 import { AIRequestInspectorModal } from './ai-ops/AIRequestInspectorModal';
@@ -288,10 +289,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
     );
   }
 
-  if (loading && !stats) {
+  if (!stats) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: '#888', fontFamily: 'var(--font-mono)' }}>
-        <RefreshCw size={24} className="spin-animation" style={{ marginBottom: '1rem' }} />
+        <RefreshCw size={24} className={loading ? "spin-animation" : ""} style={{ marginBottom: '1rem' }} />
         <div>Connecting to AI Orchestrator nodes...</div>
       </div>
     );
@@ -1393,8 +1394,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
             {models.map(model => {
-              const rel = model.stats?.reliability || { consecutiveFailures: 0, code429: 0, code500: 0, code503: 0, failovers: 0 };
-              const pct = model.stats?.percentiles || { p50: 0, p95: 0, p99: 0 };
+              const rel = (model.stats?.reliability || { consecutiveFailures: 0, code429: 0, code500: 0, code503: 0, failovers: 0 }) as ModelReliabilityStats;
+              const pct = (model.stats?.percentiles || { p50: 0, p95: 0, p99: 0, median: 0 }) as LatencyPercentiles;
               const roll = model.stats?.rolling || { current1m: { requests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, avgLatencyMs: 0 }, rolling5m: { requests: 0, totalTokens: 0, avgLatencyMs: 0 }, rolling1h: { requests: 0, totalTokens: 0, avgLatencyMs: 0 } };
 
               const healthColor = model.stats?.currentHealth === 'Healthy' 

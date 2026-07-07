@@ -141,6 +141,10 @@ export interface ModelMetadataWithStats {
   supportsVideo?: boolean;
   inputCostPer1M?: number;
   outputCostPer1M?: number;
+  rpmLimit?: number;
+  tpmLimit?: number;
+  rpdLimit?: number;
+  availabilityTier?: string;
 }
 
 export interface OverviewStats {
