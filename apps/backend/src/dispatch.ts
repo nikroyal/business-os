@@ -2562,12 +2562,14 @@ export class FinnhubClient {
 
 export class GeminiClient {
   private apiKey: string;
+  private openRouterApiKey?: string;
   private projectId: string;
   private userId: string;
   private token?: string;
 
-  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system', token?: string) {
+  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system', token?: string, openRouterApiKey?: string) {
     this.apiKey = apiKey;
+    this.openRouterApiKey = openRouterApiKey;
     this.projectId = projectId;
     this.userId = userId;
     this.token = token;
@@ -2580,7 +2582,7 @@ export class GeminiClient {
       userPrompt,
       model,
       this.projectId,
-      this.apiKey,
+      { google: this.apiKey, openrouter: this.openRouterApiKey || this.apiKey },
       this.userId,
       'default',
       this.token
@@ -2594,7 +2596,7 @@ export class GeminiClient {
       userPrompt,
       model,
       this.projectId,
-      this.apiKey,
+      { google: this.apiKey, openrouter: this.openRouterApiKey || this.apiKey },
       this.userId,
       'default',
       this.token

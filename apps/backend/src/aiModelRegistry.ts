@@ -1,5 +1,16 @@
 export type LogicalModel = 'Latest Flash' | 'Latest Pro' | 'Automatic';
-export type Subsystem = 'Editorial Commentary' | 'Research Engine' | 'Business School' | 'Copilot';
+export type Subsystem = 
+  | 'Editorial Commentary' 
+  | 'Research Engine' 
+  | 'Business School' 
+  | 'Copilot'
+  | 'Daily Email'
+  | 'Reports'
+  | 'Opportunities'
+  | 'Summaries'
+  | 'Background AI'
+  | 'Benchmarking'
+  | string;
 
 export type TaskType = 
   | 'deep_research'
@@ -8,8 +19,14 @@ export type TaskType =
   | 'company_analysis'
   | 'report_generation'
   | 'daily_briefing'
+  | 'daily_email'
   | 'long_writing'
-  | 'short_summarization';
+  | 'short_summarization'
+  | 'coding'
+  | 'retrieval'
+  | 'moderation'
+  | 'vision'
+  | 'benchmarking';
 
 export interface ModelMetadata {
   id: string;
@@ -21,7 +38,7 @@ export interface ModelMetadata {
   speedScore: number;
   stabilityScore: number;
   status: 'production' | 'preview';
-  provider: string; // 'Google'
+  provider: string; // 'google' | 'openrouter'
   supportsGrounding: boolean;
   supportsStructuredOutput: boolean;
   supportsLongContext: boolean;
@@ -48,6 +65,9 @@ export interface ModelMetadata {
   rpdLimit?: number;
   /** Availability tier (Free, Pay-as-you-go, Enterprise, Reserved) */
   availabilityTier?: string;
+  supportedTaskTypes?: TaskType[];
+  ownerOnly?: boolean;
+  isFree?: boolean;
 }
 
 // Provider Adapter Interface
@@ -111,6 +131,74 @@ export class GoogleGeminiAdapter implements AIProviderAdapter {
       // Use actual provider token counts when available
       const promptTokens = data.usageMetadata?.promptTokenCount;
       const completionTokens = data.usageMetadata?.candidatesTokenCount;
+
+      return {
+        text: rawText,
+        rawResponse: data,
+        promptTokens,
+        completionTokens
+      };
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      throw e;
+    }
+  }
+}
+
+// OpenRouter Provider Adapter
+export class OpenRouterAdapter implements AIProviderAdapter {
+  id = 'openrouter';
+  displayName = 'OpenRouter AI';
+
+  async executePrompt(
+    modelId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    apiKey: string,
+    timeoutMs: number
+  ): Promise<{ text: string; rawResponse: any; promptTokens?: number; completionTokens?: number }> {
+    if (!apiKey) {
+      throw new Error('OpenRouter API key is missing or not configured');
+    }
+    const cleanModelId = modelId.startsWith('openrouter/') ? modelId.substring(11) : modelId;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    const payload = {
+      model: cleanModelId,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://businessos.ai',
+          'X-Title': 'BusinessOS'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`OpenRouter API returned HTTP ${res.status}: ${text}`);
+      }
+
+      const data = JSON.parse(text);
+      const rawText = data.choices?.[0]?.message?.content;
+      if (!rawText) throw new Error('Empty response from OpenRouter API');
+
+      const promptTokens = data.usage?.prompt_tokens;
+      const completionTokens = data.usage?.completion_tokens;
 
       return {
         text: rawText,
@@ -215,7 +303,8 @@ function fromFirestoreValue(val: any): any {
 
 export class AIOrchestrator {
   private static adapters: Record<string, AIProviderAdapter> = {
-    'google': new GoogleGeminiAdapter()
+    'google': new GoogleGeminiAdapter(),
+    'openrouter': new OpenRouterAdapter()
   };
 
   public static readonly DEFAULT_MODELS: ModelMetadata[] = [
@@ -251,7 +340,8 @@ export class AIOrchestrator {
       rpmLimit: 15,
       tpmLimit: 1000000,
       rpdLimit: 1500,
-      availabilityTier: 'Standard'
+      availabilityTier: 'Standard',
+      supportedTaskTypes: ['daily_email', 'copilot_conversation', 'market_summary']
     },
     {
       id: 'gemini-3.1-pro-preview',
@@ -285,7 +375,8 @@ export class AIOrchestrator {
       rpmLimit: 2,
       tpmLimit: 32000,
       rpdLimit: 50,
-      availabilityTier: 'Enterprise'
+      availabilityTier: 'Enterprise',
+      supportedTaskTypes: ['daily_email', 'deep_research', 'report_generation']
     },
     {
       id: 'gemini-2.5-pro',
@@ -319,7 +410,8 @@ export class AIOrchestrator {
       rpmLimit: 2,
       tpmLimit: 32000,
       rpdLimit: 50,
-      availabilityTier: 'Enterprise'
+      availabilityTier: 'Enterprise',
+      supportedTaskTypes: ['daily_email', 'company_analysis']
     },
     {
       id: 'gemini-2.5-flash',
@@ -353,7 +445,8 @@ export class AIOrchestrator {
       rpmLimit: 15,
       tpmLimit: 1000000,
       rpdLimit: 1500,
-      availabilityTier: 'Standard'
+      availabilityTier: 'Standard',
+      supportedTaskTypes: ['daily_email']
     },
     {
       id: 'gemini-3.1-flash-lite',
@@ -387,7 +480,8 @@ export class AIOrchestrator {
       rpmLimit: 15,
       tpmLimit: 1000000,
       rpdLimit: 1500,
-      availabilityTier: 'Standard'
+      availabilityTier: 'Standard',
+      supportedTaskTypes: ['daily_email']
     },
     {
       id: 'gemini-2.5-flash-lite',
@@ -421,7 +515,8 @@ export class AIOrchestrator {
       rpmLimit: 15,
       tpmLimit: 1000000,
       rpdLimit: 1500,
-      availabilityTier: 'Standard'
+      availabilityTier: 'Standard',
+      supportedTaskTypes: ['daily_email']
     },
     {
       id: 'gemini-flash-latest',
@@ -430,8 +525,8 @@ export class AIOrchestrator {
       priority: 7,
       capabilityScore: 90,
       reasoningScore: 85,
-      speedScore: 90,
-      stabilityScore: 90,
+      speedScore: 95,
+      stabilityScore: 94,
       status: 'production',
       provider: 'google',
       supportsGrounding: true,
@@ -455,16 +550,17 @@ export class AIOrchestrator {
       rpmLimit: 15,
       tpmLimit: 1000000,
       rpdLimit: 1500,
-      availabilityTier: 'Standard'
+      availabilityTier: 'Standard',
+      supportedTaskTypes: ['daily_email']
     },
     {
       id: 'gemini-pro-latest',
       displayName: 'Gemini Pro (Latest Alias)',
       category: 'Pro',
       priority: 8,
-      capabilityScore: 93,
-      reasoningScore: 93,
-      speedScore: 72,
+      capabilityScore: 95,
+      reasoningScore: 95,
+      speedScore: 75,
       stabilityScore: 90,
       status: 'production',
       provider: 'google',
@@ -489,7 +585,790 @@ export class AIOrchestrator {
       rpmLimit: 2,
       tpmLimit: 32000,
       rpdLimit: 50,
-      availabilityTier: 'Enterprise'
+      availabilityTier: 'Enterprise',
+      supportedTaskTypes: ['daily_email']
+    },
+    // ==========================================
+    // OPENROUTER MODELS REGISTRY
+    // ==========================================
+    // --- General Reasoning / Chat / Long-Form ---
+    {
+      id: 'gpt-oss-120b',
+      displayName: 'GPT-OSS 120B',
+      category: 'Pro',
+      priority: 1,
+      capabilityScore: 96,
+      reasoningScore: 96,
+      speedScore: 85,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 25000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.15,
+      outputCostPer1M: 0.60,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['copilot_conversation', 'deep_research', 'report_generation', 'long_writing', 'company_analysis', 'market_summary', 'benchmarking']
+    },
+    {
+      id: 'qwen3-next-80b-a3b-instruct',
+      displayName: 'Qwen3 Next 80B A3B Instruct',
+      category: 'Pro',
+      priority: 2,
+      capabilityScore: 95,
+      reasoningScore: 95,
+      speedScore: 88,
+      stabilityScore: 94,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 25000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.18,
+      outputCostPer1M: 0.70,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['copilot_conversation', 'deep_research', 'report_generation', 'long_writing', 'company_analysis', 'benchmarking']
+    },
+    {
+      id: 'llama-3.3-70b-instruct',
+      displayName: 'Llama 3.3 70B Instruct',
+      category: 'Pro',
+      priority: 3,
+      capabilityScore: 94,
+      reasoningScore: 93,
+      speedScore: 90,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 20000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.12,
+      outputCostPer1M: 0.30,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['copilot_conversation', 'report_generation', 'market_summary', 'short_summarization', 'company_analysis', 'benchmarking']
+    },
+    {
+      id: 'hermes-3-405b-instruct',
+      displayName: 'Hermes 3 405B Instruct',
+      category: 'Pro',
+      priority: 4,
+      capabilityScore: 96,
+      reasoningScore: 96,
+      speedScore: 75,
+      stabilityScore: 93,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 30000,
+      retryCount: 1,
+      cooldownDurationMs: 180000,
+      enabled: true,
+      inputCostPer1M: 0.50,
+      outputCostPer1M: 1.50,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 30,
+      tpmLimit: 500000,
+      rpdLimit: 2000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['deep_research', 'long_writing', 'report_generation', 'benchmarking']
+    },
+    {
+      id: 'gemma-4-31b-a4b',
+      displayName: 'Gemma 4 31B A4B',
+      category: 'Pro',
+      priority: 5,
+      capabilityScore: 92,
+      reasoningScore: 91,
+      speedScore: 92,
+      stabilityScore: 94,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 18000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.10,
+      outputCostPer1M: 0.25,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['copilot_conversation', 'market_summary', 'short_summarization', 'benchmarking']
+    },
+    {
+      id: 'gemma-4-26b-a4b',
+      displayName: 'Gemma 4 26B A4B',
+      category: 'Flash',
+      priority: 6,
+      capabilityScore: 90,
+      reasoningScore: 89,
+      speedScore: 95,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 15000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.08,
+      outputCostPer1M: 0.20,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['market_summary', 'short_summarization', 'copilot_conversation', 'benchmarking']
+    },
+    {
+      id: 'laguna-m.1',
+      displayName: 'Laguna M.1',
+      category: 'Pro',
+      priority: 7,
+      capabilityScore: 91,
+      reasoningScore: 90,
+      speedScore: 93,
+      stabilityScore: 94,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 15000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.09,
+      outputCostPer1M: 0.22,
+      fallbackEnabled: true,
+      contextWindow: 65536,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['copilot_conversation', 'market_summary', 'benchmarking']
+    },
+    {
+      id: 'laguna-xs-2.1',
+      displayName: 'Laguna XS 2.1',
+      category: 'Flash',
+      priority: 8,
+      capabilityScore: 87,
+      reasoningScore: 85,
+      speedScore: 98,
+      stabilityScore: 96,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 10000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.04,
+      outputCostPer1M: 0.10,
+      fallbackEnabled: true,
+      contextWindow: 65536,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 100,
+      tpmLimit: 1500000,
+      rpdLimit: 10000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['short_summarization', 'market_summary', 'benchmarking']
+    },
+    {
+      id: 'laguna-xs.2',
+      displayName: 'Laguna XS.2',
+      category: 'Flash',
+      priority: 9,
+      capabilityScore: 86,
+      reasoningScore: 84,
+      speedScore: 98,
+      stabilityScore: 96,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 10000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.035,
+      outputCostPer1M: 0.09,
+      fallbackEnabled: true,
+      contextWindow: 65536,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 100,
+      tpmLimit: 1500000,
+      rpdLimit: 10000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['short_summarization', 'benchmarking']
+    },
+    {
+      id: 'hy3',
+      displayName: 'Hy3',
+      category: 'Pro',
+      priority: 10,
+      capabilityScore: 93,
+      reasoningScore: 92,
+      speedScore: 90,
+      stabilityScore: 94,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 20000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.11,
+      outputCostPer1M: 0.28,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['copilot_conversation', 'company_analysis', 'benchmarking']
+    },
+    // --- Coding / Developer Assistance ---
+    {
+      id: 'north-mini-code-20260617',
+      displayName: 'North Mini Code',
+      category: 'Flash',
+      priority: 1,
+      capabilityScore: 93,
+      reasoningScore: 90,
+      speedScore: 96,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 15000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.05,
+      outputCostPer1M: 0.15,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['coding', 'benchmarking']
+    },
+    {
+      id: 'qwen3-coder-480b-a35b',
+      displayName: 'Qwen3 Coder 480B A35B',
+      category: 'Pro',
+      priority: 2,
+      capabilityScore: 97,
+      reasoningScore: 97,
+      speedScore: 82,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 25000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.30,
+      outputCostPer1M: 0.90,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 40,
+      tpmLimit: 800000,
+      rpdLimit: 3000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['coding', 'benchmarking']
+    },
+    {
+      id: 'gpt-oss-20b',
+      displayName: 'GPT-OSS 20B',
+      category: 'Flash',
+      priority: 3,
+      capabilityScore: 89,
+      reasoningScore: 86,
+      speedScore: 96,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 12000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.0,
+      outputCostPer1M: 0.0,
+      fallbackEnabled: true,
+      contextWindow: 65536,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Free',
+      isFree: true,
+      supportedTaskTypes: ['coding', 'copilot_conversation', 'short_summarization', 'benchmarking']
+    },
+    {
+      id: 'llama-3.2-3b-instruct',
+      displayName: 'Llama 3.2 3B Instruct',
+      category: 'Flash',
+      priority: 4,
+      capabilityScore: 84,
+      reasoningScore: 80,
+      speedScore: 99,
+      stabilityScore: 96,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 10000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.0,
+      outputCostPer1M: 0.0,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 100,
+      tpmLimit: 1500000,
+      rpdLimit: 10000,
+      availabilityTier: 'Free',
+      isFree: true,
+      supportedTaskTypes: ['short_summarization', 'coding', 'benchmarking']
+    },
+    // --- Multimodal / Vision / Retrieval Utilities ---
+    {
+      id: 'llama-nemotron-embed-vl-1b-v2-20260224',
+      displayName: 'Llama Nemotron Embed VL 1B v2',
+      category: 'Flash',
+      priority: 1,
+      capabilityScore: 90,
+      reasoningScore: 80,
+      speedScore: 99,
+      stabilityScore: 98,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: false,
+      supportsLongContext: true,
+      supportsStreaming: false,
+      supportsVision: true,
+      supportsAudio: false,
+      supportsTools: false,
+      defaultTimeoutMs: 10000,
+      retryCount: 1,
+      cooldownDurationMs: 60000,
+      enabled: true,
+      inputCostPer1M: 0.02,
+      outputCostPer1M: 0.02,
+      fallbackEnabled: true,
+      contextWindow: 32768,
+      maxOutput: 1024,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 120,
+      tpmLimit: 2000000,
+      rpdLimit: 20000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['retrieval', 'benchmarking']
+    },
+    {
+      id: 'llama-nemotron-rerank-vl-1b-v2',
+      displayName: 'Llama Nemotron Rerank VL 1B v2',
+      category: 'Flash',
+      priority: 2,
+      capabilityScore: 91,
+      reasoningScore: 82,
+      speedScore: 99,
+      stabilityScore: 98,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: false,
+      supportsLongContext: true,
+      supportsStreaming: false,
+      supportsVision: true,
+      supportsAudio: false,
+      supportsTools: false,
+      defaultTimeoutMs: 10000,
+      retryCount: 1,
+      cooldownDurationMs: 60000,
+      enabled: true,
+      inputCostPer1M: 0.02,
+      outputCostPer1M: 0.02,
+      fallbackEnabled: true,
+      contextWindow: 32768,
+      maxOutput: 1024,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 120,
+      tpmLimit: 2000000,
+      rpdLimit: 20000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['retrieval', 'benchmarking']
+    },
+    {
+      id: 'nemotron-nano-12b-v2-vl',
+      displayName: 'Nemotron Nano 12B v2 VL',
+      category: 'Flash',
+      priority: 3,
+      capabilityScore: 90,
+      reasoningScore: 88,
+      speedScore: 95,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 15000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.06,
+      outputCostPer1M: 0.18,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['vision', 'benchmarking']
+    },
+    {
+      id: 'nemotron-nano-9b-v2',
+      displayName: 'Nemotron Nano 9B v2',
+      category: 'Flash',
+      priority: 4,
+      capabilityScore: 88,
+      reasoningScore: 86,
+      speedScore: 97,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 12000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.0,
+      outputCostPer1M: 0.0,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Free',
+      isFree: true,
+      supportedTaskTypes: ['vision', 'benchmarking']
+    },
+    {
+      id: 'nemotron-3-nano-30b-a3b',
+      displayName: 'Nemotron 3 Nano 30B A3B',
+      category: 'Pro',
+      priority: 5,
+      capabilityScore: 93,
+      reasoningScore: 92,
+      speedScore: 90,
+      stabilityScore: 94,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 20000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.12,
+      outputCostPer1M: 0.35,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['vision', 'deep_research', 'benchmarking']
+    },
+    {
+      id: 'nemotron-3-nano-omni-30b-a3b-reasoning-20260428',
+      displayName: 'Nemotron 3 Nano Omni 30B A3B Reasoning',
+      category: 'Pro',
+      priority: 6,
+      capabilityScore: 95,
+      reasoningScore: 96,
+      speedScore: 85,
+      stabilityScore: 94,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: true,
+      supportsTools: true,
+      defaultTimeoutMs: 25000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: true,
+      inputCostPer1M: 0.15,
+      outputCostPer1M: 0.45,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 60,
+      tpmLimit: 1000000,
+      rpdLimit: 5000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['vision', 'deep_research', 'benchmarking']
+    },
+    // --- Safety / Moderation ---
+    {
+      id: 'nemotron-3.5-content-safety-20260604',
+      displayName: 'Nemotron 3.5 Content Safety',
+      category: 'Flash',
+      priority: 1,
+      capabilityScore: 95,
+      reasoningScore: 85,
+      speedScore: 98,
+      stabilityScore: 99,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: false,
+      supportsStreaming: false,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: false,
+      defaultTimeoutMs: 8000,
+      retryCount: 1,
+      cooldownDurationMs: 60000,
+      enabled: true,
+      inputCostPer1M: 0.02,
+      outputCostPer1M: 0.02,
+      fallbackEnabled: true,
+      contextWindow: 16384,
+      maxOutput: 512,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 120,
+      tpmLimit: 2000000,
+      rpdLimit: 20000,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['moderation', 'benchmarking']
+    },
+    // --- Special Handling ---
+    {
+      id: 'uncensored',
+      displayName: 'Uncensored (Special)',
+      category: 'Pro',
+      priority: 99,
+      capabilityScore: 88,
+      reasoningScore: 88,
+      speedScore: 85,
+      stabilityScore: 90,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 25000,
+      retryCount: 1,
+      cooldownDurationMs: 120000,
+      enabled: false, // Disabled by default
+      ownerOnly: true, // Owner-only if enabled
+      inputCostPer1M: 0.20,
+      outputCostPer1M: 0.80,
+      fallbackEnabled: false,
+      contextWindow: 65536,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      rpmLimit: 20,
+      tpmLimit: 200000,
+      rpdLimit: 500,
+      availabilityTier: 'Pay-as-you-go',
+      supportedTaskTypes: ['benchmarking']
     }
   ];
 
@@ -497,47 +1376,75 @@ export class AIOrchestrator {
   private static readonly CONFIG_CACHE_TTL_MS = 5000;
 
   // --- TASK CLASSIFICATION MATRIX ---
-  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[]): string {
-    const active = models.filter(m => m.enabled);
+  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[], config?: any): string {
+    const active = models.filter(m => m.enabled && m.id !== 'uncensored');
     if (active.length === 0) return 'gemini-3.5-flash';
 
+    const providerPref = config?.globalProviderPreference || 'openrouter';
+
     switch (task) {
+      case 'daily_email':
+        // Daily Email strictly prefers Gemini API
+        return active.find(m => m.provider === 'google' && m.category === 'Flash')?.id ||
+               active.find(m => m.provider === 'google')?.id ||
+               'gemini-3.5-flash';
+      case 'coding':
+        return active.find(m => m.id === 'north-mini-code-20260617')?.id ||
+               active.find(m => m.id === 'qwen3-coder-480b-a35b')?.id ||
+               active.find(m => m.id === 'gpt-oss-20b')?.id ||
+               active[0].id;
+      case 'retrieval':
+        return active.find(m => m.id === 'llama-nemotron-embed-vl-1b-v2-20260224')?.id ||
+               active[0].id;
+      case 'moderation':
+        return active.find(m => m.id === 'nemotron-3.5-content-safety-20260604')?.id ||
+               active[0].id;
+      case 'vision':
+        return active.find(m => m.id === 'nemotron-nano-12b-v2-vl')?.id ||
+               active.find(m => m.id === 'nemotron-3-nano-30b-a3b')?.id ||
+               active[0].id;
       case 'deep_research':
-        // Prefers highest reasoning and long context
-        return active.find(m => m.id === 'gemini-3.1-pro-preview')?.id || 
-               active.find(m => m.id === 'gemini-2.5-pro')?.id || 
-               active[0].id;
+        if (providerPref === 'openrouter') {
+          return active.find(m => m.id === 'gpt-oss-120b')?.id ||
+                 active.find(m => m.id === 'qwen3-next-80b-a3b-instruct')?.id ||
+                 active.find(m => m.provider === 'openrouter' && m.category === 'Pro')?.id ||
+                 active[0].id;
+        }
+        return active.find(m => m.id === 'gemini-3.1-pro-preview')?.id || active[0].id;
       case 'copilot_conversation':
-        // Prefers low latency and high capability
-        return active.find(m => m.id === 'gemini-3.5-flash')?.id || 
-               active.find(m => m.id === 'gemini-2.5-flash')?.id || 
-               active[0].id;
       case 'market_summary':
-      case 'short_summarization':
-      case 'daily_briefing':
-        // Prefers fastest response and lowest cost
-        return active.find(m => m.id === 'gemini-2.5-flash')?.id || 
-               active.find(m => m.id === 'gemini-3.5-flash')?.id || 
-               active[0].id;
+      case 'company_analysis':
       case 'report_generation':
       case 'long_writing':
-      case 'company_analysis':
-        // Prefers stability and structured output capabilities
-        return active.find(m => m.id === 'gemini-2.5-pro')?.id || 
-               active.find(m => m.id === 'gemini-3.1-pro-preview')?.id || 
-               active[0].id;
+      case 'short_summarization':
+      case 'daily_briefing':
       default:
-        return active[0].id;
+        // By default use OpenRouter for non-email workflows
+        if (providerPref === 'openrouter') {
+          const openRouterModels = active.filter(m => m.provider === 'openrouter');
+          return openRouterModels.find(m => m.id === 'gpt-oss-120b')?.id ||
+                 openRouterModels.find(m => m.id === 'qwen3-next-80b-a3b-instruct')?.id ||
+                 openRouterModels.find(m => m.id === 'llama-3.3-70b-instruct')?.id ||
+                 openRouterModels[0]?.id ||
+                 active[0].id;
+        }
+        return active.find(m => m.id === 'gemini-3.5-flash')?.id || active[0].id;
     }
   }
 
   // --- STATUTORY SUB-SYSTEM MAPPING TO TASKS ---
   private static mapSubsystemToTask(subsystem: Subsystem): TaskType {
     switch (subsystem) {
+      case 'Daily Email': return 'daily_email';
       case 'Research Engine': return 'deep_research';
       case 'Copilot': return 'copilot_conversation';
       case 'Editorial Commentary': return 'market_summary';
       case 'Business School': return 'company_analysis';
+      case 'Reports': return 'report_generation';
+      case 'Opportunities': return 'market_summary';
+      case 'Summaries': return 'short_summarization';
+      case 'Background AI': return 'long_writing';
+      case 'Benchmarking': return 'benchmarking';
       default: return 'copilot_conversation';
     }
   }
@@ -905,7 +1812,7 @@ export class AIOrchestrator {
     userPrompt: string,
     preferredChoice: string | undefined,
     projectId: string,
-    apiKey: string,
+    apiKey: string | Record<string, string>,
     userId: string,
     workspaceId = 'default',
     token?: string
@@ -939,7 +1846,7 @@ export class AIOrchestrator {
 
     // 3. Task-Based model selection
     const taskType = this.mapSubsystemToTask(subsystem);
-    const taskModelDefault = this.selectBestModelForTask(taskType, registryList);
+    const taskModelDefault = this.selectBestModelForTask(taskType, registryList, config);
 
     let targetModelId = '';
     const logicalChoice = preferredChoice || 'Automatic';
@@ -948,7 +1855,7 @@ export class AIOrchestrator {
       targetModelId = forcedModel;
     } else if (logicalChoice === 'Automatic') {
       targetModelId = taskModelDefault;
-    } else if (logicalChoice.startsWith('gemini-') || logicalChoice.includes('-')) {
+    } else if (logicalChoice.startsWith('gemini-') || logicalChoice.startsWith('openrouter/') || logicalChoice.includes('-')) {
       targetModelId = logicalChoice;
     } else {
       targetModelId = LogicalModelResolve(logicalChoice, subsystem);
@@ -1031,6 +1938,10 @@ export class AIOrchestrator {
       let attemptBody = '';
       const modelStartTime = Date.now();
 
+      const resolvedKey = typeof apiKey === 'object' && apiKey !== null
+        ? (apiKey[model.provider] || apiKey['openrouter'] || apiKey['google'] || '')
+        : apiKey;
+
       const maxRetries = model.retryCount || 1;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         if (attempt > 0) retriesCount++;
@@ -1040,7 +1951,7 @@ export class AIOrchestrator {
             model.id,
             systemPrompt,
             userPrompt,
-            apiKey,
+            resolvedKey,
             model.defaultTimeoutMs
           );
 
@@ -1048,34 +1959,36 @@ export class AIOrchestrator {
           attemptSuccess = true;
 
           // Use actual provider token counts when available; fall back to estimation.
-          // tokenCountSource is recorded in telemetry so consumers can distinguish real vs estimated.
           const hasRealTokens = typeof result.promptTokens === 'number' && typeof result.completionTokens === 'number';
           finalPromptTokens = hasRealTokens ? result.promptTokens! : Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-          finalCompletionTokens = hasRealTokens ? result.completionTokens! : Math.ceil((result.text.length) / 4);
+          finalCompletionTokens = hasRealTokens ? result.completionTokens! : Math.ceil(result.text.length / 4);
           tokenCountSource = hasRealTokens ? 'provider' : 'estimated';
+
+          modelLatency = Date.now() - modelStartTime;
+
+          modelStats.success++;
+          modelStats.totalLatencyMs += modelLatency;
+          modelLocalStats.set(model.id, modelStats);
+
+          provStats.success++;
+          provStats.totalLatencyMs += modelLatency;
+          providerLocalStats.set(model.provider, provStats);
           break;
         } catch (e: any) {
-          attemptStatus = e.status || 500;
+          modelLatency = Date.now() - modelStartTime;
           attemptBody = e.message || String(e);
-          console.warn(`[AIOrchestrator] Execution failed (Attempt ${attempt + 1}): ${attemptBody}`);
-        }
+          attemptStatus = 500;
+          if (attemptBody.includes('HTTP 429')) attemptStatus = 429;
+          else if (attemptBody.includes('HTTP 401') || attemptBody.includes('HTTP 403')) attemptStatus = 401;
+          else if (attemptBody.includes('HTTP 503')) attemptStatus = 503;
 
-        if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, 1000));
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 3000)));
+          }
         }
       }
 
-      modelLatency = Date.now() - modelStartTime;
-
       if (attemptSuccess) {
-        modelStats.success++;
-        modelStats.lastSuccess = new Date().toISOString();
-        modelStats.totalLatencyMs += modelLatency;
-        modelLocalStats.set(model.id, modelStats);
-
-        provStats.success++;
-        provStats.totalLatencyMs += modelLatency;
-        providerLocalStats.set(model.provider, provStats);
         break;
       } else {
         modelStats.failure++;
@@ -1108,13 +2021,17 @@ export class AIOrchestrator {
       }
     }
 
+    const selectedProvider = registryList.find(m => m.id === finalModelId)?.provider || 'google';
+
     // 5. Telemetry
     const telemetry = {
       timestamp: new Date().toISOString(),
       user: userId,
       workspace: workspaceId,
       feature: subsystem,
+      provider: selectedProvider,
       selectedModel: requestedModel,
+      actualModel: finalModelId,
       fallbackModel: fallbackUsed ? finalModelId : '',
       promptTokens: finalPromptTokens,
       completionTokens: finalCompletionTokens,
@@ -1130,7 +2047,7 @@ export class AIOrchestrator {
 
     let statsResult = { success: true, error: '' };
     try {
-      const res = await this.updatePersistentStats(projectId, finalModelId, 'google', modelLatency, attemptSuccess, attemptSuccess ? undefined : lastErrorType, token);
+      const res = await this.updatePersistentStats(projectId, finalModelId, selectedProvider, modelLatency, attemptSuccess, attemptSuccess ? undefined : lastErrorType, token);
       statsResult = { success: res.success, error: res.error || '' };
     } catch (e: any) {
       statsResult = { success: false, error: e.message || String(e) };
@@ -1147,8 +2064,8 @@ export class AIOrchestrator {
         stages: [
           { name: 'User Request', status: 'success', time: new Date(startTime).toISOString(), executionTimeMs: Date.now() - startTime },
           { name: 'AI Orchestrator', status: 'success', details: `Resolved model to ${finalModelId}` },
-          { name: 'Provider Selected', status: 'success', details: `Selected provider: Google` },
-          { name: 'Gemini Request', status: attemptSuccess ? 'success' : 'failed', latencyMs: modelLatency, attempts: retriesCount + 1, error: attemptSuccess ? '' : lastErrorMsg },
+          { name: 'Provider Selected', status: 'success', details: `Selected provider: ${selectedProvider === 'google' ? 'Google Gemini' : 'OpenRouter'}` },
+          { name: `${selectedProvider === 'google' ? 'Gemini' : 'OpenRouter'} Request`, status: attemptSuccess ? 'success' : 'failed', latencyMs: modelLatency, attempts: retriesCount + 1, error: attemptSuccess ? '' : lastErrorMsg },
           { name: 'usageMetadata Received', status: tokenCountSource === 'provider' ? 'success' : 'fallback', promptTokens: finalPromptTokens, completionTokens: finalCompletionTokens, source: tokenCountSource },
           { name: 'Telemetry Write', status: telemetryResult.success ? 'success' : 'failed', docId: `aiTelemetry/${telemetryResult.docId}`, error: telemetryResult.error || '' },
           { name: 'Daily Summary Update', status: telemetryResult.summarySuccess ? 'success' : 'failed', docId: `aiTelemetrySummary/${dateStr}`, error: telemetryResult.summaryError || '' },
@@ -1173,6 +2090,16 @@ export class AIOrchestrator {
       throw new Error(`AIOrchestrator: Request failed. Error Class: ${lastErrorType} - ${lastErrorMsg}`);
     }
 
+    if (finalPayload && !finalPayload.candidates && finalPayload.choices?.[0]?.message?.content) {
+      finalPayload.candidates = [{
+        content: {
+          parts: [{
+            text: finalPayload.choices[0].message.content
+          }]
+        }
+      }];
+    }
+
     return {
       data: finalPayload,
       originalModel: requestedModel,
@@ -1188,7 +2115,7 @@ export class AIOrchestrator {
     userPrompt: string,
     preferredChoice: string | undefined,
     projectId: string,
-    apiKey: string,
+    apiKey: string | Record<string, string>,
     userId: string,
     workspaceId = 'default',
     token?: string
@@ -1205,8 +2132,8 @@ export class AIOrchestrator {
       token
     );
 
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) throw new Error('Empty response content from Gemini model.');
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || data.choices?.[0]?.message?.content;
+    if (!rawText) throw new Error('Empty response content from AI model.');
     const parsed = JSON.parse(rawText.trim());
 
     if (fallbackUsed) {
@@ -1849,6 +2776,17 @@ export class AIOrchestrator {
         totalTokens: officialTotalTokens,
         requests: officialRequests,
         quotaRemaining: Math.max(0, 1500 - officialRpd),
+        lastUpdated: latestNonCachedTime || new Date().toISOString()
+      },
+      openrouter: {
+        rpm: Math.round((officialRequests / elapsedMinutes) * 100) / 100,
+        tpm: officialTpm,
+        rpd: officialRpd,
+        promptTokens: officialPromptTokens,
+        completionTokens: officialCompletionTokens,
+        totalTokens: officialTotalTokens,
+        requests: officialRequests,
+        quotaRemaining: 100000,
         lastUpdated: latestNonCachedTime || new Date().toISOString()
       },
       businessos: {

@@ -13,6 +13,9 @@ import { FallbackPriorityEditor } from './FallbackPriorityEditor';
 import { GlobalFilterBar, DEFAULT_FILTERS, filterTelemetryRecords } from './ai-ops/GlobalFilterBar';
 import type { OpsFilterState } from './ai-ops/GlobalFilterBar';
 import { AIRequestInspectorModal } from './ai-ops/AIRequestInspectorModal';
+import { RoutingPoliciesEditor } from './ai-ops/RoutingPoliciesEditor';
+import { ProviderManagementCard } from './ai-ops/ProviderManagementCard';
+import { BenchmarkLab } from './ai-ops/BenchmarkLab';
 
 import { 
   Cpu, 
@@ -34,7 +37,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const { profile } = useAuth();
   const isOwner = profile?.role === 'OWNER';
 
-  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Registry' | 'Models' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
+  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Providers' | 'Routing' | 'Benchmark' | 'Registry' | 'Models' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [trendHorizon, setTrendHorizon] = useState<'1h' | '24h' | '7d' | '30d' | '90d'>('7d');
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
@@ -392,7 +395,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Sub tabs */}
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto' }}>
-        {(['Overview', 'Registry', 'Models', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
+        {(['Overview', 'Providers', 'Routing', 'Benchmark', 'Registry', 'Models', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
           if (tab === 'Controls' && !isOwner) return null;
           const isTabActive = activeSubTab === tab;
           return (
@@ -917,6 +920,35 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Subtab Content: Providers */}
+      {activeSubTab === 'Providers' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <ProviderManagementCard
+            googleStats={stats?.providerComparison?.google}
+            openRouterStats={stats?.providerComparison?.openrouter}
+            onRefresh={fetchDashboardData}
+          />
+        </div>
+      )}
+
+      {/* Subtab Content: Routing */}
+      {activeSubTab === 'Routing' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <RoutingPoliciesEditor
+            config={config}
+            onSaveConfig={handleSaveEditorConfig}
+            isOwner={isOwner}
+          />
+        </div>
+      )}
+
+      {/* Subtab Content: Benchmark */}
+      {activeSubTab === 'Benchmark' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <BenchmarkLab />
         </div>
       )}
 

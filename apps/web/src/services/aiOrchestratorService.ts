@@ -230,11 +230,23 @@ export interface OrchestratorStats {
       totalTokens: number;
       requests: number;
       quotaRemaining: number;
-      lastUpdated: string;
-      /** Quota limits from the centralized registry */
       rpmLimit: number;
       tpmLimit: number;
       rpdLimit: number;
+    };
+    openrouter?: {
+      rpm: number;
+      tpm: number;
+      rpd: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      requests: number;
+      quotaRemaining: number;
+      lastUpdated: string;
+      rpmLimit?: number;
+      tpmLimit?: number;
+      rpdLimit?: number;
     };
     businessos: {
       rpm: number;
@@ -400,6 +412,13 @@ export interface OrchestratorConfig {
     priority?: number;
     cooldownDurationMs?: number;
   }>;
+  routingPolicies?: {
+    globalProviderPref?: 'openrouter' | 'google' | 'auto';
+    featureRouting?: Record<string, {
+      provider: 'openrouter' | 'google' | 'auto';
+      preferredModel?: string;
+    }>;
+  };
 }
 
 class AIOrchestratorService {
