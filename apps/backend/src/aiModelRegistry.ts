@@ -1436,14 +1436,18 @@ export class AIOrchestrator {
   private static mapSubsystemToTask(subsystem: Subsystem): TaskType {
     switch (subsystem) {
       case 'Daily Email': return 'daily_email';
-      case 'Research Engine': return 'deep_research';
+      case 'Research Engine':
+      case 'Research': return 'deep_research';
       case 'Copilot': return 'copilot_conversation';
-      case 'Editorial Commentary': return 'market_summary';
-      case 'Business School': return 'company_analysis';
+      case 'Editorial Commentary':
+      case 'Commentary': return 'market_summary';
+      case 'Business School':
+      case 'Company Intelligence': return 'company_analysis';
       case 'Reports': return 'report_generation';
       case 'Opportunities': return 'market_summary';
       case 'Summaries': return 'short_summarization';
-      case 'Background AI': return 'long_writing';
+      case 'Background AI':
+      case 'Background AI Jobs': return 'long_writing';
       case 'Benchmarking': return 'benchmarking';
       default: return 'copilot_conversation';
     }

@@ -4,12 +4,9 @@ import {
   ShieldCheck, 
   Lock, 
   Cpu, 
-  Zap, 
-  Sparkles, 
   Save, 
   RotateCcw, 
-  CheckCircle2, 
-  AlertCircle 
+  CheckCircle2
 } from 'lucide-react';
 import type { OrchestratorConfig } from '../../services/aiOrchestratorService';
 
@@ -21,47 +18,68 @@ interface RoutingPoliciesEditorProps {
 
 const FEATURE_LIST = [
   {
-    id: 'daily_email',
-    name: 'Daily Executive Email',
-    description: 'Automated daily intelligence summary & newsletter generation.',
-    defaultProvider: 'google',
+    id: 'Daily Email',
+    name: 'Daily Email',
+    description: 'Automated daily intelligence briefing & executive newsletter.',
+    defaultProvider: 'google' as const,
     defaultModel: 'gemini-3.1-pro-high',
     lockedNote: 'Reserved for Google Gemini by default for guaranteed email formatting & consistency.'
   },
   {
-    id: 'editorial_commentary',
-    name: 'Editorial Commentary & Insights',
-    description: 'High-frequency analytical commentary across portfolio assets.',
-    defaultProvider: 'openrouter',
-    defaultModel: 'openrouter/google/gemini-2.5-pro'
-  },
-  {
-    id: 'deep_research',
-    name: 'Deep Research Synthesis',
-    description: 'Multi-source financial and market research synthesis.',
-    defaultProvider: 'openrouter',
-    defaultModel: 'openrouter/google/gemini-2.5-pro'
-  },
-  {
-    id: 'report_generation',
-    name: 'Executive Report Generator',
-    description: 'Long-form formal executive reports and briefings.',
-    defaultProvider: 'openrouter',
+    id: 'Copilot',
+    name: 'Copilot',
+    description: 'Interactive conversation, code assistant, and real-time operator copilot.',
+    defaultProvider: 'openrouter' as const,
     defaultModel: 'openrouter/anthropic/claude-3.5-sonnet'
   },
   {
-    id: 'company_analysis',
-    name: 'Company & Competitor Analysis',
-    description: 'Structured enterprise teardowns and strategic evaluations.',
-    defaultProvider: 'openrouter',
+    id: 'Reports',
+    name: 'Reports',
+    description: 'Long-form executive briefings, quarterly reports, and synthesis documents.',
+    defaultProvider: 'openrouter' as const,
+    defaultModel: 'openrouter/anthropic/claude-3.5-sonnet'
+  },
+  {
+    id: 'Commentary',
+    name: 'Commentary',
+    description: 'Editorial commentary, market analysis, and high-frequency analytical insights.',
+    defaultProvider: 'openrouter' as const,
     defaultModel: 'openrouter/google/gemini-2.5-pro'
   },
   {
-    id: 'code_assistant',
-    name: 'Internal Dev & Code Assistant',
-    description: 'Code refactoring, diagnostic debugging, and automation tools.',
-    defaultProvider: 'openrouter',
-    defaultModel: 'openrouter/anthropic/claude-3.5-sonnet'
+    id: 'Company Intelligence',
+    name: 'Company Intelligence',
+    description: 'Structured enterprise teardowns, competitor moats, and financial evaluations.',
+    defaultProvider: 'openrouter' as const,
+    defaultModel: 'openrouter/google/gemini-2.5-pro'
+  },
+  {
+    id: 'Research',
+    name: 'Research',
+    description: 'Deep multi-source financial and market research synthesis.',
+    defaultProvider: 'openrouter' as const,
+    defaultModel: 'openrouter/google/gemini-2.5-pro'
+  },
+  {
+    id: 'Opportunities',
+    name: 'Opportunities',
+    description: 'Automated deal sourcing, financial screening, and opportunity spotting.',
+    defaultProvider: 'openrouter' as const,
+    defaultModel: 'openrouter/google/gemini-2.5-pro'
+  },
+  {
+    id: 'Summaries',
+    name: 'Summaries',
+    description: 'High-speed document summarization and quick executive rollups.',
+    defaultProvider: 'openrouter' as const,
+    defaultModel: 'openrouter/meta-llama/llama-3.3-70b-instruct'
+  },
+  {
+    id: 'Background AI Jobs',
+    name: 'Background AI Jobs',
+    description: 'Asynchronous batch processing, scheduled pipelines, and background workflows.',
+    defaultProvider: 'openrouter' as const,
+    defaultModel: 'openrouter/openai/gpt-4o'
   }
 ];
 
@@ -262,7 +280,7 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
               provider: feature.defaultProvider,
               preferredModel: feature.defaultModel
             };
-            const isDailyEmail = feature.id === 'daily_email';
+            const isDailyEmail = feature.id === 'Daily Email' || feature.id === 'daily_email';
 
             return (
               <div key={feature.id} className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-800/20 transition-colors">

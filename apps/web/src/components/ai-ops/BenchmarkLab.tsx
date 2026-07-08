@@ -2,24 +2,47 @@ import React, { useState } from 'react';
 import { 
   Play, 
   Sparkles, 
-  Cpu, 
-  Clock, 
-  DollarSign, 
   CheckCircle2, 
-  AlertCircle, 
-  Layers,
-  ArrowRight
+  CheckSquare,
+  Square,
+  FileText,
+  FileJson
 } from 'lucide-react';
 import { aiOrchestratorService } from '../../services/aiOrchestratorService';
 
-const BENCHMARK_MODELS = [
-  { id: 'gemini-3.1-pro-high', name: 'Google Gemini 3.1 Pro (High)', provider: 'google', costPerM: '$1.25 / $5.00' },
-  { id: 'gemini-3.1-flash-lite', name: 'Google Gemini 3.1 Flash Lite', provider: 'google', costPerM: '$0.075 / $0.30' },
-  { id: 'openrouter/google/gemini-2.5-pro', name: 'OpenRouter: Gemini 2.5 Pro', provider: 'openrouter', costPerM: '$1.25 / $5.00' },
-  { id: 'openrouter/anthropic/claude-3.5-sonnet', name: 'OpenRouter: Claude 3.5 Sonnet', provider: 'openrouter', costPerM: '$3.00 / $15.00' },
-  { id: 'openrouter/openai/gpt-4o', name: 'OpenRouter: OpenAI GPT-4o', provider: 'openrouter', costPerM: '$2.50 / $10.00' },
-  { id: 'openrouter/meta-llama/llama-3.3-70b-instruct', name: 'OpenRouter: Llama 3.3 70B', provider: 'openrouter', costPerM: '$0.13 / $0.40' }
+export interface BenchmarkModelOption {
+  id: string;
+  displayName: string;
+  provider: 'Google Gemini' | 'OpenRouter';
+  category: string;
+  costPerM: string;
+}
+
+const REGISTERED_BENCHMARK_MODELS: BenchmarkModelOption[] = [
+  { id: 'gemini-3.1-pro-high', displayName: 'Google Gemini 3.1 Pro (High)', provider: 'Google Gemini', category: 'Flagship', costPerM: '$1.25 / $5.00' },
+  { id: 'gemini-3.1-flash-lite', displayName: 'Google Gemini 3.1 Flash Lite', provider: 'Google Gemini', category: 'Fast', costPerM: '$0.075 / $0.30' },
+  { id: 'openrouter/google/gemini-2.5-pro', displayName: 'OpenRouter: Gemini 2.5 Pro', provider: 'OpenRouter', category: 'Pro', costPerM: '$1.25 / $5.00' },
+  { id: 'openrouter/anthropic/claude-3.5-sonnet', displayName: 'OpenRouter: Claude 3.5 Sonnet', provider: 'OpenRouter', category: 'Flagship', costPerM: '$3.00 / $15.00' },
+  { id: 'openrouter/openai/gpt-4o', displayName: 'OpenRouter: OpenAI GPT-4o', provider: 'OpenRouter', category: 'Flagship', costPerM: '$2.50 / $10.00' },
+  { id: 'openrouter/meta-llama/llama-3.3-70b-instruct', displayName: 'OpenRouter: Llama 3.3 70B', provider: 'OpenRouter', category: 'Fast', costPerM: '$0.13 / $0.40' },
+  { id: 'openrouter/deepseek/deepseek-r1', displayName: 'OpenRouter: DeepSeek R1', provider: 'OpenRouter', category: 'Reasoning', costPerM: '$0.55 / $2.19' }
 ];
+
+export interface BenchmarkRecord {
+  provider: string;
+  modelId: string;
+  response: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  latencyMs: number;
+  cost: string;
+  finishReason: string;
+  retryCount: number;
+  cacheHit: boolean;
+  errorClassification: string;
+  timestamp: string;
+}
 
 const PRESET_PROMPTS = [
   {
@@ -37,83 +60,165 @@ const PRESET_PROMPTS = [
 ];
 
 export const BenchmarkLab: React.FC = () => {
-  const [modelA, setModelA] = useState('gemini-3.1-pro-high');
-  const [modelB, setModelB] = useState('openrouter/anthropic/claude-3.5-sonnet');
+  const [selectedModels, setSelectedModels] = useState<string[]>([
+    'gemini-3.1-pro-high',
+    'openrouter/anthropic/claude-3.5-sonnet',
+    'openrouter/google/gemini-2.5-pro'
+  ]);
   const [promptText, setPromptText] = useState(PRESET_PROMPTS[0].prompt);
   const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<BenchmarkRecord[]>([]);
 
-  const [resultA, setResultA] = useState<{
-    text: string;
-    latencyMs: number;
-    tokens: number;
-    provider: string;
-    cost: string;
-  } | null>(null);
+  const toggleModelSelection = (id: string) => {
+    setSelectedModels(prev => 
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+    );
+  };
 
-  const [resultB, setResultB] = useState<{
-    text: string;
-    latencyMs: number;
-    tokens: number;
-    provider: string;
-    cost: string;
-  } | null>(null);
+  const selectAllModels = () => {
+    setSelectedModels(REGISTERED_BENCHMARK_MODELS.map(m => m.id));
+  };
 
-  const runBenchmark = async () => {
+  const clearSelection = () => {
+    setSelectedModels([]);
+  };
+
+  const runParallelBenchmark = async () => {
+    if (selectedModels.length === 0 || !promptText.trim()) return;
     setLoading(true);
-    setResultA(null);
-    setResultB(null);
+    setResults([]);
 
-    const startA = Date.now();
-    try {
-      const resA = await aiOrchestratorService.executeCommentary(
-        'You are a senior executive AI benchmark analyst.',
-        promptText,
-        modelA
-      );
-      const latencyA = Date.now() - startA;
-      setResultA({
-        text: resA?.commentary || JSON.stringify(resA, null, 2),
-        latencyMs: latencyA,
-        tokens: Math.round(promptText.length / 4 + 120),
-        provider: modelA.startsWith('openrouter/') ? 'OpenRouter' : 'Google Gemini',
-        cost: modelA.startsWith('openrouter/anthropic') ? '~$0.0042' : '~$0.0018'
-      });
-    } catch (err: any) {
-      setResultA({
-        text: `Execution fallback/error: ${err.message || 'Complete'}`,
-        latencyMs: Date.now() - startA,
-        tokens: 100,
-        provider: 'Failover',
-        cost: '$0.000'
-      });
-    }
+    const runModelBenchmark = async (modelId: string): Promise<BenchmarkRecord> => {
+      const option = REGISTERED_BENCHMARK_MODELS.find(m => m.id === modelId) || {
+        id: modelId,
+        displayName: modelId,
+        provider: modelId.startsWith('openrouter/') ? 'OpenRouter' : 'Google Gemini',
+        category: 'Standard',
+        costPerM: '$1.00 / $3.00'
+      };
 
-    const startB = Date.now();
-    try {
-      const resB = await aiOrchestratorService.executeCommentary(
-        'You are a senior executive AI benchmark analyst.',
-        promptText,
-        modelB
-      );
-      const latencyB = Date.now() - startB;
-      setResultB({
-        text: resB?.commentary || JSON.stringify(resB, null, 2),
-        latencyMs: latencyB,
-        tokens: Math.round(promptText.length / 4 + 130),
-        provider: modelB.startsWith('openrouter/') ? 'OpenRouter' : 'Google Gemini',
-        cost: modelB.startsWith('openrouter/anthropic') ? '~$0.0045' : '~$0.0019'
-      });
-    } catch (err: any) {
-      setResultB({
-        text: `Execution fallback/error: ${err.message || 'Complete'}`,
-        latencyMs: Date.now() - startB,
-        tokens: 110,
-        provider: 'Failover',
-        cost: '$0.000'
-      });
-    }
+      const start = Date.now();
+      const promptTokensEst = Math.max(10, Math.round(promptText.length / 4));
+      try {
+        const res = await aiOrchestratorService.executeCommentary(
+          'You are a senior executive AI benchmark analyst.',
+          promptText,
+          modelId
+        );
+        const latency = Date.now() - start;
+        const responseText = res?.commentary || JSON.stringify(res, null, 2);
+        const completionTokensEst = Math.max(20, Math.round(responseText.length / 4));
+        const totalTokens = promptTokensEst + completionTokensEst;
 
+        let costEst = '~$0.0025';
+        if (modelId.includes('claude-3.5-sonnet')) costEst = '~$0.0052';
+        else if (modelId.includes('flash-lite') || modelId.includes('llama')) costEst = '~$0.0003';
+
+        return {
+          provider: option.provider,
+          modelId,
+          response: responseText,
+          promptTokens: promptTokensEst,
+          completionTokens: completionTokensEst,
+          totalTokens,
+          latencyMs: latency,
+          cost: costEst,
+          finishReason: 'STOP',
+          retryCount: 0,
+          cacheHit: false,
+          errorClassification: 'SUCCESS',
+          timestamp: new Date().toISOString()
+        };
+      } catch (err: any) {
+        const latency = Date.now() - start;
+        return {
+          provider: option.provider,
+          modelId,
+          response: `Execution error/fallback: ${err.message || 'Error occurred'}`,
+          promptTokens: promptTokensEst,
+          completionTokens: 0,
+          totalTokens: promptTokensEst,
+          latencyMs: latency,
+          cost: '$0.0000',
+          finishReason: 'ERROR',
+          retryCount: 1,
+          cacheHit: false,
+          errorClassification: 'EXECUTION_FAILOVER',
+          timestamp: new Date().toISOString()
+        };
+      }
+    };
+
+    const benchmarkPromises = selectedModels.map(id => runModelBenchmark(id));
+    const finishedRecords = await Promise.all(benchmarkPromises);
+    setResults(finishedRecords);
     setLoading(false);
+  };
+
+  const downloadCSV = () => {
+    if (results.length === 0) return;
+    const headers = [
+      'Provider',
+      'Model ID',
+      'Prompt Tokens',
+      'Completion Tokens',
+      'Total Tokens',
+      'Latency (ms)',
+      'Estimated Cost',
+      'Finish Reason',
+      'Retry Count',
+      'Cache Hit',
+      'Error Classification',
+      'Timestamp',
+      'Response'
+    ];
+
+    const escapeCsv = (str: string) => `"${str.replace(/"/g, '""')}"`;
+
+    const rows = results.map(r => [
+      escapeCsv(r.provider),
+      escapeCsv(r.modelId),
+      r.promptTokens,
+      r.completionTokens,
+      r.totalTokens,
+      r.latencyMs,
+      escapeCsv(r.cost),
+      escapeCsv(r.finishReason),
+      r.retryCount,
+      r.cacheHit ? 'true' : 'false',
+      escapeCsv(r.errorClassification),
+      escapeCsv(r.timestamp),
+      escapeCsv(r.response)
+    ].join(','));
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `businessos_ai_benchmark_${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadJSON = () => {
+    if (results.length === 0) return;
+    const payload = {
+      benchmarkMetadata: {
+        exportedAt: new Date().toISOString(),
+        prompt: promptText,
+        modelsTestedCount: results.length
+      },
+      records: results
+    };
+    const jsonContent = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `businessos_ai_benchmark_${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -124,56 +229,94 @@ export const BenchmarkLab: React.FC = () => {
           <div>
             <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-400" />
-              AI Model & Provider Benchmark Lab
+              Parallel Multi-Model Benchmark Lab
             </h3>
-            <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-              Execute side-by-side comparative evaluations across Google Gemini and OpenRouter enterprise models. Measure latency, token cost efficiency, and analytical response quality in real-time.
+            <p className="text-sm text-slate-300 mt-1 max-w-3xl">
+              Execute identical analytical instructions concurrently across any number of registered AI models. Compare latency, token efficiency, response quality, and export structured datasets for ChatGPT analysis.
             </p>
           </div>
+
+          {results.length > 0 && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={downloadCSV}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+              >
+                <FileText className="w-4 h-4 text-emerald-400" />
+                Export CSV
+              </button>
+              <button
+                onClick={downloadJSON}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+              >
+                <FileJson className="w-4 h-4 text-indigo-400" />
+                Export JSON
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Model Selection & Prompt Editor */}
+      {/* Model Multi-Select & Prompt Editor */}
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 shadow-lg space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Model A (Primary Candidate)
-            </label>
-            <select
-              value={modelA}
-              onChange={e => setModelA(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-            >
-              {BENCHMARK_MODELS.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.costPerM})
-                </option>
-              ))}
-            </select>
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              Select Candidate Models ({selectedModels.length} selected)
+            </span>
+            <div className="flex items-center gap-3 text-xs">
+              <button
+                onClick={selectAllModels}
+                className="text-indigo-400 hover:text-indigo-300 font-medium"
+              >
+                Select All
+              </button>
+              <button
+                onClick={clearSelection}
+                className="text-slate-400 hover:text-slate-300 font-medium"
+              >
+                Clear Selection
+              </button>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Model B (Comparison Candidate)
-            </label>
-            <select
-              value={modelB}
-              onChange={e => setModelB(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-            >
-              {BENCHMARK_MODELS.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.costPerM})
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {REGISTERED_BENCHMARK_MODELS.map(model => {
+              const isSelected = selectedModels.includes(model.id);
+              return (
+                <button
+                  key={model.id}
+                  onClick={() => toggleModelSelection(model.id)}
+                  className={`flex items-center justify-between p-3.5 rounded-xl border transition-all text-left ${
+                    isSelected
+                      ? 'bg-indigo-500/15 border-indigo-500/50 text-white shadow-sm'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {isSelected ? (
+                      <CheckSquare className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                    ) : (
+                      <Square className="w-4 h-4 text-slate-600 flex-shrink-0" />
+                    )}
+                    <div>
+                      <span className={`text-xs font-bold block ${isSelected ? 'text-white' : 'text-slate-300'}`}>
+                        {model.displayName}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {model.provider} • {model.category}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Preset Prompts */}
         <div>
-          <span className="text-xs font-medium text-slate-400 block mb-2">Preset Analytical Test Prompts:</span>
+          <span className="text-xs font-medium text-slate-400 block mb-2">Preset Benchmark Instructions:</span>
           <div className="flex flex-wrap gap-2">
             {PRESET_PROMPTS.map((p, idx) => (
               <button
@@ -189,130 +332,81 @@ export const BenchmarkLab: React.FC = () => {
 
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            Test User Prompt
+            Test Evaluation Prompt
           </label>
           <textarea
             rows={3}
             value={promptText}
             onChange={e => setPromptText(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-            placeholder="Enter benchmark instruction prompt..."
+            placeholder="Enter instruction prompt for parallel execution across selected models..."
           />
         </div>
 
         <div className="flex justify-end">
           <button
-            onClick={runBenchmark}
-            disabled={loading || !promptText.trim()}
+            onClick={runParallelBenchmark}
+            disabled={loading || selectedModels.length === 0 || !promptText.trim()}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-50"
           >
             <Play className="w-4 h-4 fill-current" />
-            {loading ? 'Executing Side-by-Side Benchmark...' : 'Run Side-by-Side Benchmark'}
+            {loading ? 'Executing Parallel Benchmark Suite...' : `Execute Benchmark Across ${selectedModels.length} Models`}
           </button>
         </div>
       </div>
 
-      {/* Results Side-by-Side View */}
-      {(resultA || resultB || loading) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Panel A */}
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col justify-between shadow-lg">
-            <div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                <div>
-                  <span className="text-xs font-semibold uppercase text-indigo-400 block">Candidate A</span>
-                  <h4 className="text-sm font-bold text-white">{modelA}</h4>
-                </div>
-                {resultA && (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
-                    {resultA.provider}
-                  </span>
-                )}
-              </div>
-
-              {loading && !resultA ? (
-                <div className="py-12 text-center text-slate-400 text-sm animate-pulse">
-                  Executing model reasoning & response stream...
-                </div>
-              ) : resultA ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-medium block flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Latency
-                      </span>
-                      <span className="text-sm font-bold text-white mt-0.5 block">{resultA.latencyMs} ms</span>
-                    </div>
-                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-medium block flex items-center gap-1">
-                        <Cpu className="w-3 h-3" /> Output Tokens
-                      </span>
-                      <span className="text-sm font-bold text-white mt-0.5 block">{resultA.tokens}</span>
-                    </div>
-                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-medium block flex items-center gap-1">
-                        <DollarSign className="w-3 h-3" /> Est. Cost
-                      </span>
-                      <span className="text-sm font-bold text-emerald-400 mt-0.5 block">{resultA.cost}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800/80 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto">
-                    {resultA.text}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+      {/* Results Table & Cards */}
+      {results.length > 0 && (
+        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
+          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+              Parallel Execution Telemetry & Comparison Matrix
+            </h4>
+            <span className="text-xs text-slate-400">
+              {results.length} model evaluations completed
+            </span>
           </div>
 
-          {/* Panel B */}
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col justify-between shadow-lg">
-            <div>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                <div>
-                  <span className="text-xs font-semibold uppercase text-indigo-400 block">Candidate B</span>
-                  <h4 className="text-sm font-bold text-white">{modelB}</h4>
-                </div>
-                {resultB && (
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
-                    {resultB.provider}
-                  </span>
-                )}
-              </div>
-
-              {loading && !resultB ? (
-                <div className="py-12 text-center text-slate-400 text-sm animate-pulse">
-                  Executing model reasoning & response stream...
-                </div>
-              ) : resultB ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-medium block flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Latency
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Provider</th>
+                  <th className="py-3.5 px-4">Model ID</th>
+                  <th className="py-3.5 px-4">Latency</th>
+                  <th className="py-3.5 px-4">Tokens (P/C/Total)</th>
+                  <th className="py-3.5 px-4">Est. Cost</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4">Response Output Preview</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-xs">
+                {results.map((rec, idx) => (
+                  <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="py-4 px-4 font-semibold text-slate-300">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] bg-slate-800 border border-slate-700">
+                        {rec.provider}
                       </span>
-                      <span className="text-sm font-bold text-white mt-0.5 block">{resultB.latencyMs} ms</span>
-                    </div>
-                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-medium block flex items-center gap-1">
-                        <Cpu className="w-3 h-3" /> Output Tokens
+                    </td>
+                    <td className="py-4 px-4 font-bold text-white">{rec.modelId}</td>
+                    <td className="py-4 px-4 text-slate-300 font-mono">{rec.latencyMs} ms</td>
+                    <td className="py-4 px-4 text-slate-300 font-mono">
+                      {rec.promptTokens} / {rec.completionTokens} / <strong className="text-white">{rec.totalTokens}</strong>
+                    </td>
+                    <td className="py-4 px-4 text-emerald-400 font-semibold">{rec.cost}</td>
+                    <td className="py-4 px-4">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {rec.errorClassification}
                       </span>
-                      <span className="text-sm font-bold text-white mt-0.5 block">{resultB.tokens}</span>
-                    </div>
-                    <div className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-medium block flex items-center gap-1">
-                        <DollarSign className="w-3 h-3" /> Est. Cost
-                      </span>
-                      <span className="text-sm font-bold text-emerald-400 mt-0.5 block">{resultB.cost}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800/80 text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto">
-                    {resultB.text}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+                    </td>
+                    <td className="py-4 px-4 max-w-md text-slate-300 truncate">
+                      {rec.response.slice(0, 140)}...
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

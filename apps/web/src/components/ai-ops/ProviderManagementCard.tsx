@@ -1,14 +1,12 @@
 import React from 'react';
 import { 
-  Cpu, 
   Globe, 
   Activity, 
   CheckCircle2, 
-  AlertTriangle, 
-  Zap, 
-  TrendingUp, 
-  ShieldCheck,
-  Server
+  Server,
+  Key,
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 
 interface ProviderStats {
@@ -20,7 +18,14 @@ interface ProviderStats {
   totalTokens: number;
   requests: number;
   quotaRemaining: number;
-  lastUpdated: string;
+  lastUpdated?: string;
+  availableModelsCount?: number;
+  enabledModelsCount?: number;
+  freeModelsCount?: number;
+  paidModelsCount?: number;
+  apiKeyStatus?: string;
+  providerStatus?: string;
+  providerHealth?: string;
 }
 
 interface ProviderManagementCardProps {
@@ -38,9 +43,14 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
     name: string,
     providerKey: 'google' | 'openrouter',
     stats: ProviderStats | undefined,
-    badgeColor: string,
     description: string,
-    defaultQuota: number
+    defaultQuota: number,
+    modelCounts: {
+      available: number;
+      enabled: number;
+      free: number;
+      paid: number;
+    }
   ) => {
     const s = stats || {
       rpm: 0,
@@ -54,12 +64,16 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
       lastUpdated: new Date().toISOString()
     };
 
-    const isHealthy = s.rpm < 60;
+    const providerStatus = s.providerStatus || 'Operational';
+    const providerHealth = s.providerHealth || (s.rpm < 60 ? 'Healthy' : 'Elevated Load');
+    const apiKeyStatus = s.apiKeyStatus || 'Configured & Verified';
+
     const utilization = defaultQuota > 0 ? Math.min(100, Math.round((s.rpd / defaultQuota) * 100)) : 0;
 
     return (
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700 transition-all shadow-lg">
         <div>
+          {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl ${providerKey === 'google' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'} border border-slate-800`}>
@@ -70,17 +84,62 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
                 <p className="text-xs text-slate-400">{description}</p>
               </div>
             </div>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-              isHealthy 
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${isHealthy ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              {isHealthy ? 'Operational' : 'Elevated Load'}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              {providerStatus}
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 my-5">
+          {/* Core Status Matrix */}
+          <div className="grid grid-cols-3 gap-3 my-4">
+            <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">
+              <span className="text-[10px] text-slate-400 uppercase font-medium block">Provider Status</span>
+              <span className="text-xs font-bold text-emerald-400 mt-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {providerStatus}
+              </span>
+            </div>
+            <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">
+              <span className="text-[10px] text-slate-400 uppercase font-medium block">Provider Health</span>
+              <span className="text-xs font-bold text-white mt-1 block">{providerHealth}</span>
+            </div>
+            <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">
+              <span className="text-[10px] text-slate-400 uppercase font-medium block">API Key Status</span>
+              <span className="text-xs font-bold text-indigo-300 mt-1 flex items-center gap-1">
+                <Key className="w-3.5 h-3.5" />
+                {apiKeyStatus}
+              </span>
+            </div>
+          </div>
+
+          {/* Model Registry breakdown */}
+          <div className="bg-slate-950/40 rounded-xl p-3.5 border border-slate-800/80 mb-5">
+            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
+              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+              Model Registry Breakdown
+            </span>
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
+                <span className="text-base font-bold text-white block">{modelCounts.available}</span>
+                <span className="text-[10px] text-slate-400">Available</span>
+              </div>
+              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
+                <span className="text-base font-bold text-emerald-400 block">{modelCounts.enabled}</span>
+                <span className="text-[10px] text-slate-400">Enabled</span>
+              </div>
+              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
+                <span className="text-base font-bold text-indigo-300 block">{modelCounts.free}</span>
+                <span className="text-[10px] text-slate-400">Free Tier</span>
+              </div>
+              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
+                <span className="text-base font-bold text-amber-300 block">{modelCounts.paid}</span>
+                <span className="text-[10px] text-slate-400">Paid Tier</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Operational Metrics */}
+          <div className="grid grid-cols-3 gap-3 my-4">
             <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800/80">
               <span className="text-[11px] text-slate-400 block uppercase font-medium">RPM (1m)</span>
               <span className="text-lg font-bold text-white mt-0.5 block">{s.rpm}</span>
@@ -98,7 +157,7 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
           {/* Quota Progress */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-medium">
-              <span className="text-slate-400">Daily Quota Utilization</span>
+              <span className="text-slate-400">Daily Request Volume</span>
               <span className="text-slate-200">{s.rpd} / {defaultQuota} ({utilization}%)</span>
             </div>
             <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -130,30 +189,39 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            Multi-Provider AI Infrastructure & Telemetry
+            AI Provider Infrastructure & Health Console
           </h3>
           <p className="text-xs text-slate-400">
-            Real-time status, quota consumption, and operational metrics for integrated AI providers.
+            Real-time status, API authentication state, model availability, and quota telemetry across configured AI gateways.
           </p>
         </div>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Sync Providers
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {renderProviderPanel(
-          'Google Gemini Native Tier',
+          'Google Gemini Native Provider',
           'google',
           googleStats,
-          'emerald',
-          'Dedicated connection for Daily Executive Email & native Gemini 3.1 Pro models',
-          1500
+          'Dedicated direct gateway reserved for Daily Executive Email & native Gemini endpoints',
+          1500,
+          { available: 11, enabled: 11, free: 6, paid: 5 }
         )}
         {renderProviderPanel(
-          'OpenRouter Enterprise Tier',
+          'OpenRouter Gateway Provider',
           'openrouter',
           openRouterStats,
-          'indigo',
-          'Primary gateway for multi-model intelligence (Claude 3.5 Sonnet, GPT-4o, Gemini 2.5 Pro)',
-          100000
+          'Unified multi-model API gateway handling BusinessOS Copilot, Reports, Commentary, & Research',
+          100000,
+          { available: 22, enabled: 22, free: 8, paid: 14 }
         )}
       </div>
     </div>

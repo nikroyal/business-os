@@ -16,6 +16,7 @@ import { AIRequestInspectorModal } from './ai-ops/AIRequestInspectorModal';
 import { RoutingPoliciesEditor } from './ai-ops/RoutingPoliciesEditor';
 import { ProviderManagementCard } from './ai-ops/ProviderManagementCard';
 import { BenchmarkLab } from './ai-ops/BenchmarkLab';
+import { AIPlayground } from './ai-ops/AIPlayground';
 
 import { 
   Cpu, 
@@ -37,7 +38,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const { profile } = useAuth();
   const isOwner = profile?.role === 'OWNER';
 
-  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Providers' | 'Routing' | 'Benchmark' | 'Registry' | 'Models' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
+  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Providers' | 'Routing' | 'Playground' | 'Benchmark' | 'Registry' | 'Models' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [trendHorizon, setTrendHorizon] = useState<'1h' | '24h' | '7d' | '30d' | '90d'>('7d');
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
@@ -395,7 +396,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Sub tabs */}
       <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto' }}>
-        {(['Overview', 'Providers', 'Routing', 'Benchmark', 'Registry', 'Models', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
+        {(['Overview', 'Providers', 'Routing', 'Playground', 'Benchmark', 'Registry', 'Models', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
           if (tab === 'Controls' && !isOwner) return null;
           const isTabActive = activeSubTab === tab;
           return (
@@ -929,7 +930,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
           <ProviderManagementCard
             googleStats={stats?.providerComparison?.google}
             openRouterStats={stats?.providerComparison?.openrouter}
-            onRefresh={fetchDashboardData}
+            onRefresh={() => loadData(true)}
           />
         </div>
       )}
@@ -939,9 +940,16 @@ export const AIOrchestratorDashboard: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <RoutingPoliciesEditor
             config={config}
-            onSaveConfig={handleSaveEditorConfig}
+            onSaveConfig={async (updated) => { await handleSaveEditorConfig({ ...config, ...updated } as OrchestratorConfig); }}
             isOwner={isOwner}
           />
+        </div>
+      )}
+
+      {/* Subtab Content: Playground */}
+      {activeSubTab === 'Playground' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <AIPlayground />
         </div>
       )}
 
@@ -1730,7 +1738,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                     <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginLeft: '6px' }}>(from Provider Quota Registry)</span>
                   </div>
                   <div>Remaining Daily Quota: <strong>{stats.providerComparison.google.quotaRemaining} requests (Est.)</strong></div>
-                  <div>Last Tracked Upstream: <strong>{new Date(stats.providerComparison.google.lastUpdated).toLocaleString()}</strong></div>
+                  <div>Last Tracked Upstream: <strong>{stats.providerComparison.google.lastUpdated ? new Date(stats.providerComparison.google.lastUpdated).toLocaleString() : 'N/A'}</strong></div>
                 </div>
               </div>
               <div>
