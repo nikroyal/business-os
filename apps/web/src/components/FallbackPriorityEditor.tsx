@@ -23,9 +23,20 @@ export const FallbackPriorityEditor: React.FC<FallbackPriorityEditorProps> = ({
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ category: 'flash' | 'pro'; index: number } | null>(null);
 
-  // Derive current Flash and Pro chains
-  const defaultFlashOrder = ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-flash-latest"];
-  const defaultProOrder = ["gemini-3.1-pro-preview", "gemini-2.5-pro", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-pro-latest"];
+  // Derive current Flash and Pro chains dynamically from the Model Registry SSOT
+  const defaultFlashOrder = models.length > 0
+    ? models
+        .filter(m => m.category === 'Flash' || m.category === 'Fast')
+        .sort((a, b) => (a.priority || 1) - (b.priority || 1))
+        .map(m => m.id)
+    : [];
+
+  const defaultProOrder = models.length > 0
+    ? models
+        .filter(m => m.category === 'Flagship' || m.category === 'Pro')
+        .sort((a, b) => (a.priority || 1) - (b.priority || 1))
+        .map(m => m.id)
+    : [];
 
   const flashOrder: string[] = config.flashFallbackOrder && config.flashFallbackOrder.length > 0
     ? config.flashFallbackOrder

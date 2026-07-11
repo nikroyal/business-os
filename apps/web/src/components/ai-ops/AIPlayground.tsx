@@ -1,30 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Terminal,
   Settings2
 } from 'lucide-react';
 import { aiOrchestratorService } from '../../services/aiOrchestratorService';
-
-export interface PlaygroundModelOption {
-  id: string;
-  name: string;
-  provider: 'Google Gemini' | 'OpenRouter';
-}
-
-const PLAYGROUND_MODELS: PlaygroundModelOption[] = [
-  { id: 'openrouter/free', name: 'OpenRouter: Free Router (Zero Cost)', provider: 'OpenRouter' },
-  { id: 'gpt-oss-20b', name: 'OpenRouter: GPT-OSS 20B (Free)', provider: 'OpenRouter' },
-  { id: 'gemini-3.1-pro-high', name: 'Google Gemini 3.1 Pro (High)', provider: 'Google Gemini' },
-  { id: 'gemini-3.5-flash', name: 'Google Gemini 3.5 Flash', provider: 'Google Gemini' },
-  { id: 'gemini-3.1-flash-lite', name: 'Google Gemini 3.1 Flash Lite', provider: 'Google Gemini' },
-  { id: 'gpt-oss-120b', name: 'OpenRouter: GPT-OSS 120B', provider: 'OpenRouter' },
-  { id: 'openrouter/anthropic/claude-3.5-sonnet', name: 'OpenRouter: Claude 3.5 Sonnet', provider: 'OpenRouter' },
-  { id: 'openrouter/openai/gpt-4o', name: 'OpenRouter: OpenAI GPT-4o', provider: 'OpenRouter' },
-  { id: 'openrouter/google/gemini-2.5-pro', name: 'OpenRouter: Gemini 2.5 Pro', provider: 'OpenRouter' },
-  { id: 'openrouter/meta-llama/llama-3.3-70b-instruct', name: 'OpenRouter: Llama 3.3 70B', provider: 'OpenRouter' },
-  { id: 'openrouter/deepseek/deepseek-r1', name: 'OpenRouter: DeepSeek R1 Reasoning', provider: 'OpenRouter' }
-];
+import type { ModelMetadataWithStats } from '../../services/aiOrchestratorService';
 
 interface PlaygroundResponse {
   modelId: string;
@@ -39,7 +20,19 @@ interface PlaygroundResponse {
   maxTokens: number;
 }
 
-export const AIPlayground: React.FC = () => {
+export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ models }) => {
+  const [registryModels, setRegistryModels] = useState<ModelMetadataWithStats[]>(models || []);
+
+  useEffect(() => {
+    if (!models || models.length === 0) {
+      aiOrchestratorService.getRegistryModels().then(setRegistryModels);
+    } else {
+      setRegistryModels(models);
+    }
+  }, [models]);
+
+  const playgroundModels = aiOrchestratorService.filterPlaygroundModels(registryModels);
+
   const [systemPrompt, setSystemPrompt] = useState<string>(
     'You are an authoritative financial and strategic business advisor for BusinessOS executives.'
   );
@@ -71,11 +64,8 @@ export const AIPlayground: React.FC = () => {
     setResults([]);
 
     const runSingleModel = async (modelId: string): Promise<PlaygroundResponse> => {
-      const option = PLAYGROUND_MODELS.find(m => m.id === modelId) || {
-        id: modelId,
-        name: modelId,
-        provider: modelId.startsWith('openrouter/') ? 'OpenRouter' : 'Google Gemini'
-      };
+      const option = playgroundModels.find(m => m.id === modelId);
+      const providerLabel = option?.provider === 'google' ? 'Google Gemini' : 'OpenRouter';
 
       const start = Date.now();
       const promptTokensEst = Math.max(10, Math.round((systemPrompt.length + userPrompt.length) / 4));
@@ -92,7 +82,7 @@ export const AIPlayground: React.FC = () => {
 
         return {
           modelId,
-          provider: option.provider,
+          provider: providerLabel,
           output: textOutput,
           latencyMs: latency,
           promptTokens: promptTokensEst,
@@ -106,7 +96,7 @@ export const AIPlayground: React.FC = () => {
         const latency = Date.now() - start;
         return {
           modelId,
-          provider: option.provider,
+          provider: providerLabel,
           output: `Execution error or failover: ${err.message || 'Error executing request'}`,
           latencyMs: latency,
           promptTokens: promptTokensEst,
@@ -248,8 +238,9 @@ export const AIPlayground: React.FC = () => {
                 Target Models ({selectedModels.length})
               </h5>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {PLAYGROUND_MODELS.map(mod => {
+                {playgroundModels.map(mod => {
                   const active = selectedModels.includes(mod.id);
+                  const providerName = mod.provider === 'google' ? 'Google Gemini' : 'OpenRouter';
                   return (
                     <button
                       key={mod.id}
@@ -261,8 +252,8 @@ export const AIPlayground: React.FC = () => {
                       }`}
                     >
                       <div className="truncate pr-2">
-                        <span className="font-bold block truncate">{mod.name}</span>
-                        <span className="text-[10px] text-slate-400">{mod.provider}</span>
+                        <span className="font-bold block truncate">{mod.displayName}</span>
+                        <span className="text-[10px] text-slate-400">{providerName}</span>
                       </div>
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-indigo-400' : 'bg-slate-700'}`} />
                     </button>

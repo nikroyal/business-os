@@ -112,7 +112,7 @@ export interface FallbackEvent {
 export interface ModelMetadataWithStats {
   id: string;
   displayName: string;
-  category: 'Flash' | 'Pro';
+  category: string;
   priority: number;
   capabilityScore: number;
   reasoningScore: number;
@@ -148,6 +148,22 @@ export interface ModelMetadataWithStats {
   ownerOnly?: boolean;
   modelType?: 'model' | 'router';
   intendedUse?: string;
+  availableForRouting?: boolean;
+  availableForBenchmarking?: boolean;
+  availableForPlayground?: boolean;
+  visibleInRegistry?: boolean;
+}
+
+export interface RegistryValidationReport {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: {
+    totalModels: number;
+    routingEnabled: number;
+    benchmarkEnabled: number;
+    playgroundEnabled: number;
+  };
 }
 
 export interface OverviewStats {
@@ -1056,11 +1072,15 @@ class AIOrchestratorService {
         }
       };
       
-      // Enrich every model with quotas from the centralized registry
+      // Enrich every model with quotas and capability flags from the centralized registry SSOT
       defaultStats.models = defaultStats.models.map(m => {
         const quota = getModelQuota(m.id);
         return {
           ...m,
+          availableForRouting: m.availableForRouting !== undefined ? m.availableForRouting : true,
+          availableForBenchmarking: m.availableForBenchmarking !== undefined ? m.availableForBenchmarking : true,
+          availableForPlayground: m.availableForPlayground !== undefined ? m.availableForPlayground : true,
+          visibleInRegistry: m.visibleInRegistry !== undefined ? m.visibleInRegistry : true,
           contextWindow: quota.contextWindow,
           maxOutput: quota.maxOutputTokens,
           inputCostPer1M: quota.inputCostPer1M,
@@ -1127,7 +1147,17 @@ class AIOrchestratorService {
     const headers = await this.getAuthHeaders();
     const res = await fetch(buildApiUrl('api/admin/ai-orchestrator/stats'), { headers });
     if (!res.ok) throw new Error(`Failed to load AI stats: HTTP ${res.status}`);
-    return await res.json() as OrchestratorStats;
+    const data = await res.json() as OrchestratorStats;
+    if (data.models) {
+      data.models = data.models.map(m => ({
+        ...m,
+        availableForRouting: m.availableForRouting !== undefined ? m.availableForRouting : true,
+        availableForBenchmarking: m.availableForBenchmarking !== undefined ? m.availableForBenchmarking : true,
+        availableForPlayground: m.availableForPlayground !== undefined ? m.availableForPlayground : true,
+        visibleInRegistry: m.visibleInRegistry !== undefined ? m.visibleInRegistry : true,
+      }));
+    }
+    return data;
   }
 
   async getTimeline(): Promise<TelemetryRecord[]> {
@@ -1313,6 +1343,92 @@ class AIOrchestratorService {
     }
     return await res.json();
   }
+
+  async getRegistryModels(): Promise<ModelMetadataWithStats[]> {
+    const stats = await this.getStats();
+    return (stats.models || []).filter(m => m.visibleInRegistry !== false);
+  }
+
+  filterPlaygroundModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
+    return models.filter(m => m.enabled && m.availableForPlayground !== false && m.visibleInRegistry !== false);
+  }
+
+  filterBenchmarkModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
+    return models.filter(m => m.enabled && m.availableForBenchmarking !== false && m.visibleInRegistry !== false);
+  }
+
+  filterRoutingModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
+    return models.filter(m => m.enabled && m.availableForRouting !== false && m.visibleInRegistry !== false);
+  }
+
+  validateRegistry(models: ModelMetadataWithStats[], config?: OrchestratorConfig): RegistryValidationReport {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const seenIds = new Set<string>();
+
+    let routingEnabled = 0;
+    let benchmarkEnabled = 0;
+    let playgroundEnabled = 0;
+
+    models.forEach(model => {
+      if (seenIds.has(model.id)) {
+        errors.push(`Duplicate model ID detected in registry: "${model.id}"`);
+      }
+      seenIds.add(model.id);
+
+      const validProviders = ['google', 'openrouter', 'Google Gemini', 'OpenRouter'];
+      if (!model.provider || !validProviders.some(p => model.provider.toLowerCase() === p.toLowerCase())) {
+        errors.push(`Model "${model.id}" has invalid or unsupported provider: "${model.provider}"`);
+      }
+
+      if (!model.defaultTimeoutMs || model.defaultTimeoutMs <= 0) {
+        errors.push(`Model "${model.id}" is missing valid adapter defaultTimeoutMs.`);
+      }
+      if (!model.status) {
+        errors.push(`Model "${model.id}" is missing deployment status.`);
+      }
+
+      if (!model.enabled && model.isForced) {
+        errors.push(`Model "${model.id}" is marked as forced override but is disabled.`);
+      }
+      if (!model.enabled && model.availableForRouting === true) {
+        warnings.push(`Model "${model.id}" has availableForRouting=true but enabled=false.`);
+      }
+
+      if (model.enabled && model.availableForRouting !== false && model.visibleInRegistry !== false) routingEnabled++;
+      if (model.enabled && model.availableForBenchmarking !== false && model.visibleInRegistry !== false) benchmarkEnabled++;
+      if (model.enabled && model.availableForPlayground !== false && model.visibleInRegistry !== false) playgroundEnabled++;
+    });
+
+    if (config) {
+      if (config.forcedModel && !seenIds.has(config.forcedModel)) {
+        errors.push(`Forced override model "${config.forcedModel}" does not exist in Model Registry.`);
+      }
+      (config.flashFallbackOrder || []).forEach(id => {
+        if (!seenIds.has(id)) {
+          errors.push(`Flash routing policy references missing model ID: "${id}"`);
+        }
+      });
+      (config.proFallbackOrder || []).forEach(id => {
+        if (!seenIds.has(id)) {
+          errors.push(`Pro routing policy references missing model ID: "${id}"`);
+        }
+      });
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      stats: {
+        totalModels: models.length,
+        routingEnabled,
+        benchmarkEnabled,
+        playgroundEnabled
+      }
+    };
+  }
 }
 
 export const aiOrchestratorService = new AIOrchestratorService();
+

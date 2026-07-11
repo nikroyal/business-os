@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Sparkles, 
@@ -9,28 +9,7 @@ import {
   FileJson
 } from 'lucide-react';
 import { aiOrchestratorService } from '../../services/aiOrchestratorService';
-
-export interface BenchmarkModelOption {
-  id: string;
-  displayName: string;
-  provider: 'Google Gemini' | 'OpenRouter';
-  category: string;
-  costPerM: string;
-}
-
-const REGISTERED_BENCHMARK_MODELS: BenchmarkModelOption[] = [
-  { id: 'openrouter/free', displayName: 'OpenRouter: Free Router (Zero Cost)', provider: 'OpenRouter', category: 'Free', costPerM: '$0.00 / $0.00' },
-  { id: 'gpt-oss-20b', displayName: 'OpenRouter: GPT-OSS 20B (Free)', provider: 'OpenRouter', category: 'Free', costPerM: '$0.00 / $0.00' },
-  { id: 'gemini-3.1-pro-high', displayName: 'Google Gemini 3.1 Pro (High)', provider: 'Google Gemini', category: 'Flagship', costPerM: '$1.25 / $5.00' },
-  { id: 'gemini-3.5-flash', displayName: 'Google Gemini 3.5 Flash', provider: 'Google Gemini', category: 'Fast', costPerM: '$0.075 / $0.30' },
-  { id: 'gemini-3.1-flash-lite', displayName: 'Google Gemini 3.1 Flash Lite', provider: 'Google Gemini', category: 'Fast', costPerM: '$0.075 / $0.30' },
-  { id: 'gpt-oss-120b', displayName: 'OpenRouter: GPT-OSS 120B', provider: 'OpenRouter', category: 'Flagship', costPerM: '$0.15 / $0.60' },
-  { id: 'openrouter/google/gemini-2.5-pro', displayName: 'OpenRouter: Gemini 2.5 Pro', provider: 'OpenRouter', category: 'Pro', costPerM: '$1.25 / $5.00' },
-  { id: 'openrouter/anthropic/claude-3.5-sonnet', displayName: 'OpenRouter: Claude 3.5 Sonnet', provider: 'OpenRouter', category: 'Flagship', costPerM: '$3.00 / $15.00' },
-  { id: 'openrouter/openai/gpt-4o', displayName: 'OpenRouter: OpenAI GPT-4o', provider: 'OpenRouter', category: 'Flagship', costPerM: '$2.50 / $10.00' },
-  { id: 'openrouter/meta-llama/llama-3.3-70b-instruct', displayName: 'OpenRouter: Llama 3.3 70B', provider: 'OpenRouter', category: 'Fast', costPerM: '$0.13 / $0.40' },
-  { id: 'openrouter/deepseek/deepseek-r1', displayName: 'OpenRouter: DeepSeek R1', provider: 'OpenRouter', category: 'Reasoning', costPerM: '$0.55 / $2.19' }
-];
+import type { ModelMetadataWithStats } from '../../services/aiOrchestratorService';
 
 export interface BenchmarkRecord {
   provider: string;
@@ -63,7 +42,18 @@ const PRESET_PROMPTS = [
   }
 ];
 
-export const BenchmarkLab: React.FC = () => {
+export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ models }) => {
+  const [registryModels, setRegistryModels] = useState<ModelMetadataWithStats[]>(models || []);
+
+  useEffect(() => {
+    if (!models || models.length === 0) {
+      aiOrchestratorService.getRegistryModels().then(setRegistryModels);
+    } else {
+      setRegistryModels(models);
+    }
+  }, [models]);
+
+  const benchmarkModels = aiOrchestratorService.filterBenchmarkModels(registryModels);
   const [selectedModels, setSelectedModels] = useState<string[]>([
     'gemini-3.1-pro-high',
     'openrouter/anthropic/claude-3.5-sonnet',
@@ -80,7 +70,7 @@ export const BenchmarkLab: React.FC = () => {
   };
 
   const selectAllModels = () => {
-    setSelectedModels(REGISTERED_BENCHMARK_MODELS.map(m => m.id));
+    setSelectedModels(benchmarkModels.map(m => m.id));
   };
 
   const clearSelection = () => {
@@ -93,13 +83,8 @@ export const BenchmarkLab: React.FC = () => {
     setResults([]);
 
     const runModelBenchmark = async (modelId: string): Promise<BenchmarkRecord> => {
-      const option = REGISTERED_BENCHMARK_MODELS.find(m => m.id === modelId) || {
-        id: modelId,
-        displayName: modelId,
-        provider: modelId.startsWith('openrouter/') ? 'OpenRouter' : 'Google Gemini',
-        category: 'Standard',
-        costPerM: '$1.00 / $3.00'
-      };
+      const option = benchmarkModels.find(m => m.id === modelId);
+      const providerLabel = option?.provider === 'google' ? 'Google Gemini' : 'OpenRouter';
 
       const start = Date.now();
       const promptTokensEst = Math.max(10, Math.round(promptText.length / 4));
@@ -119,7 +104,7 @@ export const BenchmarkLab: React.FC = () => {
         else if (modelId.includes('flash-lite') || modelId.includes('llama')) costEst = '~$0.0003';
 
         return {
-          provider: option.provider,
+          provider: providerLabel,
           modelId,
           response: responseText,
           promptTokens: promptTokensEst,
@@ -136,7 +121,7 @@ export const BenchmarkLab: React.FC = () => {
       } catch (err: any) {
         const latency = Date.now() - start;
         return {
-          provider: option.provider,
+          provider: providerLabel,
           modelId,
           response: `Execution error/fallback: ${err.message || 'Error occurred'}`,
           promptTokens: promptTokensEst,
@@ -285,8 +270,9 @@ export const BenchmarkLab: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {REGISTERED_BENCHMARK_MODELS.map(model => {
+            {benchmarkModels.map(model => {
               const isSelected = selectedModels.includes(model.id);
+              const providerName = model.provider === 'google' ? 'Google Gemini' : 'OpenRouter';
               return (
                 <button
                   key={model.id}
@@ -308,7 +294,7 @@ export const BenchmarkLab: React.FC = () => {
                         {model.displayName}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        {model.provider} • {model.category}
+                        {providerName} • {model.category}
                       </span>
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   GitBranch, 
   ShieldCheck, 
@@ -8,10 +8,11 @@ import {
   RotateCcw, 
   CheckCircle2
 } from 'lucide-react';
-import type { OrchestratorConfig } from '../../services/aiOrchestratorService';
+import { aiOrchestratorService, type OrchestratorConfig, type ModelMetadataWithStats } from '../../services/aiOrchestratorService';
 
 interface RoutingPoliciesEditorProps {
   config: OrchestratorConfig;
+  models?: ModelMetadataWithStats[];
   onSaveConfig: (updated: Partial<OrchestratorConfig>) => Promise<void>;
   isOwner: boolean;
 }
@@ -83,25 +84,24 @@ const FEATURE_LIST = [
   }
 ];
 
-const AVAILABLE_MODELS = [
-  { id: 'openrouter/free', name: 'OpenRouter: Free Router (Zero Cost)', provider: 'openrouter', tier: 'Free' },
-  { id: 'gpt-oss-20b', name: 'OpenRouter: GPT-OSS 20B (Free)', provider: 'openrouter', tier: 'Free' },
-  { id: 'gemini-3.1-pro-high', name: 'Google Gemini 3.1 Pro (High)', provider: 'google', tier: 'Flagship' },
-  { id: 'gemini-3.5-flash', name: 'Google Gemini 3.5 Flash', provider: 'google', tier: 'Fast' },
-  { id: 'gemini-3.1-flash-lite', name: 'Google Gemini 3.1 Flash Lite', provider: 'google', tier: 'Fast' },
-  { id: 'gpt-oss-120b', name: 'OpenRouter: GPT-OSS 120B', provider: 'openrouter', tier: 'Flagship' },
-  { id: 'openrouter/google/gemini-2.5-pro', name: 'OpenRouter: Gemini 2.5 Pro', provider: 'openrouter', tier: 'Pro' },
-  { id: 'openrouter/anthropic/claude-3.5-sonnet', name: 'OpenRouter: Claude 3.5 Sonnet', provider: 'openrouter', tier: 'Flagship' },
-  { id: 'openrouter/openai/gpt-4o', name: 'OpenRouter: OpenAI GPT-4o', provider: 'openrouter', tier: 'Flagship' },
-  { id: 'openrouter/meta-llama/llama-3.3-70b-instruct', name: 'OpenRouter: Llama 3.3 70B Instruct', provider: 'openrouter', tier: 'Fast' },
-  { id: 'openrouter/deepseek/deepseek-r1', name: 'OpenRouter: DeepSeek R1 Reasoning', provider: 'openrouter', tier: 'Reasoning' }
-];
-
 export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
   config,
+  models,
   onSaveConfig,
   isOwner
 }) => {
+  const [registryModels, setRegistryModels] = useState<ModelMetadataWithStats[]>(models || []);
+
+  useEffect(() => {
+    if (!models || models.length === 0) {
+      aiOrchestratorService.getRegistryModels().then(setRegistryModels);
+    } else {
+      setRegistryModels(models);
+    }
+  }, [models]);
+
+  const routingModels = aiOrchestratorService.filterRoutingModels(registryModels);
+
   const existingPolicies = config.routingPolicies || {};
   const [globalPref, setGlobalPref] = useState<'openrouter' | 'google' | 'auto'>(
     existingPolicies.globalProviderPref || 'openrouter'
@@ -381,9 +381,9 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
                     disabled={!isOwner}
                     className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                   >
-                    {AVAILABLE_MODELS.map(model => (
+                    {routingModels.map(model => (
                       <option key={model.id} value={model.id}>
-                        {model.name} ({model.tier})
+                        {model.displayName} ({model.category})
                       </option>
                     ))}
                   </select>

@@ -6,7 +6,8 @@ import type {
   TelemetryRecord, 
   OrchestratorConfig,
   ModelReliabilityStats,
-  LatencyPercentiles
+  LatencyPercentiles,
+  RegistryValidationReport
 } from '../services/aiOrchestratorService';
 import { PROVIDER_QUOTA_REGISTRY, getModelQuota } from '../services/providerQuotaRegistry';
 import { FallbackPriorityEditor } from './FallbackPriorityEditor';
@@ -50,6 +51,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [testingHealth, setTestingHealth] = useState<string | null>(null);
   const [error, setError] = useState<{ status: string; message: string } | null>(null);
+  const [validationReport, setValidationReport] = useState<RegistryValidationReport | null>(null);
 
   const filteredTimeline = React.useMemo(() => filterTelemetryRecords(timeline, filters), [timeline, filters]);
 
@@ -255,6 +257,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
     } catch (e: any) {
       alert(`Clear telemetry error: ${e.message || e}`);
     }
+  };
+
+  const handleValidateRegistry = () => {
+    if (!stats) return;
+    const report = aiOrchestratorService.validateRegistry(stats.models || [], config);
+    setValidationReport(report);
   };
 
   // CSV Exporter
@@ -997,6 +1005,66 @@ export const AIOrchestratorDashboard: React.FC = () => {
             </div>
           )}
 
+          {/* Registry SSOT Validation Action Card */}
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'bold' }}>
+                  AI Model Registry Architecture Integrity (SSOT)
+                </h4>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Single Source of Truth validation across Routing Policies, AI Playground, and Benchmark Lab.
+                </p>
+              </div>
+              <button
+                onClick={handleValidateRegistry}
+                style={{
+                  background: 'var(--color-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                Run Registry Validation
+              </button>
+            </div>
+
+            {validationReport && (
+              <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px', background: validationReport.valid ? '#f0fdf4' : '#fef2f2', border: `1px solid ${validationReport.valid ? '#bbf7d0' : '#fecaca'}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: validationReport.valid ? '#166534' : '#991b1b' }}>
+                    {validationReport.valid
+                      ? '✓ Model Registry SSOT Validated — No Duplicate IDs, Broken References, or Adapter Errors'
+                      : `⚠ Validation Found ${validationReport.errors.length} Error(s)`}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '0.7rem', color: '#374151', marginBottom: validationReport.errors.length > 0 ? '0.5rem' : 0 }}>
+                  <div>Total Models: <strong>{validationReport.stats.totalModels}</strong></div>
+                  <div>Routing Enabled: <strong>{validationReport.stats.routingEnabled}</strong></div>
+                  <div>Benchmark Ready: <strong>{validationReport.stats.benchmarkEnabled}</strong></div>
+                  <div>Playground Ready: <strong>{validationReport.stats.playgroundEnabled}</strong></div>
+                </div>
+                {validationReport.errors.map((err, idx) => (
+                  <div key={idx} style={{ fontSize: '0.75rem', color: '#b91c1c', marginTop: '4px' }}>
+                    • {err}
+                  </div>
+                ))}
+                {validationReport.warnings.map((warn, idx) => (
+                  <div key={idx} style={{ fontSize: '0.75rem', color: '#b45309', marginTop: '4px' }}>
+                    • {warn}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', overflowX: 'auto', boxShadow: 'var(--shadow-subtle)' }}>
             <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'bold' }}>
               Complete AI Model Registry & Operational Metrics
@@ -1065,7 +1133,10 @@ export const AIOrchestratorDashboard: React.FC = () => {
                         <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Max: {((model.maxOutput || 8192)/1000).toFixed(0)}K</div>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'center', maxWidth: '140px', margin: '0 auto' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'center', maxWidth: '160px', margin: '0 auto' }}>
+                          {model.availableForRouting !== false && <span title="Available for Routing" style={{ fontSize: '0.55rem', background: '#ecfdf5', color: '#047857', padding: '1px 4px', borderRadius: '3px', border: '1px solid #a7f3d0' }}>Route</span>}
+                          {model.availableForBenchmarking !== false && <span title="Available for Benchmarking" style={{ fontSize: '0.55rem', background: '#eff6ff', color: '#1d4ed8', padding: '1px 4px', borderRadius: '3px', border: '1px solid #bfdbfe' }}>Bench</span>}
+                          {model.availableForPlayground !== false && <span title="Available for Playground" style={{ fontSize: '0.55rem', background: '#fdf4ff', color: '#86198f', padding: '1px 4px', borderRadius: '3px', border: '1px solid #f5d0fe' }}>Play</span>}
                           {model.supportsGrounding && <span title="Supports Grounding with Google Search" style={{ fontSize: '0.55rem', background: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '3px', border: '1px solid #bae6fd' }}>Ground</span>}
                           {model.supportsVision && <span title="Supports Vision / Image Input" style={{ fontSize: '0.55rem', background: '#f0fdf4', color: '#15803d', padding: '1px 4px', borderRadius: '3px', border: '1px solid #bbf7d0' }}>Vision</span>}
                           {model.supportsAudio && <span title="Supports Audio Input" style={{ fontSize: '0.55rem', background: '#fef3c7', color: '#b45309', padding: '1px 4px', borderRadius: '3px', border: '1px solid #fde68a' }}>Audio</span>}
