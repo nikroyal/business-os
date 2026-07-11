@@ -418,6 +418,7 @@ export interface OrchestratorConfig {
   }>;
   routingPolicies?: {
     globalProviderPref?: 'openrouter' | 'google' | 'auto';
+    freeFirstRouting?: boolean;
     featureRouting?: Record<string, {
       provider: 'openrouter' | 'google' | 'auto';
       preferredModel?: string;
@@ -954,9 +955,15 @@ class AIOrchestratorService {
             availabilityTier: "Free",
             modelType: "router",
             stats: {
-              todayRequests: 0,
-              successRate: 100,
+              requests: 0,
+              success: 0,
+              failure: 0,
               avgLatencyMs: 420,
+              successRate: 100,
+              lastSuccess: "",
+              lastFailure: "",
+              lastFailureReason: "",
+              todayRequests: 0,
               todayTokens: 0,
               todayCost: 0,
               retriesCount: 0,
@@ -1005,9 +1012,15 @@ class AIOrchestratorService {
             availabilityTier: "Pay-as-you-go",
             modelType: "model",
             stats: {
-              todayRequests: 0,
-              successRate: 100,
+              requests: 0,
+              success: 0,
+              failure: 0,
               avgLatencyMs: 800,
+              successRate: 100,
+              lastSuccess: "",
+              lastFailure: "",
+              lastFailureReason: "",
+              todayRequests: 0,
               todayTokens: 0,
               todayCost: 0,
               retriesCount: 0,
