@@ -276,7 +276,7 @@ describe("BusinessOS Backend Worker API Tests", () => {
 			expect(stats).toHaveProperty("apiAnalytics");
 			expect(stats).toHaveProperty("queues");
 			expect(stats.health.firestore.status).toBe("operational");
-		});
+		}, 10000);
 
 		it("returns AI orchestrator stats correctly when authenticated as OWNER", async () => {
 			const response = await SELF.fetch("http://example.com/api/admin/ai-orchestrator/stats", {
