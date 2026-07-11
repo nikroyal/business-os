@@ -19,8 +19,12 @@ export interface BenchmarkModelOption {
 }
 
 const REGISTERED_BENCHMARK_MODELS: BenchmarkModelOption[] = [
+  { id: 'openrouter/free', displayName: 'OpenRouter: Free Router (Zero Cost)', provider: 'OpenRouter', category: 'Free', costPerM: '$0.00 / $0.00' },
+  { id: 'gpt-oss-20b', displayName: 'OpenRouter: GPT-OSS 20B (Free)', provider: 'OpenRouter', category: 'Free', costPerM: '$0.00 / $0.00' },
   { id: 'gemini-3.1-pro-high', displayName: 'Google Gemini 3.1 Pro (High)', provider: 'Google Gemini', category: 'Flagship', costPerM: '$1.25 / $5.00' },
+  { id: 'gemini-3.5-flash', displayName: 'Google Gemini 3.5 Flash', provider: 'Google Gemini', category: 'Fast', costPerM: '$0.075 / $0.30' },
   { id: 'gemini-3.1-flash-lite', displayName: 'Google Gemini 3.1 Flash Lite', provider: 'Google Gemini', category: 'Fast', costPerM: '$0.075 / $0.30' },
+  { id: 'gpt-oss-120b', displayName: 'OpenRouter: GPT-OSS 120B', provider: 'OpenRouter', category: 'Flagship', costPerM: '$0.15 / $0.60' },
   { id: 'openrouter/google/gemini-2.5-pro', displayName: 'OpenRouter: Gemini 2.5 Pro', provider: 'OpenRouter', category: 'Pro', costPerM: '$1.25 / $5.00' },
   { id: 'openrouter/anthropic/claude-3.5-sonnet', displayName: 'OpenRouter: Claude 3.5 Sonnet', provider: 'OpenRouter', category: 'Flagship', costPerM: '$3.00 / $15.00' },
   { id: 'openrouter/openai/gpt-4o', displayName: 'OpenRouter: OpenAI GPT-4o', provider: 'OpenRouter', category: 'Flagship', costPerM: '$2.50 / $10.00' },

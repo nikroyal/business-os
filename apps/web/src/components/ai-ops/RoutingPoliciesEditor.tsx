@@ -84,8 +84,12 @@ const FEATURE_LIST = [
 ];
 
 const AVAILABLE_MODELS = [
+  { id: 'openrouter/free', name: 'OpenRouter: Free Router (Zero Cost)', provider: 'openrouter', tier: 'Free' },
+  { id: 'gpt-oss-20b', name: 'OpenRouter: GPT-OSS 20B (Free)', provider: 'openrouter', tier: 'Free' },
   { id: 'gemini-3.1-pro-high', name: 'Google Gemini 3.1 Pro (High)', provider: 'google', tier: 'Flagship' },
+  { id: 'gemini-3.5-flash', name: 'Google Gemini 3.5 Flash', provider: 'google', tier: 'Fast' },
   { id: 'gemini-3.1-flash-lite', name: 'Google Gemini 3.1 Flash Lite', provider: 'google', tier: 'Fast' },
+  { id: 'gpt-oss-120b', name: 'OpenRouter: GPT-OSS 120B', provider: 'openrouter', tier: 'Flagship' },
   { id: 'openrouter/google/gemini-2.5-pro', name: 'OpenRouter: Gemini 2.5 Pro', provider: 'openrouter', tier: 'Pro' },
   { id: 'openrouter/anthropic/claude-3.5-sonnet', name: 'OpenRouter: Claude 3.5 Sonnet', provider: 'openrouter', tier: 'Flagship' },
   { id: 'openrouter/openai/gpt-4o', name: 'OpenRouter: OpenAI GPT-4o', provider: 'openrouter', tier: 'Flagship' },
@@ -101,6 +105,9 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
   const existingPolicies = config.routingPolicies || {};
   const [globalPref, setGlobalPref] = useState<'openrouter' | 'google' | 'auto'>(
     existingPolicies.globalProviderPref || 'openrouter'
+  );
+  const [freeFirstRouting, setFreeFirstRouting] = useState<boolean>(
+    existingPolicies.freeFirstRouting !== false
   );
   const [featureRouting, setFeatureRouting] = useState<Record<string, { provider: 'openrouter' | 'google' | 'auto'; preferredModel?: string }>>(
     existingPolicies.featureRouting || {}
@@ -135,6 +142,7 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
       await onSaveConfig({
         routingPolicies: {
           globalProviderPref: globalPref,
+          freeFirstRouting,
           featureRouting
         }
       });
@@ -259,6 +267,31 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
             );
           })}
         </div>
+      </div>
+
+      {/* Free-First Inference Routing Policy Card */}
+      <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-6 border border-slate-800 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            Free-First Inference Policy (OpenRouter)
+          </h4>
+          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            Automatically routes tasks to <strong className="text-emerald-300">openrouter/free</strong> and zero-cost OpenRouter models wherever possible before falling back to pay-as-you-go models.
+          </p>
+        </div>
+        <button
+          onClick={() => isOwner && setFreeFirstRouting(!freeFirstRouting)}
+          disabled={!isOwner}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${
+            freeFirstRouting
+              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-lg shadow-emerald-500/10'
+              : 'bg-slate-800 border-slate-700 text-slate-400'
+          }`}
+        >
+          <span className={`w-2.5 h-2.5 rounded-full ${freeFirstRouting ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+          {freeFirstRouting ? 'Free-First Enabled' : 'Free-First Disabled'}
+        </button>
       </div>
 
       {/* Feature-Level Routing Policies Table */}

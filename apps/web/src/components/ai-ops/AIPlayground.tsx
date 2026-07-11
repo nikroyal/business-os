@@ -13,8 +13,12 @@ export interface PlaygroundModelOption {
 }
 
 const PLAYGROUND_MODELS: PlaygroundModelOption[] = [
+  { id: 'openrouter/free', name: 'OpenRouter: Free Router (Zero Cost)', provider: 'OpenRouter' },
+  { id: 'gpt-oss-20b', name: 'OpenRouter: GPT-OSS 20B (Free)', provider: 'OpenRouter' },
   { id: 'gemini-3.1-pro-high', name: 'Google Gemini 3.1 Pro (High)', provider: 'Google Gemini' },
+  { id: 'gemini-3.5-flash', name: 'Google Gemini 3.5 Flash', provider: 'Google Gemini' },
   { id: 'gemini-3.1-flash-lite', name: 'Google Gemini 3.1 Flash Lite', provider: 'Google Gemini' },
+  { id: 'gpt-oss-120b', name: 'OpenRouter: GPT-OSS 120B', provider: 'OpenRouter' },
   { id: 'openrouter/anthropic/claude-3.5-sonnet', name: 'OpenRouter: Claude 3.5 Sonnet', provider: 'OpenRouter' },
   { id: 'openrouter/openai/gpt-4o', name: 'OpenRouter: OpenAI GPT-4o', provider: 'OpenRouter' },
   { id: 'openrouter/google/gemini-2.5-pro', name: 'OpenRouter: Gemini 2.5 Pro', provider: 'OpenRouter' },
