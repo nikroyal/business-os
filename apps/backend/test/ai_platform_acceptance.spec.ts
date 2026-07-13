@@ -114,6 +114,81 @@ describe("BusinessOS AI Platform - End-to-End Production Acceptance Audit", () =
       expect(stats).toBeDefined();
       expect(stats).toHaveProperty("models");
       expect(stats).toHaveProperty("quota");
+      expect(stats.providerComparison).toHaveProperty("google");
+      expect(stats.providerComparison).toHaveProperty("openrouter");
+      expect(stats.providerComparison.google.availableModelsCount).toBeGreaterThan(0);
+      expect(stats.providerComparison.openrouter.availableModelsCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe("PHASE 10 - PROVIDER API KEY VALIDATION & STRICT ISOLATION", () => {
+    it("verify validateProviders checks both Google Gemini and OpenRouter configuration status", async () => {
+      const res = await AIOrchestrator.validateProviders({});
+      expect(res.google.status).toBe("not_configured");
+      expect(res.openrouter.status).toBe("not_configured");
+    });
+
+    it("verify execute throws descriptive CONFIGURATION_ERROR (HTTP 400) when OpenRouter API key is missing", async () => {
+      await expect(
+        AIOrchestrator.execute(
+          "Copilot",
+          "System",
+          "User",
+          "openrouter/free",
+          "proj",
+          { google: "google_key_only", openrouter: "" },
+          "user"
+        )
+      ).rejects.toThrow(/OPENROUTER_API_KEY is missing or not configured/);
+    });
+
+    it("verify execute throws descriptive CONFIGURATION_ERROR (HTTP 400) when Google Gemini API key is missing", async () => {
+      await expect(
+        AIOrchestrator.execute(
+          "Daily Email",
+          "System",
+          "User",
+          "gemini-3.5-flash",
+          "proj",
+          { google: "", openrouter: "or_key_only" },
+          "user"
+        )
+      ).rejects.toThrow(/GEMINI_API_KEY is missing or not configured/);
+    });
+
+    it("verify error classification recognizes configuration errors and JSON parse errors", () => {
+      expect(AIOrchestrator.classifyError(400, "Configuration Error: OPENROUTER_API_KEY is missing")).toBe("CONFIGURATION_ERROR");
+      expect(AIOrchestrator.classifyError(500, "JSON parse failure: OpenRouter returned malformed non-JSON payload")).toBe("JSON_PARSE_FAILURE");
+    });
+  });
+
+  describe("PHASE 11 - COMPLETE TASK ROUTING & SSOT VERIFICATION", () => {
+    it("verify every task type routes to the correct provider and model according to SSOT", () => {
+      const models = AIOrchestrator.DEFAULT_MODELS;
+
+      // 1. Daily Email ALWAYS uses Gemini
+      const dailyModelId = AIOrchestrator.selectBestModelForTask("daily_email", models);
+      const dailyModel = models.find(m => m.id === dailyModelId);
+      expect(dailyModel?.provider).toBe("google");
+
+      // 2. Copilot defaults to OpenRouter
+      const copilotModelId = AIOrchestrator.selectBestModelForTask("copilot_conversation", models);
+      const copilotModel = models.find(m => m.id === copilotModelId);
+      expect(copilotModel?.provider).toBe("openrouter");
+
+      // 3. Research uses OpenRouter
+      const researchModelId = AIOrchestrator.selectBestModelForTask("deep_research", models);
+      const researchModel = models.find(m => m.id === researchModelId);
+      expect(researchModel?.provider).toBe("openrouter");
+
+      // 4. Commentary uses OpenRouter
+      const commentaryModelId = AIOrchestrator.selectBestModelForTask("editorial_commentary", models);
+      const commentaryModel = models.find(m => m.id === commentaryModelId);
+      expect(commentaryModel?.provider).toBe("openrouter");
+
+      // 5. Playground supports every available model
+      const playgroundModels = models.filter(m => m.enabled && m.visibleInRegistry !== false);
+      expect(playgroundModels.length).toBeGreaterThanOrEqual(10);
     });
   });
 });

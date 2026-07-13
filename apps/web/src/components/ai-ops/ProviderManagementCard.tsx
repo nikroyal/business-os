@@ -70,6 +70,13 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
 
     const utilization = defaultQuota > 0 ? Math.min(100, Math.round((s.rpd / defaultQuota) * 100)) : 0;
 
+    const modelCountsDynamic = {
+      available: s.availableModelsCount ?? modelCounts.available,
+      enabled: s.enabledModelsCount ?? modelCounts.enabled,
+      free: s.freeModelsCount ?? modelCounts.free,
+      paid: s.paidModelsCount ?? modelCounts.paid
+    };
+
     return (
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700 transition-all shadow-lg">
         <div>
@@ -120,19 +127,19 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
             </span>
             <div className="grid grid-cols-4 gap-2 text-center">
               <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-white block">{modelCounts.available}</span>
+                <span className="text-base font-bold text-white block">{modelCountsDynamic.available}</span>
                 <span className="text-[10px] text-slate-400">Available</span>
               </div>
               <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-emerald-400 block">{modelCounts.enabled}</span>
+                <span className="text-base font-bold text-emerald-400 block">{modelCountsDynamic.enabled}</span>
                 <span className="text-[10px] text-slate-400">Enabled</span>
               </div>
               <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-indigo-300 block">{modelCounts.free}</span>
+                <span className="text-base font-bold text-indigo-300 block">{modelCountsDynamic.free}</span>
                 <span className="text-[10px] text-slate-400">Free Tier</span>
               </div>
               <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-amber-300 block">{modelCounts.paid}</span>
+                <span className="text-base font-bold text-amber-300 block">{modelCountsDynamic.paid}</span>
                 <span className="text-[10px] text-slate-400">Paid Tier</span>
               </div>
             </div>

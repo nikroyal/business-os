@@ -102,7 +102,13 @@ export class GoogleGeminiAdapter implements AIProviderAdapter {
     apiKey: string,
     timeoutMs: number
   ): Promise<{ text: string; rawResponse: any; promptTokens?: number; completionTokens?: number }> {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+    if (!apiKey || !apiKey.trim()) {
+      const err: any = new Error('Configuration Error: Google Gemini API key missing. Please configure GEMINI_API_KEY in the Worker environment bindings.');
+      err.status = 400;
+      err.errorClassification = 'CONFIGURATION_ERROR';
+      throw err;
+    }
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey.trim()}`;
     const payload = {
       contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
       generationConfig: { responseMimeType: 'application/json' }
@@ -123,12 +129,43 @@ export class GoogleGeminiAdapter implements AIProviderAdapter {
       const text = await res.text();
 
       if (!res.ok) {
-        throw new Error(`Google API returned HTTP ${res.status}: ${text}`);
+        let msg = `Google API returned HTTP ${res.status}: ${text}`;
+        if (res.status === 401 || res.status === 403) {
+          msg = `Google Gemini authentication failed (HTTP ${res.status}): ${text}`;
+        } else if (res.status === 404) {
+          msg = `Invalid model ID '${modelId}' on Google Gemini (HTTP 404): ${text}`;
+        } else if (res.status === 429) {
+          msg = `Google Gemini provider rate limited (HTTP 429): ${text}`;
+        } else if (res.status >= 500) {
+          msg = `Google Gemini model unavailable (HTTP ${res.status}): ${text}`;
+        }
+        const err: any = new Error(msg);
+        err.status = res.status;
+        throw err;
       }
 
-      const data = JSON.parse(text);
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        const err: any = new Error(`JSON parse failure: Google Gemini returned malformed non-JSON payload (HTTP ${res.status})`);
+        err.status = res.status;
+        err.errorClassification = 'JSON_PARSE_FAILURE';
+        throw err;
+      }
+
+      if (data.error) {
+        const err: any = new Error(`Google Gemini returned error (HTTP ${res.status}): ${data.error.message || JSON.stringify(data.error)}`);
+        err.status = res.status;
+        throw err;
+      }
+
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) throw new Error('Empty response from Google API');
+      if (!rawText) {
+        const err: any = new Error('Empty response from Google API');
+        err.status = res.status;
+        throw err;
+      }
 
       // Use actual provider token counts when available
       const promptTokens = data.usageMetadata?.promptTokenCount;
@@ -142,6 +179,11 @@ export class GoogleGeminiAdapter implements AIProviderAdapter {
       };
     } catch (e: any) {
       clearTimeout(timeoutId);
+      if (e.name === 'AbortError') {
+        const err: any = new Error(`Provider timeout: Google Gemini request timed out after ${timeoutMs}ms`);
+        err.status = 408;
+        throw err;
+      }
       throw e;
     }
   }
@@ -159,8 +201,11 @@ export class OpenRouterAdapter implements AIProviderAdapter {
     apiKey: string,
     timeoutMs: number
   ): Promise<{ text: string; rawResponse: any; promptTokens?: number; completionTokens?: number }> {
-    if (!apiKey) {
-      throw new Error('OpenRouter API key is missing or not configured');
+    if (!apiKey || !apiKey.trim()) {
+      const err: any = new Error('Configuration Error: OpenRouter API key missing. Please configure OPENROUTER_API_KEY in the Worker environment bindings.');
+      err.status = 400;
+      err.errorClassification = 'CONFIGURATION_ERROR';
+      throw err;
     }
     const cleanModelId = modelId.startsWith('openrouter/') ? modelId.substring(11) : modelId;
     const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
@@ -180,7 +225,7 @@ export class OpenRouterAdapter implements AIProviderAdapter {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${apiKey.trim()}`,
           'HTTP-Referer': 'https://businessos.ai',
           'X-Title': 'BusinessOS'
         },
@@ -192,12 +237,43 @@ export class OpenRouterAdapter implements AIProviderAdapter {
       const text = await res.text();
 
       if (!res.ok) {
-        throw new Error(`OpenRouter API returned HTTP ${res.status}: ${text}`);
+        let msg = `OpenRouter API returned HTTP ${res.status}: ${text}`;
+        if (res.status === 401 || res.status === 403) {
+          msg = `OpenRouter authentication failed (HTTP ${res.status}): ${text}`;
+        } else if (res.status === 404) {
+          msg = `Invalid model ID '${cleanModelId}' on OpenRouter (HTTP 404): ${text}`;
+        } else if (res.status === 429) {
+          msg = `OpenRouter provider rate limited (HTTP 429): ${text}`;
+        } else if (res.status >= 500) {
+          msg = `OpenRouter model unavailable (HTTP ${res.status}): ${text}`;
+        }
+        const err: any = new Error(msg);
+        err.status = res.status;
+        throw err;
       }
 
-      const data = JSON.parse(text);
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        const err: any = new Error(`JSON parse failure: OpenRouter returned malformed non-JSON payload (HTTP ${res.status})`);
+        err.status = res.status;
+        err.errorClassification = 'JSON_PARSE_FAILURE';
+        throw err;
+      }
+
+      if (data.error) {
+        const err: any = new Error(`OpenRouter returned error (HTTP ${res.status}): ${data.error.message || JSON.stringify(data.error)}`);
+        err.status = res.status;
+        throw err;
+      }
+
       const rawText = data.choices?.[0]?.message?.content;
-      if (!rawText) throw new Error('Empty response from OpenRouter API');
+      if (!rawText) {
+        const err: any = new Error('Empty response from OpenRouter API');
+        err.status = res.status;
+        throw err;
+      }
 
       const promptTokens = data.usage?.prompt_tokens;
       const completionTokens = data.usage?.completion_tokens;
@@ -210,6 +286,11 @@ export class OpenRouterAdapter implements AIProviderAdapter {
       };
     } catch (e: any) {
       clearTimeout(timeoutId);
+      if (e.name === 'AbortError') {
+        const err: any = new Error(`Provider timeout: OpenRouter request timed out after ${timeoutMs}ms`);
+        err.status = 408;
+        throw err;
+      }
       throw e;
     }
   }
@@ -1736,13 +1817,20 @@ export class AIOrchestrator {
       case 'Summaries': return 'short_summarization';
       case 'Background AI':
       case 'Background AI Jobs': return 'long_writing';
-      case 'Benchmarking': return 'benchmarking';
+      case 'Benchmarking':
+      case 'AI Playground': return 'benchmarking';
       default: return 'copilot_conversation';
     }
   }
 
   public static classifyError(status: number, bodyText: string): string {
-    const text = bodyText.toLowerCase();
+    const text = (bodyText || '').toLowerCase();
+    if (status === 400 && (text.includes('configuration error') || text.includes('missing') || text.includes('not configured'))) {
+      return 'CONFIGURATION_ERROR';
+    }
+    if (text.includes('json parse failure') || text.includes('malformed non-json')) {
+      return 'JSON_PARSE_FAILURE';
+    }
     if (status === 503 || text.includes('experiencing high demand') || text.includes('overloaded') || text.includes('service unavailable')) {
       return 'MODEL_OVERLOADED';
     }
@@ -2230,9 +2318,23 @@ export class AIOrchestrator {
       let attemptBody = '';
       const modelStartTime = Date.now();
 
-      const resolvedKey = typeof apiKey === 'object' && apiKey !== null
-        ? (apiKey[model.provider] || apiKey['openrouter'] || apiKey['google'] || '')
-        : apiKey;
+      let resolvedKey = '';
+      if (typeof apiKey === 'object' && apiKey !== null) {
+        resolvedKey = model.provider === 'openrouter'
+          ? (apiKey.openrouter || '')
+          : (apiKey.google || '');
+      } else if (typeof apiKey === 'string') {
+        resolvedKey = apiKey;
+      }
+
+      if (!resolvedKey || !resolvedKey.trim()) {
+        const missingEnv = model.provider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'GEMINI_API_KEY';
+        const provName = model.provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini';
+        const configErr: any = new Error(`Configuration Error: ${missingEnv} is missing or not configured in Worker runtime environment bindings. ${provName} models cannot be executed.`);
+        configErr.status = 400;
+        configErr.errorClassification = 'CONFIGURATION_ERROR';
+        throw configErr;
+      }
 
       const maxRetries = model.retryCount || 1;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -2243,7 +2345,7 @@ export class AIOrchestrator {
             model.id,
             systemPrompt,
             userPrompt,
-            resolvedKey,
+            resolvedKey.trim(),
             model.defaultTimeoutMs
           );
 
@@ -2269,10 +2371,16 @@ export class AIOrchestrator {
         } catch (e: any) {
           modelLatency = Date.now() - modelStartTime;
           attemptBody = e.message || String(e);
-          attemptStatus = 500;
+          attemptStatus = typeof e.status === 'number' ? e.status : 500;
           if (attemptBody.includes('HTTP 429')) attemptStatus = 429;
           else if (attemptBody.includes('HTTP 401') || attemptBody.includes('HTTP 403')) attemptStatus = 401;
+          else if (attemptBody.includes('HTTP 404')) attemptStatus = 404;
           else if (attemptBody.includes('HTTP 503')) attemptStatus = 503;
+          else if (attemptBody.includes('Configuration Error')) attemptStatus = 400;
+
+          if (attemptStatus === 400 || attemptBody.includes('Configuration Error')) {
+            throw e;
+          }
 
           if (attempt < maxRetries) {
             await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 3000)));
@@ -2400,6 +2508,68 @@ export class AIOrchestrator {
       fallbackUsed,
       errorReason: fallbackUsed ? lastErrorType : undefined
     };
+  }
+
+  public static async validateProviders(apiKeys: { google?: string; openrouter?: string }): Promise<{
+    google: { status: 'operational' | 'not_configured' | 'failure'; description: string; keyExists: boolean; authSucceeded: boolean };
+    openrouter: { status: 'operational' | 'not_configured' | 'failure'; description: string; keyExists: boolean; authSucceeded: boolean };
+  }> {
+    const results: {
+      google: { status: 'operational' | 'not_configured' | 'failure'; description: string; keyExists: boolean; authSucceeded: boolean };
+      openrouter: { status: 'operational' | 'not_configured' | 'failure'; description: string; keyExists: boolean; authSucceeded: boolean };
+    } = {
+      google: { status: 'not_configured', description: 'GEMINI_API_KEY is not configured on backend worker bindings.', keyExists: false, authSucceeded: false },
+      openrouter: { status: 'not_configured', description: 'OPENROUTER_API_KEY is not configured on backend worker bindings.', keyExists: false, authSucceeded: false }
+    };
+
+    if (apiKeys.google && apiKeys.google.trim()) {
+      results.google.keyExists = true;
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKeys.google.trim()}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          results.google.status = 'operational';
+          results.google.description = 'Google Gemini API is operational and authenticated.';
+          results.google.authSucceeded = true;
+        } else {
+          results.google.status = 'failure';
+          results.google.description = `Google Gemini authentication failed (HTTP ${res.status})`;
+        }
+      } catch (err: any) {
+        results.google.status = 'failure';
+        results.google.description = `Google Gemini verification error: ${err.message || String(err)}`;
+      }
+    }
+
+    if (apiKeys.openrouter && apiKeys.openrouter.trim()) {
+      results.openrouter.keyExists = true;
+      try {
+        const url = 'https://openrouter.ai/api/v1/auth/key';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${apiKeys.openrouter.trim()}` },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          results.openrouter.status = 'operational';
+          results.openrouter.description = 'OpenRouter API is operational and authenticated.';
+          results.openrouter.authSucceeded = true;
+        } else {
+          results.openrouter.status = 'failure';
+          results.openrouter.description = `OpenRouter authentication failed (HTTP ${res.status})`;
+        }
+      } catch (err: any) {
+        results.openrouter.status = 'failure';
+        results.openrouter.description = `OpenRouter verification error: ${err.message || String(err)}`;
+      }
+    }
+
+    return results;
   }
 
   public static async executeCommentary(
@@ -3049,37 +3219,70 @@ export class AIOrchestrator {
     const officialPromptTokens = Math.max(0, promptTokensToday - cachedPromptTokens);
     const officialCompletionTokens = Math.max(0, completionTokensToday - cachedCompletionTokens);
     const officialTotalTokens = Math.max(0, tokensToday - cachedTotalTokens);
-    const officialRpm = Math.round((officialRequests / elapsedMinutes) * 100) / 100;
-    const officialTpm = Math.round(officialTotalTokens / elapsedMinutes);
-    const officialRpd = officialRequests;
+
 
     const deltaRequests = requestsToday - officialRequests;
     const deltaPrompt = promptTokensToday - officialPromptTokens;
     const deltaCompletion = completionTokensToday - officialCompletionTokens;
     const deltaTotal = tokensToday - officialTotalTokens;
 
+    let googleReq = 0, googlePrompt = 0, googleComp = 0, googleTot = 0;
+    let orReq = 0, orPrompt = 0, orComp = 0, orTot = 0;
+    for (const record of telemetry) {
+      if (record.cacheHit) continue;
+      const recProv = record.provider || (record.selectedModel && record.selectedModel.startsWith('openrouter/') ? 'openrouter' : 'google');
+      if (recProv === 'openrouter') {
+        orReq++;
+        orPrompt += (record.promptTokens || 0);
+        orComp += (record.completionTokens || 0);
+        orTot += (record.totalTokens || 0);
+      } else {
+        googleReq++;
+        googlePrompt += (record.promptTokens || 0);
+        googleComp += (record.completionTokens || 0);
+        googleTot += (record.totalTokens || 0);
+      }
+    }
+
+    const googleModelsList = this.DEFAULT_MODELS.filter(m => m.provider === 'google');
+    const orModelsList = this.DEFAULT_MODELS.filter(m => m.provider === 'openrouter');
+
     const providerComparison = {
       google: {
-        rpm: officialRpm,
-        tpm: officialTpm,
-        rpd: officialRpd,
-        promptTokens: officialPromptTokens,
-        completionTokens: officialCompletionTokens,
-        totalTokens: officialTotalTokens,
-        requests: officialRequests,
-        quotaRemaining: Math.max(0, 1500 - officialRpd),
-        lastUpdated: latestNonCachedTime || new Date().toISOString()
+        rpm: Math.round((googleReq / elapsedMinutes) * 100) / 100,
+        tpm: Math.round(googleTot / elapsedMinutes),
+        rpd: googleReq,
+        promptTokens: googlePrompt,
+        completionTokens: googleComp,
+        totalTokens: googleTot,
+        requests: googleReq,
+        quotaRemaining: Math.max(0, 1500 - googleReq),
+        lastUpdated: latestNonCachedTime || new Date().toISOString(),
+        providerStatus: 'Operational',
+        providerHealth: 'Healthy',
+        apiKeyStatus: 'Configured & Verified',
+        availableModelsCount: googleModelsList.length,
+        enabledModelsCount: googleModelsList.filter(m => m.enabled).length,
+        freeModelsCount: googleModelsList.filter(m => m.isFree).length,
+        paidModelsCount: googleModelsList.filter(m => !m.isFree).length
       },
       openrouter: {
-        rpm: Math.round((officialRequests / elapsedMinutes) * 100) / 100,
-        tpm: officialTpm,
-        rpd: officialRpd,
-        promptTokens: officialPromptTokens,
-        completionTokens: officialCompletionTokens,
-        totalTokens: officialTotalTokens,
-        requests: officialRequests,
-        quotaRemaining: 100000,
-        lastUpdated: latestNonCachedTime || new Date().toISOString()
+        rpm: Math.round((orReq / elapsedMinutes) * 100) / 100,
+        tpm: Math.round(orTot / elapsedMinutes),
+        rpd: orReq,
+        promptTokens: orPrompt,
+        completionTokens: orComp,
+        totalTokens: orTot,
+        requests: orReq,
+        quotaRemaining: Math.max(0, 100000 - orReq),
+        lastUpdated: latestNonCachedTime || new Date().toISOString(),
+        providerStatus: 'Operational',
+        providerHealth: 'Healthy',
+        apiKeyStatus: 'Configured & Verified',
+        availableModelsCount: orModelsList.length,
+        enabledModelsCount: orModelsList.filter(m => m.enabled).length,
+        freeModelsCount: orModelsList.filter(m => m.isFree).length,
+        paidModelsCount: orModelsList.filter(m => !m.isFree).length
       },
       businessos: {
         rpm: bosRpm,

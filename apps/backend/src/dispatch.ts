@@ -1,4 +1,4 @@
-import { AIModelRegistry, AIOrchestrator } from './aiModelRegistry';
+import { AIModelRegistry, AIOrchestrator, GoogleGeminiAdapter } from './aiModelRegistry';
 
 // ==========================================
 // TYPE DEFINITIONS
@@ -916,8 +916,9 @@ export class IntelligenceService {
     ticker: string,
     exchange: string,
     finnhub: FinnhubClient,
-    gemini: GeminiClient
+    gemini: GeminiClient | { google?: string; openrouter?: string }
   ): Promise<CompanyIntelligence> {
+    const apiKeys = 'apiKey' in gemini ? { google: gemini.apiKey, openrouter: '' } : gemini;
     const quote = await finnhub.getQuote(ticker, exchange);
     const meta = await finnhub.getMetadata(ticker, exchange);
     const history = await finnhub.getHistoricalPrices(ticker, 60, exchange);
@@ -996,9 +997,17 @@ Leverage Ratio (Debt/Equity): ${leverage}`;
       majorRisks: ['Macroeconomic headwinds', 'Sector competition'] 
     };
 
-    const resolvedModel = AIModelRegistry.resolveModel('Automatic', 'Research Engine');
+    const resolvedModel = AIModelRegistry.resolveModel('Automatic', 'Company Intelligence');
     try {
-      researchQual = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
+      researchQual = await AIOrchestrator.executeCommentary(
+        systemPrompt,
+        userPrompt,
+        resolvedModel,
+        'businessos-0001a',
+        apiKeys,
+        'system',
+        'Company Intelligence'
+      );
     } catch (e) {
       console.warn(`Gemini research generation failed for ${ticker}, using fallback:`, e);
     }
@@ -1079,7 +1088,15 @@ Severity of deviation: ${severityPercent.toFixed(1)}%
 Evaluate if this dip is structural or transient.`;
         
         try {
-          const dipQual = await gemini.generateCommentary(dipSystemPrompt, dipUserPrompt, resolvedModel);
+          const dipQual = await AIOrchestrator.executeCommentary(
+            dipSystemPrompt,
+            dipUserPrompt,
+            resolvedModel,
+            'businessos-0001a',
+            apiKeys,
+            'system',
+            'Company Intelligence'
+          );
           dipCatalyst = dipQual.catalyst;
           isStructural = dipQual.isStructural;
         } catch (e) {
@@ -2561,46 +2578,36 @@ export class FinnhubClient {
 // ==========================================
 
 export class GeminiClient {
-  private apiKey: string;
-  private openRouterApiKey?: string;
-  private projectId: string;
-  private userId: string;
-  private token?: string;
+  public apiKey: string;
+  public projectId: string;
+  public userId: string;
+  public token?: string;
 
-  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system', token?: string, openRouterApiKey?: string) {
+  constructor(apiKey: string, projectId = 'businessos-0001a', userId = 'system', token?: string) {
     this.apiKey = apiKey;
-    this.openRouterApiKey = openRouterApiKey;
     this.projectId = projectId;
     this.userId = userId;
     this.token = token;
   }
 
   async generateContentWithFailover(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<{ data: any; fallbackUsed: boolean; actualModel: string }> {
-    const { data, fallbackUsed, actualModel } = await AIOrchestrator.execute(
-      'Editorial Commentary',
-      systemPrompt,
-      userPrompt,
-      model,
-      this.projectId,
-      { google: this.apiKey, openrouter: this.openRouterApiKey || this.apiKey },
-      this.userId,
-      'default',
-      this.token
-    );
-    return { data, fallbackUsed, actualModel };
+    const adapter = new GoogleGeminiAdapter();
+    const result = await adapter.executePrompt(model, systemPrompt, userPrompt, this.apiKey, 30000);
+    return {
+      data: result.rawResponse,
+      fallbackUsed: false,
+      actualModel: model
+    };
   }
 
   async generateCommentary(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<any> {
-    return await AIOrchestrator.executeCommentary(
-      systemPrompt,
-      userPrompt,
-      model,
-      this.projectId,
-      { google: this.apiKey, openrouter: this.openRouterApiKey || this.apiKey },
-      this.userId,
-      'default',
-      this.token
-    );
+    const { data } = await this.generateContentWithFailover(systemPrompt, userPrompt, model);
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    try {
+      return JSON.parse(rawText.trim());
+    } catch (e) {
+      return { commentary: rawText.trim() };
+    }
   }
 }
 
@@ -4077,8 +4084,8 @@ Quantitative Dataset:
 
 Output JSON format exactly:`;
 
-        const resolvedModel = AIModelRegistry.resolveModel(user.modelEditorialCommentary || user.geminiModel, 'Editorial Commentary');
-        geminiCommentary = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
+        const resolvedModel = AIModelRegistry.resolveModel(user.modelEditorialCommentary || user.geminiModel, 'Daily Email');
+        geminiCommentary = await AIOrchestrator.executeCommentary(systemPrompt, userPrompt, resolvedModel, 'businessos-0001a', { google: gemini.apiKey, openrouter: '' }, user.uid, 'Daily Email');
       } catch (geminiErr) {
         console.error(`[Scheduler] Gemini daily commentary failed for ${user.uid}:`, geminiErr);
       }
@@ -4207,8 +4214,8 @@ Quantitative Weekly Dataset:
 
 Output JSON format exactly:`;
 
-        const resolvedModel = AIModelRegistry.resolveModel(user.modelEditorialCommentary || user.geminiModel, 'Editorial Commentary');
-        geminiCommentary = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
+        const resolvedModel = AIModelRegistry.resolveModel(user.modelEditorialCommentary || user.geminiModel, 'Daily Email');
+        geminiCommentary = await AIOrchestrator.executeCommentary(systemPrompt, userPrompt, resolvedModel, 'businessos-0001a', { google: gemini.apiKey, openrouter: '' }, user.uid, 'Daily Email');
       } catch (geminiErr) {
         console.error(`[Scheduler] Weekly Gemini commentary failed for ${user.uid}:`, geminiErr);
       }

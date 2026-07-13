@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 type Bindings = {
   FINNHUB_API_KEY: string;
   GEMINI_API_KEY: string;
+  OPENROUTER_API_KEY?: string;
   FIREBASE_PROJECT_ID?: string;
   RESEND_API_KEY?: string;
   FRED_API_KEY?: string;
@@ -275,6 +276,7 @@ app.get('/api/health/services', async (c) => {
   console.log(`[Auth Trace] 8. Request reached service health code. User ID: ${c.var.userId}`);
   const finnhubKey = (c.env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const geminiKey = (c.env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
+  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const resendKey = (c.env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const fredKey = (c.env.FRED_API_KEY || '').trim().replace(/^['"]|['"]$/g, '');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
@@ -288,6 +290,7 @@ app.get('/api/health/services', async (c) => {
     firestore: { status: 'operational', description: 'Firestore connection is active' },
     finnhub: { status: 'operational', description: 'Finnhub API is operational' },
     gemini: { status: 'operational', description: 'Gemini API is operational' },
+    openrouter: { status: 'operational', description: 'OpenRouter API is operational' },
     resend: { status: 'operational', description: 'Resend API is operational' },
     fred: { status: 'available', description: 'FRED service is available.' },
     secEdgar: { status: 'available', description: 'SEC EDGAR service is available.' }
@@ -339,46 +342,10 @@ app.get('/api/health/services', async (c) => {
     }
   }
 
-  // 3. Gemini Check
-  if (!geminiKey) {
-    results.gemini = { status: 'not_configured', description: 'GEMINI_API_KEY is not configured in backend secrets' };
-  } else {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
-      const cleanEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=HIDDEN`;
-      const payload = {
-        contents: [{ parts: [{ text: 'say ok' }] }]
-      };
-      const reqHeaders = { 'Content-Type': 'application/json' };
-      console.log(`[Gemini Health Trace] Exact request URL: ${cleanEndpoint}`);
-      console.log(`[Gemini Health Trace] HTTP method: POST`);
-      console.log(`[Gemini Health Trace] Request headers: ${JSON.stringify(reqHeaders)}`);
-      console.log(`[Gemini Health Trace] Request body: ${JSON.stringify(payload)}`);
-      console.log(`[Gemini Health Trace] Resolved model name: gemini-3.5-flash`);
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: reqHeaders,
-        body: JSON.stringify(payload)
-      });
-      
-      const txt = await res.text();
-      const resHeaders = Array.from(res.headers.entries());
-      console.log(`[Gemini Health Trace] Response status: ${res.status}`);
-      console.log(`[Gemini Health Trace] Response headers: ${JSON.stringify(resHeaders)}`);
-      console.log(`[Gemini Health Trace] Full raw Google response body: ${txt}`);
-
-      if (!res.ok) {
-        console.log(`[Gemini Health Trace] Exact reason for HTTP status error: HTTP ${res.status} - ${txt}`);
-        results.gemini = { status: 'failure', description: `Gemini API returned HTTP ${res.status}: ${txt}` };
-      } else {
-        results.gemini = { status: 'operational', description: 'Gemini API is operational' };
-      }
-    } catch (err: any) {
-      console.log(`[Gemini Health Trace] Exact reason for failure: Unreachable - ${err.message || err}`);
-      results.gemini = { status: 'failure', description: `Gemini is unreachable: ${err.message || err}` };
-    }
-  }
+  // 3. AI Providers Check (Google Gemini & OpenRouter)
+  const providerChecks = await AIOrchestrator.validateProviders({ google: geminiKey, openrouter: openRouterKey });
+  results.gemini = { status: providerChecks.google.status, description: providerChecks.google.description };
+  results.openrouter = { status: providerChecks.openrouter.status, description: providerChecks.openrouter.description };
 
   // 4. Resend Check
   if (!resendKey) {
@@ -636,10 +603,8 @@ app.get('/api/market-data/historical', async (c) => {
 
 // Gemini Commentary Endpoint
 app.post('/api/commentary/generate', async (c) => {
-  const apiKey = c.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return c.json({ error: 'Gemini API Key is not configured on the backend.' }, 500);
-  }
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
+  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
 
   const userId = c.get('userId');
 
@@ -662,8 +627,17 @@ app.post('/api/commentary/generate', async (c) => {
     const modelName = AIModelRegistry.resolveModel(model, 'Editorial Commentary');
     const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
     const userId = c.get('userId') || 'system';
-    const gemini = new GeminiClient(apiKey, projectId, userId, token);
-    const { data, fallbackUsed, actualModel } = await gemini.generateContentWithFailover(systemPrompt, userPrompt, modelName);
+    const { data, fallbackUsed, actualModel } = await AIOrchestrator.execute(
+      'Editorial Commentary',
+      systemPrompt,
+      userPrompt,
+      modelName,
+      projectId,
+      { google: geminiKey, openrouter: openRouterKey },
+      userId,
+      'default',
+      token
+    );
 
     // If fallback was used, surface the informational message by injecting it into candidate text
     if (fallbackUsed && data.candidates?.[0]?.content?.parts?.[0]?.text) {
@@ -685,7 +659,57 @@ app.post('/api/commentary/generate', async (c) => {
     return c.json(data);
   } catch (err: any) {
     console.error('Gemini backend commentary error:', err);
-    return c.json({ error: 'Internal Server Error', details: err.message }, 500);
+    const status = typeof err.status === 'number' ? err.status : 500;
+    return c.json({
+      error: err.message || 'Internal Server Error',
+      classification: err.errorClassification || AIOrchestrator.classifyError(status, err.message || '')
+    }, status as any);
+  }
+});
+
+app.use('/api/ai/*', authenticateUser);
+
+app.post('/api/ai/execute-commentary', async (c) => {
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
+  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
+  const userId = c.get('userId') || 'system';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+
+  try {
+    const { systemPrompt, userPrompt, model, taskType } = await c.req.json();
+    if (!systemPrompt || !userPrompt) {
+      return c.json({ error: 'Missing systemPrompt or userPrompt parameters' }, 400);
+    }
+
+    const featureName = taskType || 'AI Playground';
+    const resolvedModel = AIModelRegistry.resolveModel(model, featureName as any);
+
+    const result = await AIOrchestrator.executeCommentary(
+      systemPrompt,
+      userPrompt,
+      resolvedModel,
+      projectId,
+      { google: geminiKey, openrouter: openRouterKey },
+      userId,
+      featureName as any,
+      token
+    );
+
+    return c.json({
+      commentary: result.response,
+      text: result.response,
+      metadata: result.metadata,
+      _metadata: result._metadata
+    });
+  } catch (err: any) {
+    console.error('Execute commentary backend error:', err);
+    const status = typeof err.status === 'number' ? err.status : 500;
+    return c.json({
+      error: err.message || 'Internal Server Error',
+      classification: err.errorClassification || AIOrchestrator.classifyError(status, err.message || '')
+    }, status as any);
   }
 });
 
@@ -694,7 +718,6 @@ app.use('/api/intelligence/*', authenticateUser);
 import { 
   FirestoreClient, 
   FinnhubClient, 
-  GeminiClient, 
   IntelligenceService,
   fromFirestoreDoc,
   toFirestoreValue,
@@ -865,7 +888,7 @@ app.get('/api/intelligence/company', async (c) => {
 
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const finnhubKey = c.env.FINNHUB_API_KEY;
-  const geminiKey = c.env.GEMINI_API_KEY;
+
 
   if (!finnhubKey) {
     return c.json({ error: 'Finnhub API key not configured on backend' }, 500);
@@ -875,7 +898,7 @@ app.get('/api/intelligence/company', async (c) => {
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   const firestore = new FirestoreClient(projectId, token);
   const finnhub = new FinnhubClient(finnhubKey, projectId, token);
-  const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system', token);
+  const apiKeys = { google: c.env.GEMINI_API_KEY || '', openrouter: c.env.OPENROUTER_API_KEY || '' };
 
   try {
     const key = `${symbol.toUpperCase()}:${exchange.toUpperCase()}`;
@@ -885,7 +908,7 @@ app.get('/api/intelligence/company', async (c) => {
     const isStale = intel ? (Date.now() - new Date(intel.updatedAt).getTime() > 7 * 24 * 60 * 60 * 1000) : true;
     if (isStale) {
       console.log(`[Intelligence API] Company record for ${key} is missing or stale. Generating...`);
-      intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
+      intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, apiKeys);
       await firestore.saveCompanyIntelligence(intel);
     }
 
@@ -915,11 +938,10 @@ app.post('/api/intelligence/recalculate-conviction', async (c) => {
     let intel = await firestore.getCompanyIntelligence(ticker, ex);
     if (!intel) {
       const finnhubKey = c.env.FINNHUB_API_KEY;
-      const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
       const finnhub = new FinnhubClient(finnhubKey, projectId, token);
-      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system', token);
-      intel = await IntelligenceService.generateCompanyIntelligence(ticker, ex, finnhub, gemini);
+      const apiKeys = { google: c.env.GEMINI_API_KEY || '', openrouter: c.env.OPENROUTER_API_KEY || '' };
+      intel = await IntelligenceService.generateCompanyIntelligence(ticker, ex, finnhub, apiKeys);
       await firestore.saveCompanyIntelligence(intel);
     }
 
@@ -1017,11 +1039,10 @@ app.get('/api/intelligence/business-school/case', async (c) => {
     let intel = await firestore.getCompanyIntelligence(symbol, exchange);
     if (!intel) {
       const finnhubKey = c.env.FINNHUB_API_KEY;
-      const geminiKey = c.env.GEMINI_API_KEY;
       if (!finnhubKey) throw new Error('Finnhub API key not configured');
       const finnhub = new FinnhubClient(finnhubKey, projectId, token);
-      const gemini = new GeminiClient(geminiKey || '', projectId, c.get('userId') || 'system', token);
-      intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, gemini);
+      const apiKeys = { google: c.env.GEMINI_API_KEY || '', openrouter: c.env.OPENROUTER_API_KEY || '' };
+      intel = await IntelligenceService.generateCompanyIntelligence(symbol, exchange, finnhub, apiKeys);
       await firestore.saveCompanyIntelligence(intel);
     }
 
@@ -1074,13 +1095,14 @@ app.get('/api/market-intelligence', async (c) => {
   const userId = c.get('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const finnhubKey = c.env.FINNHUB_API_KEY;
-  const geminiKey = c.env.GEMINI_API_KEY;
+  const geminiKey = c.env.GEMINI_API_KEY || '';
+  const openRouterKey = c.env.OPENROUTER_API_KEY || '';
 
   const authHeader = c.req.header('Authorization');
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
   const firestore = new FirestoreClient(projectId, token);
   const finnhub = new FinnhubClient(finnhubKey || '', projectId, token);
-  const gemini = new GeminiClient(geminiKey || '', projectId, userId, token);
+  const apiKeys = { google: geminiKey, openrouter: openRouterKey };
 
   try {
     const timestamp = new Date().toISOString();
@@ -1231,7 +1253,16 @@ app.get('/api/market-intelligence', async (c) => {
         const userPrompt = `Articles to summarize:
         ${newsArticles.map((a, idx) => `[${idx + 1}] Title: "${a.headline}", Summary: "${a.summary}", URL: "${a.url}"`).join('\n\n')}`;
 
-        const briefRes = await gemini.generateCommentary(systemPrompt, userPrompt);
+        const briefRes = await AIOrchestrator.executeCommentary(
+          systemPrompt,
+          userPrompt,
+          undefined,
+          projectId,
+          apiKeys,
+          userId,
+          'Opportunities',
+          token
+        );
         if (briefRes && briefRes.macroSummary) {
           newsBrief.macroSummary = briefRes.macroSummary;
         }
@@ -1643,8 +1674,17 @@ app.post('/api/market-data/compile-research', async (c) => {
 
     const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
     const userId = c.get('userId') || 'system';
-    const gemini = new GeminiClient(apiKey, projectId, userId, token);
-    const result = await gemini.generateCommentary(systemPrompt, userPrompt);
+    const apiKeys = { google: c.env.GEMINI_API_KEY || '', openrouter: c.env.OPENROUTER_API_KEY || '' };
+    const result = await AIOrchestrator.executeCommentary(
+      systemPrompt,
+      userPrompt,
+      undefined,
+      projectId,
+      apiKeys,
+      userId,
+      'Reports',
+      token
+    );
 
     // Calculate alerts and trends on backend deterministically
     const changeDetectionAlerts: any[] = [];
@@ -2321,11 +2361,8 @@ app.get('/api/copilot/sessions/:sessionId/history', async (c) => {
 app.post('/api/copilot/chat', async (c) => {
   const userId = c.get('userId');
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
-  const geminiKey = c.env.GEMINI_API_KEY;
-
-  if (!geminiKey) {
-    return c.json({ error: 'Gemini API Key is not configured in backend worker environment.' }, 500);
-  }
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
+  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
 
   const { sessionId, prompt } = await c.req.json();
   if (!sessionId || !prompt) {
@@ -2505,8 +2542,16 @@ CRITICAL INSTRUCTIONS:
     `;
 
     const resolvedModel = AIModelRegistry.resolveModel(modelCopilot || geminiModel, 'Copilot');
-    const gemini = new GeminiClient(geminiKey, projectId, userId || 'system', token);
-    const geminiResult = await gemini.generateCommentary(systemPrompt, userPrompt, resolvedModel);
+    const geminiResult = await AIOrchestrator.executeCommentary(
+      systemPrompt,
+      userPrompt,
+      resolvedModel,
+      projectId,
+      { google: geminiKey, openrouter: openRouterKey },
+      userId || 'system',
+      'Copilot',
+      token
+    );
 
     // Cost Tier Indicator Calculation
     let costLevel: 'Very Low' | 'Medium' | 'High' = 'Very Low';
@@ -2585,7 +2630,16 @@ CRITICAL INSTRUCTIONS:
         if (messagesToSummarize.length > 0) {
           const summarySystem = `You are a financial records archivist. Summarize the core topics, questions, portfolios, and decisions resolved during this chat history into a single compact context paragraph. Do not include details or code. Output raw JSON object: { "summary": "Your paragraph here." }`;
           const summaryUser = `History to summarize: ${JSON.stringify(messagesToSummarize.map((m: any) => m.content))}`;
-          const summaryResult = await gemini.generateCommentary(summarySystem, summaryUser);
+          const summaryResult = await AIOrchestrator.executeCommentary(
+            summarySystem,
+            summaryUser,
+            undefined,
+            projectId,
+            { google: geminiKey, openrouter: openRouterKey },
+            userId || 'system',
+            'Summaries',
+            token
+          );
           if (summaryResult && summaryResult.summary) {
             contextSummary = summaryResult.summary;
             charCountAtLastSummary = totalCharCount;
@@ -2610,7 +2664,11 @@ CRITICAL INSTRUCTIONS:
     return c.json(copilotMessage);
   } catch (err: any) {
     console.error('Copilot Chat API Error:', err);
-    return c.json({ error: 'Failed to process chat response', details: err.message }, 500);
+    const status = typeof err.status === 'number' ? err.status : 500;
+    return c.json({
+      error: err.message || 'Failed to process chat response',
+      classification: err.errorClassification || AIOrchestrator.classifyError(status, err.message || '')
+    }, status as any);
   }
 });
 

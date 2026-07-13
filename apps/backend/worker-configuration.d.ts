@@ -4,6 +4,12 @@
 interface __BaseEnv_Env {
 	ENVIRONMENT: "production";
 	FIREBASE_PROJECT_ID: "businessos-0001a";
+	GEMINI_API_KEY?: string;
+	OPENROUTER_API_KEY?: string;
+	FINNHUB_API_KEY?: string;
+	RESEND_API_KEY?: string;
+	FRED_API_KEY?: string;
+	FRONTEND_URL?: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
