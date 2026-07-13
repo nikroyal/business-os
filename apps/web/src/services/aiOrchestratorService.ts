@@ -147,7 +147,7 @@ export interface ModelMetadataWithStats {
   rpdLimit?: number;
   availabilityTier?: string;
   ownerOnly?: boolean;
-  modelType?: 'model' | 'router';
+  modelType?: 'model' | 'router' | 'embedding' | 'reranker' | 'safety' | 'general' | string;
   intendedUse?: string;
   availableForRouting?: boolean;
   availableForBenchmarking?: boolean;
@@ -441,6 +441,19 @@ export interface OrchestratorConfig {
       preferredModel?: string;
     }>;
   };
+}
+
+export function isChatCapableModel(m: { capabilities?: string[]; modelType?: string; id?: string }): boolean {
+  if (m.capabilities && Array.isArray(m.capabilities) && m.capabilities.length > 0) {
+    return m.capabilities.includes('chat');
+  }
+  if (m.modelType === 'embedding' || m.modelType === 'reranker' || m.modelType === 'safety') {
+    return false;
+  }
+  if (m.id && (m.id.includes('embed') || m.id.includes('rerank') || m.id.includes('safety') || m.id.includes('moderation'))) {
+    return false;
+  }
+  return true;
 }
 
 class AIOrchestratorService {
@@ -1350,29 +1363,20 @@ class AIOrchestratorService {
     return (stats.models || []).filter(m => m.visibleInRegistry !== false);
   }
 
-export function isChatCapableModel(m: { capabilities?: string[]; modelType?: string; id?: string }): boolean {
-  if (m.capabilities && Array.isArray(m.capabilities) && m.capabilities.length > 0) {
-    return m.capabilities.includes('chat');
+  isChatCapableModel(m: { capabilities?: string[]; modelType?: string; id?: string }): boolean {
+    return isChatCapableModel(m);
   }
-  if (m.modelType === 'embedding' || m.modelType === 'reranker' || m.modelType === 'safety') {
-    return false;
-  }
-  if (m.id && (m.id.includes('embed') || m.id.includes('rerank') || m.id.includes('safety') || m.id.includes('moderation'))) {
-    return false;
-  }
-  return true;
-}
 
   filterPlaygroundModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
-    return models.filter(m => m.enabled && m.availableForPlayground !== false && m.visibleInRegistry !== false && isChatCapableModel(m));
+    return models.filter(m => m.enabled && m.availableForPlayground !== false && m.visibleInRegistry !== false && this.isChatCapableModel(m));
   }
 
   filterBenchmarkModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
-    return models.filter(m => m.enabled && m.availableForBenchmarking !== false && m.visibleInRegistry !== false && isChatCapableModel(m));
+    return models.filter(m => m.enabled && m.availableForBenchmarking !== false && m.visibleInRegistry !== false && this.isChatCapableModel(m));
   }
 
   filterRoutingModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
-    return models.filter(m => m.enabled && m.availableForRouting !== false && m.visibleInRegistry !== false && isChatCapableModel(m));
+    return models.filter(m => m.enabled && m.availableForRouting !== false && m.visibleInRegistry !== false && this.isChatCapableModel(m));
   }
 
   validateRegistry(models: ModelMetadataWithStats[], config?: OrchestratorConfig): RegistryValidationReport {

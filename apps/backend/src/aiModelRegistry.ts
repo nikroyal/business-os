@@ -43,7 +43,7 @@ export type TaskType =
 export interface ModelMetadata {
   id: string;
   displayName: string;
-  capabilities: ModelCapability[];
+  capabilities?: ModelCapability[];
   category: 'Flash' | 'Pro';
   priority: number; // Lower is higher priority (e.g. 1 is highest)
   capabilityScore: number;
