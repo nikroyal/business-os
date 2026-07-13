@@ -112,6 +112,7 @@ export interface FallbackEvent {
 export interface ModelMetadataWithStats {
   id: string;
   displayName: string;
+  capabilities?: string[];
   category: string;
   priority: number;
   capabilityScore: number;
@@ -1349,16 +1350,29 @@ class AIOrchestratorService {
     return (stats.models || []).filter(m => m.visibleInRegistry !== false);
   }
 
+export function isChatCapableModel(m: { capabilities?: string[]; modelType?: string; id?: string }): boolean {
+  if (m.capabilities && Array.isArray(m.capabilities) && m.capabilities.length > 0) {
+    return m.capabilities.includes('chat');
+  }
+  if (m.modelType === 'embedding' || m.modelType === 'reranker' || m.modelType === 'safety') {
+    return false;
+  }
+  if (m.id && (m.id.includes('embed') || m.id.includes('rerank') || m.id.includes('safety') || m.id.includes('moderation'))) {
+    return false;
+  }
+  return true;
+}
+
   filterPlaygroundModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
-    return models.filter(m => m.enabled && m.availableForPlayground !== false && m.visibleInRegistry !== false);
+    return models.filter(m => m.enabled && m.availableForPlayground !== false && m.visibleInRegistry !== false && isChatCapableModel(m));
   }
 
   filterBenchmarkModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
-    return models.filter(m => m.enabled && m.availableForBenchmarking !== false && m.visibleInRegistry !== false);
+    return models.filter(m => m.enabled && m.availableForBenchmarking !== false && m.visibleInRegistry !== false && isChatCapableModel(m));
   }
 
   filterRoutingModels(models: ModelMetadataWithStats[]): ModelMetadataWithStats[] {
-    return models.filter(m => m.enabled && m.availableForRouting !== false && m.visibleInRegistry !== false);
+    return models.filter(m => m.enabled && m.availableForRouting !== false && m.visibleInRegistry !== false && isChatCapableModel(m));
   }
 
   validateRegistry(models: ModelMetadataWithStats[], config?: OrchestratorConfig): RegistryValidationReport {

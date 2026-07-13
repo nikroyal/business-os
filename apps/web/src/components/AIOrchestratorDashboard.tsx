@@ -1075,8 +1075,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   <th style={{ padding: '0.5rem 0.25rem' }}>Model Details</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Current runtime priority in chain">Priority</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Provider</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Primary Task Capability">Capability</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Input Context Window and Maximum Output Tokens">Context / Max Out</th>
-                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Supported Model Capabilities">Capabilities</th>
+                  <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Supported Modes & Features">Supported Modes</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Estimated Cost per 1 Million Input/Output Tokens">Pricing ($/1M)</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Capability / Reasoning / Speed Scores">C / R / S Scores</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Status</th>
@@ -1127,6 +1128,53 @@ export const AIOrchestratorDashboard: React.FC = () => {
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
                         <span style={{ fontSize: '0.65rem', border: '1px solid #C4B9A7', background: '#FCFAF6', padding: '1px 6px', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{model.provider}</span>
+                      </td>
+                      <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
+                        {(() => {
+                          const caps = model.capabilities && Array.isArray(model.capabilities) && model.capabilities.length > 0
+                            ? model.capabilities
+                            : (model.modelType === 'embedding' || model.id.includes('embed') ? ['embeddings']
+                              : model.modelType === 'reranker' || model.id.includes('rerank') ? ['reranking']
+                              : model.modelType === 'safety' || model.id.includes('safety') ? ['safety']
+                              : ['chat']);
+                          const mainCap = caps[0] || 'chat';
+                          let badgeBg = '#ecfdf5';
+                          let badgeColor = '#047857';
+                          let badgeBorder = '#a7f3d0';
+                          let label = 'CHAT';
+                          if (mainCap === 'embeddings') {
+                            badgeBg = '#eff6ff';
+                            badgeColor = '#1d4ed8';
+                            badgeBorder = '#bfdbfe';
+                            label = 'EMBEDDINGS';
+                          } else if (mainCap === 'reranking') {
+                            badgeBg = '#f3e8ff';
+                            badgeColor = '#6b21a8';
+                            badgeBorder = '#e9d5ff';
+                            label = 'RERANKING';
+                          } else if (mainCap === 'safety' || mainCap === 'moderation') {
+                            badgeBg = '#fff7ed';
+                            badgeColor = '#c2410c';
+                            badgeBorder = '#fed7aa';
+                            label = 'SAFETY';
+                          }
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 'bold',
+                                background: badgeBg,
+                                color: badgeColor,
+                                border: `1px solid ${badgeBorder}`,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                letterSpacing: '0.03em'
+                              }}>
+                                {label}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
                         <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{(model.contextWindow || 1048576) >= 1000000 ? `${((model.contextWindow || 1048576)/1000000).toFixed(1).replace('.0', '')}M` : `${((model.contextWindow || 1048576)/1000).toFixed(0)}K`}</div>

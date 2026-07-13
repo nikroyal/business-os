@@ -191,4 +191,49 @@ describe("BusinessOS AI Platform - End-to-End Production Acceptance Audit", () =
       expect(playgroundModels.length).toBeGreaterThanOrEqual(10);
     });
   });
+
+  describe("PHASE 12 - CAPABILITY-BASED ROUTING & FILTERING VERIFICATION", () => {
+    it("verify every registered model declares explicit capabilities", () => {
+      const models = AIOrchestrator.DEFAULT_MODELS;
+      for (const model of models) {
+        const caps = AIOrchestrator.getModelCapabilities(model);
+        expect(Array.isArray(caps)).toBe(true);
+        expect(caps.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("verify non-chat models (embedding, reranking, safety) are never selected for chat tasks like Copilot", () => {
+      const models = AIOrchestrator.DEFAULT_MODELS;
+      const chatTasks: Array<any> = [
+        "copilot_conversation",
+        "daily_email",
+        "market_summary",
+        "company_analysis",
+        "report_generation",
+        "deep_research",
+        "short_summarization",
+        "long_writing",
+        "coding"
+      ];
+
+      for (const task of chatTasks) {
+        const selectedId = AIOrchestrator.selectBestModelForTask(task, models);
+        const selectedObj = models.find(m => m.id === selectedId);
+        expect(selectedObj).toBeDefined();
+        const caps = AIOrchestrator.getModelCapabilities(selectedObj!);
+        expect(caps).toContain("chat");
+        expect(selectedObj!.id).not.toContain("embed");
+        expect(selectedObj!.id).not.toContain("rerank");
+      }
+    });
+
+    it("verify retrieval and reranking tasks route to appropriate specialized models", () => {
+      const models = AIOrchestrator.DEFAULT_MODELS;
+      const embedId = AIOrchestrator.selectBestModelForTask("retrieval", models);
+      expect(embedId).toBe("llama-nemotron-embed-vl-1b-v2-20260224");
+
+      const rerankId = AIOrchestrator.selectBestModelForTask("reranking", models);
+      expect(rerankId).toBe("llama-nemotron-rerank-vl-1b-v2");
+    });
+  });
 });

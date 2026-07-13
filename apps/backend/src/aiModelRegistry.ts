@@ -12,6 +12,17 @@ export type Subsystem =
   | 'Benchmarking'
   | string;
 
+export type ModelCapability =
+  | 'chat'
+  | 'embeddings'
+  | 'reranking'
+  | 'vision'
+  | 'image_generation'
+  | 'moderation'
+  | 'safety'
+  | 'speech'
+  | 'audio';
+
 export type TaskType = 
   | 'deep_research'
   | 'copilot_conversation'
@@ -24,6 +35,7 @@ export type TaskType =
   | 'short_summarization'
   | 'coding'
   | 'retrieval'
+  | 'reranking'
   | 'moderation'
   | 'vision'
   | 'benchmarking';
@@ -31,6 +43,7 @@ export type TaskType =
 export interface ModelMetadata {
   id: string;
   displayName: string;
+  capabilities: ModelCapability[];
   category: 'Flash' | 'Pro';
   priority: number; // Lower is higher priority (e.g. 1 is highest)
   capabilityScore: number;
@@ -389,6 +402,55 @@ export class AIOrchestrator {
     'google': new GoogleGeminiAdapter(),
     'openrouter': new OpenRouterAdapter()
   };
+
+  public static getModelCapabilities(model: ModelMetadata): ModelCapability[] {
+    if (model.capabilities && Array.isArray(model.capabilities) && model.capabilities.length > 0) {
+      return model.capabilities;
+    }
+    if (model.modelType === 'embedding' || model.id.includes('embed')) {
+      return model.supportsVision ? ['embeddings', 'vision'] : ['embeddings'];
+    }
+    if (model.modelType === 'reranker' || model.id.includes('rerank')) {
+      return model.supportsVision ? ['reranking', 'vision'] : ['reranking'];
+    }
+    if (model.modelType === 'safety' || model.id.includes('safety') || model.id.includes('moderation')) {
+      return ['safety', 'moderation'];
+    }
+    const caps: ModelCapability[] = ['chat'];
+    if (model.supportsVision) caps.push('vision');
+    if (model.supportsAudio) caps.push('audio');
+    if (model.supportsImageOutput) caps.push('image_generation');
+    return caps;
+  }
+
+  public static getRequiredCapabilityForTask(task: TaskType): ModelCapability {
+    switch (task) {
+      case 'retrieval':
+        return 'embeddings';
+      case 'reranking':
+        return 'reranking';
+      case 'moderation':
+        return 'moderation';
+      default:
+        return 'chat';
+    }
+  }
+
+  public static isModelCapableForTask(model: ModelMetadata, task: TaskType): boolean {
+    const caps = this.getModelCapabilities(model);
+    switch (task) {
+      case 'retrieval':
+        return caps.includes('embeddings');
+      case 'reranking':
+        return caps.includes('reranking');
+      case 'moderation':
+        return caps.includes('moderation') || caps.includes('safety');
+      case 'vision':
+        return caps.includes('chat') && (caps.includes('vision') || model.supportsVision);
+      default:
+        return caps.includes('chat');
+    }
+  }
 
   public static readonly DEFAULT_MODELS: ModelMetadata[] = [
     // --- Google Gemini Direct (Strictly for Daily Email) ---
@@ -1038,6 +1100,7 @@ export class AIOrchestrator {
     {
       id: 'llama-nemotron-embed-vl-1b-v2-20260224',
       displayName: 'Llama Nemotron Embed VL 1B v2',
+      capabilities: ['embeddings', 'vision'],
       category: 'Flash',
       priority: 1,
       capabilityScore: 90,
@@ -1070,11 +1133,12 @@ export class AIOrchestrator {
       availabilityTier: 'Pay-as-you-go',
       modelType: 'embedding',
       intendedUse: 'Vector embedding generation for retrieval/search workflows only',
-      supportedTaskTypes: ['retrieval', 'benchmarking']
+      supportedTaskTypes: ['retrieval']
     },
     {
       id: 'llama-nemotron-rerank-vl-1b-v2',
       displayName: 'Llama Nemotron Rerank VL 1B v2',
+      capabilities: ['reranking', 'vision'],
       category: 'Flash',
       priority: 2,
       capabilityScore: 91,
@@ -1107,7 +1171,7 @@ export class AIOrchestrator {
       availabilityTier: 'Pay-as-you-go',
       modelType: 'reranker',
       intendedUse: 'Document reranking for search/ranking workflows only',
-      supportedTaskTypes: ['retrieval', 'benchmarking']
+      supportedTaskTypes: ['reranking', 'retrieval']
     },
     {
       id: 'nemotron-3-nano-30b-a3b',
@@ -1260,6 +1324,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-3.5-content-safety-20260604',
       displayName: 'Nemotron 3.5 Content Safety',
+      capabilities: ['safety', 'moderation'],
       category: 'Flash',
       priority: 1,
       capabilityScore: 95,
@@ -1292,7 +1357,7 @@ export class AIOrchestrator {
       availabilityTier: 'Pay-as-you-go',
       modelType: 'safety',
       intendedUse: 'Content moderation and safety classification only',
-      supportedTaskTypes: ['moderation', 'benchmarking']
+      supportedTaskTypes: ['moderation']
     },
     {
       id: 'nemotron-nano-12b-v2-vl',
@@ -1714,7 +1779,8 @@ export class AIOrchestrator {
 
   // --- TASK CLASSIFICATION MATRIX ---
   public static selectBestModelForTask(task: TaskType, models: ModelMetadata[], config?: any): string {
-    const active = models.filter(m => m.enabled && m.id !== 'uncensored');
+    const capableModels = models.filter(m => m.enabled && m.id !== 'uncensored' && this.isModelCapableForTask(m, task));
+    const active = capableModels.length > 0 ? capableModels : models.filter(m => m.enabled && m.id !== 'uncensored');
     if (active.length === 0) return 'gemini-3.5-flash';
 
     const providerPref = config?.globalProviderPreference || 'openrouter';
@@ -1745,6 +1811,10 @@ export class AIOrchestrator {
 
       case 'retrieval':
         return active.find(m => m.id === 'llama-nemotron-embed-vl-1b-v2-20260224')?.id ||
+               active[0].id;
+
+      case 'reranking':
+        return active.find(m => m.id === 'llama-nemotron-rerank-vl-1b-v2')?.id ||
                active[0].id;
 
       case 'moderation':
@@ -2243,9 +2313,20 @@ export class AIOrchestrator {
 
     const requestedModel = targetModelId;
 
-    // Filter and sort healthy active models
-    const activeModels = registryList.filter(m => m.enabled);
-    const reqModelObj = activeModels.find(m => m.id === requestedModel);
+    // Filter models by capability FIRST before considering provider, priority, free-first routing, cost, or fallback
+    const capableModels = registryList.filter(m => m.enabled && m.id !== 'uncensored' && this.isModelCapableForTask(m, taskType));
+    const activeModels = capableModels.length > 0 ? capableModels : registryList.filter(m => m.enabled && m.id !== 'uncensored');
+
+    let reqModelObj = activeModels.find(m => m.id === requestedModel);
+    if (reqModelObj && !this.isModelCapableForTask(reqModelObj, taskType)) {
+      console.warn(`[AIOrchestrator] Requested model '${requestedModel}' does not satisfy required capability for task '${taskType}'. Using capable default '${taskModelDefault}'.`);
+      reqModelObj = activeModels.find(m => m.id === taskModelDefault) || activeModels[0];
+    } else if (!reqModelObj && requestedModel) {
+      reqModelObj = activeModels.find(m => m.id === taskModelDefault) || activeModels[0];
+    }
+
+    const effectiveRequestedModel = reqModelObj?.id || taskModelDefault;
+
     const isFlashTask = reqModelObj ? reqModelObj.category === 'Flash' : (taskType !== 'deep_research' && taskType !== 'report_generation' && taskType !== 'company_analysis');
     const customOrder: string[] | undefined = isFlashTask ? config?.flashFallbackOrder : config?.proFallbackOrder;
 
@@ -2266,12 +2347,12 @@ export class AIOrchestrator {
       return Date.now() < until;
     };
 
-    if (reqModelObj && !isCooldowned(requestedModel)) {
+    if (reqModelObj && !isCooldowned(effectiveRequestedModel)) {
       chain.push(reqModelObj);
     }
 
     for (const m of sortedFallbackChain) {
-      if (m.id !== requestedModel && !isCooldowned(m.id)) {
+      if (m.id !== effectiveRequestedModel && !isCooldowned(m.id)) {
         chain.push(m);
       }
     }
@@ -2280,7 +2361,7 @@ export class AIOrchestrator {
     if (chain.length === 0) {
       console.warn('[AIOrchestrator] All registry models are in cooldown. Attempting fallback chain.');
       if (reqModelObj) chain.push(reqModelObj);
-      chain.push(...sortedFallbackChain.filter(m => m.id !== requestedModel));
+      chain.push(...sortedFallbackChain.filter(m => m.id !== effectiveRequestedModel));
     }
 
     let lastErrorType = 'UNKNOWN_PROVIDER_ERROR';
