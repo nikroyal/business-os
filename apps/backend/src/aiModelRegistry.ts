@@ -2864,6 +2864,193 @@ export class AIOrchestrator {
     return results;
   }
 
+  public static async runLiveProviderCertificationSuite(
+    apiKeys: { google?: string; openrouter?: string },
+    testLiveInference = false
+  ): Promise<{
+    timestamp: string;
+    totalModels: number;
+    passedCount: number;
+    failedCount: number;
+    manualCount: number;
+    providerAuth: any;
+    models: Array<{
+      id: string;
+      displayName: string;
+      provider: string;
+      apiModelId: string;
+      category: string;
+      supportedTasks: string[];
+      verificationType: 'LIVE_API_TEST' | 'MANUAL_PRODUCTION_VERIFICATION' | 'CONFIG_ERROR';
+      status: 'PASS' | 'FAIL' | 'MANUAL';
+      message: string;
+      latencyMs?: number;
+    }>;
+    featuresAudit: Array<{
+      feature: string;
+      subsystem: string;
+      preferredProvider: string;
+      selectedModel: string;
+      apiModelId: string;
+      status: 'PASS' | 'FAIL' | 'MANUAL';
+      message: string;
+    }>;
+  }> {
+    const authStatus = await this.validateProviders(apiKeys);
+    const modelsResults: Array<{
+      id: string;
+      displayName: string;
+      provider: string;
+      apiModelId: string;
+      category: string;
+      supportedTasks: string[];
+      verificationType: 'LIVE_API_TEST' | 'MANUAL_PRODUCTION_VERIFICATION' | 'CONFIG_ERROR';
+      status: 'PASS' | 'FAIL' | 'MANUAL';
+      message: string;
+      latencyMs?: number;
+    }> = [];
+
+    let passedCount = 0;
+    let failedCount = 0;
+    let manualCount = 0;
+
+    for (const model of this.DEFAULT_MODELS) {
+      const apiModelId = model.apiModelId || model.id;
+      const keyPresent = model.provider === 'google'
+        ? (apiKeys.google && apiKeys.google.trim().length > 0)
+        : (apiKeys.openrouter && apiKeys.openrouter.trim().length > 0);
+
+      // Verify that apiModelId does not equal displayName or inferred invalid string
+      if (apiModelId === model.displayName || !apiModelId || apiModelId.trim().length === 0) {
+        failedCount++;
+        modelsResults.push({
+          id: model.id,
+          displayName: model.displayName,
+          provider: model.provider,
+          apiModelId,
+          category: model.category,
+          supportedTasks: model.supportedTaskTypes || [],
+          verificationType: 'CONFIG_ERROR',
+          status: 'FAIL',
+          message: `CONFIG ERROR: Model apiModelId ('${apiModelId}') is invalid or matches display name.`
+        });
+        continue;
+      }
+
+      if (testLiveInference && keyPresent) {
+        const adapter = this.adapters[model.provider];
+        const apiKeyToUse = model.provider === 'google' ? apiKeys.google! : apiKeys.openrouter!;
+        const startMs = Date.now();
+        try {
+          if (adapter) {
+            await adapter.executePrompt(
+              apiModelId,
+              'You are a certification bot.',
+              'Reply with solely the word CERTIFIED.',
+              apiKeyToUse,
+              10000
+            );
+            const latencyMs = Date.now() - startMs;
+            passedCount++;
+            modelsResults.push({
+              id: model.id,
+              displayName: model.displayName,
+              provider: model.provider,
+              apiModelId,
+              category: model.category,
+              supportedTasks: model.supportedTaskTypes || [],
+              verificationType: 'LIVE_API_TEST',
+              status: 'PASS',
+              message: `Live inference verified against ${model.provider} API (${apiModelId}) in ${latencyMs}ms.`,
+              latencyMs
+            });
+          } else {
+            failedCount++;
+            modelsResults.push({
+              id: model.id,
+              displayName: model.displayName,
+              provider: model.provider,
+              apiModelId,
+              category: model.category,
+              supportedTasks: model.supportedTaskTypes || [],
+              verificationType: 'CONFIG_ERROR',
+              status: 'FAIL',
+              message: `No adapter registered for provider '${model.provider}'.`
+            });
+          }
+        } catch (err: any) {
+          failedCount++;
+          modelsResults.push({
+            id: model.id,
+            displayName: model.displayName,
+            provider: model.provider,
+            apiModelId,
+            category: model.category,
+            supportedTasks: model.supportedTaskTypes || [],
+            verificationType: 'LIVE_API_TEST',
+            status: 'FAIL',
+            message: `Live inference failed against provider '${model.provider}': ${err.message || String(err)}`
+          });
+        }
+      } else {
+        manualCount++;
+        modelsResults.push({
+          id: model.id,
+          displayName: model.displayName,
+          provider: model.provider,
+          apiModelId,
+          category: model.category,
+          supportedTasks: model.supportedTaskTypes || [],
+          verificationType: 'MANUAL_PRODUCTION_VERIFICATION',
+          status: 'MANUAL',
+          message: `Requires manual production verification against live ${model.provider === 'google' ? 'GEMINI_API_KEY' : 'OPENROUTER_API_KEY'} environment binding.`
+        });
+      }
+    }
+
+    // Feature Audit
+    const statutoryFeatures: Array<{ name: string; subsystem: Subsystem }> = [
+      { name: 'Copilot Chat Engine', subsystem: 'Copilot' },
+      { name: 'Daily Briefing Email', subsystem: 'Daily Email' },
+      { name: 'Research Engine', subsystem: 'Research Engine' },
+      { name: 'Editorial Commentary', subsystem: 'Editorial Commentary' },
+      { name: 'Reports Generator', subsystem: 'Reports' },
+      { name: 'Opportunities Analyzer', subsystem: 'Opportunities' },
+      { name: 'Benchmarking Suite', subsystem: 'Benchmarking' },
+      { name: 'AI Playground', subsystem: 'Playground' },
+      { name: 'Vector Embeddings', subsystem: 'Embeddings' },
+      { name: 'Semantic Reranker', subsystem: 'Reranking' }
+    ];
+
+    const featuresAudit = statutoryFeatures.map(f => {
+      const taskType = this.mapSubsystemToTask(f.subsystem);
+      const selectedModelId = this.selectBestModelForTask(taskType, this.DEFAULT_MODELS);
+      const modelObj = this.DEFAULT_MODELS.find(m => m.id === selectedModelId) || this.DEFAULT_MODELS[0];
+      const apiModelId = modelObj.apiModelId || modelObj.id;
+      const modelRes = modelsResults.find(r => r.id === modelObj.id);
+      return {
+        feature: f.name,
+        subsystem: f.subsystem,
+        preferredProvider: modelObj.provider,
+        selectedModel: modelObj.id,
+        apiModelId,
+        status: modelRes ? modelRes.status : 'MANUAL' as const,
+        message: modelRes ? modelRes.message : 'Requires manual production verification.'
+      };
+    });
+
+    return {
+      timestamp: new Date().toISOString(),
+      totalModels: this.DEFAULT_MODELS.length,
+      passedCount,
+      failedCount,
+      manualCount,
+      providerAuth: authStatus,
+      models: modelsResults,
+      featuresAudit
+    };
+  }
+
   public static async executeCommentary(
     systemPrompt: string,
     userPrompt: string,

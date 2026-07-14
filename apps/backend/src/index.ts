@@ -799,6 +799,19 @@ app.get('/api/ai/diagnostics/lab', async (c) => {
   });
 });
 
+app.get('/api/ai/diagnostics/live-certification', async (c) => {
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
+  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
+  const testInference = c.req.query('testInference') === 'true';
+
+  const report = await AIOrchestrator.runLiveProviderCertificationSuite({
+    google: geminiKey,
+    openrouter: openRouterKey
+  }, testInference);
+
+  return c.json(report);
+});
+
 app.post('/api/ai/test-lab/compare', async (c) => {
   const { prompt, systemPrompt, modelIds } = await c.req.json();
   if (!Array.isArray(modelIds) || modelIds.length === 0) {
