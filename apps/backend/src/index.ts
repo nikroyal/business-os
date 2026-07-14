@@ -3205,8 +3205,13 @@ app.get('/api/admin/ai-orchestrator/stats', async (c) => {
   const projectId = c.env.FIREBASE_PROJECT_ID || 'businessos-0001a';
   const authHeader = c.req.header('Authorization');
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+  const geminiKey = resolveDiagnosticApiKey(c, 'GEMINI_API_KEY');
+  const openRouterKey = resolveDiagnosticApiKey(c, 'OPENROUTER_API_KEY');
   try {
-    const stats = await AIOrchestrator.getOperationalStats(projectId, token);
+    const stats = await AIOrchestrator.getOperationalStats(projectId, token, {
+      google: geminiKey,
+      openrouter: openRouterKey
+    });
     return c.json(stats);
   } catch (err: any) {
     return c.json({ error: 'Failed to retrieve AI stats', details: err.message }, 500);

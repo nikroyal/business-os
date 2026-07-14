@@ -3310,7 +3310,10 @@ export class AIOrchestrator {
         continue;
       }
       if (m.provider === 'openrouter') {
-        const catalogModel = catalogArray.find((cm: any) => cm.id === (m.apiModelId || m.id) || cm.id === m.id);
+        const freeCatalogModel = catalogArray.find((cm: any) =>
+          cm.id === `${m.apiModelId || m.id}:free` || cm.id === `${m.id}:free`
+        );
+        const catalogModel = catalogArray.find((cm: any) => cm.id === (m.apiModelId || m.id) || cm.id === m.id) || freeCatalogModel;
         if (catalogModel && catalogModel.pricing) {
           const rawPrompt = String(catalogModel.pricing.prompt ?? '0');
           const rawCompletion = String(catalogModel.pricing.completion ?? '0');
@@ -3320,11 +3323,17 @@ export class AIOrchestrator {
           const outputCostPer1M = Number((!isNaN(completionCostPerToken) ? completionCostPerToken * 1000000 : 0).toFixed(6));
 
           const isZeroCost = inputCostPer1M === 0 && outputCostPer1M === 0;
-          const isDesignatedFree = m.id.includes(':free') || m.id === 'openrouter/free' || Boolean(m.apiModelId && m.apiModelId.includes(':free'));
+          const isDesignatedFree = m.id.includes(':free') || m.id === 'openrouter/free' || Boolean(m.apiModelId && m.apiModelId.includes(':free')) || Boolean(freeCatalogModel);
           const isFreeModel = isZeroCost || isDesignatedFree;
 
-          m.inputCostPer1M = inputCostPer1M;
-          m.outputCostPer1M = outputCostPer1M;
+          if (freeCatalogModel && isFreeModel) {
+            m.inputCostPer1M = 0;
+            m.outputCostPer1M = 0;
+          } else {
+            m.inputCostPer1M = inputCostPer1M;
+            m.outputCostPer1M = outputCostPer1M;
+          }
+
           m.isFree = isFreeModel;
           m.availabilityTier = isFreeModel ? 'Free' : 'Pay-as-you-go';
           m.pricingSource = 'provider_verified';
@@ -3337,6 +3346,10 @@ export class AIOrchestrator {
         } else {
           if (!m.pricingSource) {
             m.pricingSource = 'application_defined';
+          }
+          if (m.inputCostPer1M === 0 && m.outputCostPer1M === 0) {
+            m.isFree = true;
+            m.availabilityTier = 'Free';
           }
           if (catalogArray.length > 0 && m.verificationStatus !== 'ADMIN_ALIAS') {
             m.verificationStatus = 'PENDING_VERIFICATION';
@@ -3538,7 +3551,7 @@ export class AIOrchestrator {
   }
 
   // --- COMPILE DETAILED OPERATIONAL METRICS ---
-  public static async getOperationalStats(projectId: string, token?: string): Promise<any> {
+  public static async getOperationalStats(projectId: string, token?: string, apiKeys?: { google?: string; openrouter?: string }): Promise<any> {
     const config = await this.getOrchestratorConfig(projectId, token);
     const forcedModel = config?.forcedModel || null;
     const modelOverrides = config?.modelOverrides || {};
@@ -4100,7 +4113,7 @@ export class AIOrchestrator {
     }
 
     if (!this.DEFAULT_MODELS.some(m => m.pricingSource === 'provider_verified')) {
-      await this.syncWithProviderCatalog({}).catch(() => {});
+      await this.syncWithProviderCatalog(apiKeys || {}).catch(() => {});
     }
 
     const googleModelsList = this.DEFAULT_MODELS.filter(m => m.provider === 'google');
@@ -4122,8 +4135,8 @@ export class AIOrchestrator {
         apiKeyStatus: 'Configured & Verified',
         availableModelsCount: googleModelsList.length,
         enabledModelsCount: googleModelsList.filter(m => m.enabled).length,
-        freeModelsCount: googleModelsList.filter(m => m.isFree).length,
-        paidModelsCount: googleModelsList.filter(m => !m.isFree).length
+        freeModelsCount: googleModelsList.filter(m => m.isFree || (m.inputCostPer1M === 0 && m.outputCostPer1M === 0)).length,
+        paidModelsCount: googleModelsList.filter(m => !m.isFree && (m.inputCostPer1M > 0 || m.outputCostPer1M > 0)).length
       },
       openrouter: {
         rpm: Math.round((orReq / elapsedMinutes) * 100) / 100,
@@ -4140,8 +4153,8 @@ export class AIOrchestrator {
         apiKeyStatus: 'Configured & Verified',
         availableModelsCount: orModelsList.length,
         enabledModelsCount: orModelsList.filter(m => m.enabled).length,
-        freeModelsCount: orModelsList.filter(m => m.isFree).length,
-        paidModelsCount: orModelsList.filter(m => !m.isFree).length
+        freeModelsCount: orModelsList.filter(m => m.isFree || (m.inputCostPer1M === 0 && m.outputCostPer1M === 0)).length,
+        paidModelsCount: orModelsList.filter(m => !m.isFree && (m.inputCostPer1M > 0 || m.outputCostPer1M > 0)).length
       },
       businessos: {
         rpm: bosRpm,
