@@ -1294,6 +1294,25 @@ class AIOrchestratorService {
     return !!data.success;
   }
 
+  async syncProviderCatalog(): Promise<{
+    timestamp: string;
+    google: { synchronized: boolean; status: string; modelsFound?: number; message: string };
+    openrouter: { synchronized: boolean; status: string; modelsFound?: number; message: string };
+  }> {
+    if (authService.isMock) {
+      return {
+        timestamp: new Date().toISOString(),
+        google: { synchronized: true, status: 'OPERATIONAL', modelsFound: 11, message: 'Mock synchronized Google catalog' },
+        openrouter: { synchronized: true, status: 'OPERATIONAL', modelsFound: 22, message: 'Mock synchronized OpenRouter catalog' }
+      };
+    }
+
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(buildApiUrl('api/ai/diagnostics/provider-sync'), { headers });
+    if (!res.ok) throw new Error(`Failed to sync provider catalog: HTTP ${res.status}`);
+    return await res.json();
+  }
+
   async clearTelemetry(): Promise<boolean> {
     if (authService.isMock) {
       localStorage.setItem('mock_ai_orchestrator_timeline', JSON.stringify([]));

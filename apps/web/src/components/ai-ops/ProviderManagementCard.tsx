@@ -32,12 +32,14 @@ interface ProviderManagementCardProps {
   googleStats?: ProviderStats;
   openRouterStats?: ProviderStats;
   onRefresh?: () => void;
+  isSyncing?: boolean;
 }
 
 export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
   googleStats,
   openRouterStats,
-  onRefresh
+  onRefresh,
+  isSyncing = false
 }) => {
   const renderProviderPanel = (
     name: string,
@@ -225,10 +227,11 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
         {onRefresh && (
           <button
             onClick={onRefresh}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
+            disabled={isSyncing}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 transition-colors"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Sync Providers
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Syncing...' : 'Sync Providers'}
           </button>
         )}
       </div>

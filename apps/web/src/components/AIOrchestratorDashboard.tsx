@@ -59,6 +59,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const [testLabModels, setTestLabModels] = useState<string[]>(['gemini-3.5-flash', 'gemini-3.1-pro-preview']);
   const [testLabResults, setTestLabResults] = useState<any[]>([]);
   const [runningTestLab, setRunningTestLab] = useState<boolean>(false);
+  const [syncingProviders, setSyncingProviders] = useState<boolean>(false);
+  const [providerSyncReport, setProviderSyncReport] = useState<any>(null);
 
   const filteredTimeline = React.useMemo(() => filterTelemetryRecords(timeline, filters), [timeline, filters]);
 
@@ -234,6 +236,24 @@ export const AIOrchestratorDashboard: React.FC = () => {
       console.error('Model comparison error:', e);
     } finally {
       setRunningTestLab(false);
+    }
+  };
+
+  const handleSyncProviders = async () => {
+    try {
+      setSyncingProviders(true);
+      setError(null);
+      const res = await aiOrchestratorService.syncProviderCatalog();
+      setProviderSyncReport(res);
+      await loadData(true);
+    } catch (e: any) {
+      console.error('Failed to sync providers:', e);
+      setError({
+        status: 'Provider Catalog Sync Failed',
+        message: e.message || 'Unable to synchronize with live provider endpoints.'
+      });
+    } finally {
+      setSyncingProviders(false);
     }
   };
 
@@ -973,8 +993,50 @@ export const AIOrchestratorDashboard: React.FC = () => {
           <ProviderManagementCard
             googleStats={stats?.providerComparison?.google}
             openRouterStats={stats?.providerComparison?.openrouter}
-            onRefresh={() => loadData(true)}
+            onRefresh={handleSyncProviders}
+            isSyncing={syncingProviders}
           />
+
+          {providerSyncReport && (
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  Live Provider Synchronization Report
+                </h4>
+                <span className="text-xs font-mono text-slate-400">
+                  Last Sync: {new Date(providerSyncReport.timestamp || Date.now()).toLocaleTimeString()}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-950/70 rounded-xl p-4 border border-slate-800/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-white">Google Gemini Provider</span>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${providerSyncReport.google?.status === 'OPERATIONAL' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                      {providerSyncReport.google?.status || 'UNKNOWN'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mb-1">{providerSyncReport.google?.message}</p>
+                  {providerSyncReport.google?.modelsFound !== undefined && (
+                    <span className="text-[11px] font-mono text-indigo-300">Models Verified: {providerSyncReport.google.modelsFound}</span>
+                  )}
+                </div>
+
+                <div className="bg-slate-950/70 rounded-xl p-4 border border-slate-800/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-white">OpenRouter Provider</span>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${providerSyncReport.openrouter?.status === 'OPERATIONAL' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                      {providerSyncReport.openrouter?.status || 'UNKNOWN'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mb-1">{providerSyncReport.openrouter?.message}</p>
+                  {providerSyncReport.openrouter?.modelsFound !== undefined && (
+                    <span className="text-[11px] font-mono text-indigo-300">Models Verified: {providerSyncReport.openrouter.modelsFound}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
