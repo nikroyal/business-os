@@ -112,6 +112,11 @@ export interface ModelMetadata {
   cooldownStatus?: 'healthy' | 'cooldown' | 'recovering' | 'offline';
   deploymentStatus?: 'production' | 'preview' | 'deprecated';
   visibleInRegistry?: boolean;
+  pricingSource?: 'provider_verified' | 'application_defined';
+  providerPricing?: {
+    prompt: string;
+    completion: string;
+  };
 }
 
 export interface FeatureRequirement {
@@ -3021,6 +3026,7 @@ export class AIOrchestrator {
     }>;
   }> {
     const authStatus = await this.validateProviders(apiKeys);
+    await this.syncWithProviderCatalog(apiKeys);
     const modelsResults: Array<{
       id: string;
       displayName: string;
@@ -3296,6 +3302,43 @@ export class AIOrchestrator {
     };
   }
 
+  public static applyProviderPricingCatalog(openRouterCatalogModels: any[]): void {
+    const catalogArray = Array.isArray(openRouterCatalogModels) ? openRouterCatalogModels : [];
+    for (const m of this.DEFAULT_MODELS) {
+      if (m.provider === 'google') {
+        m.pricingSource = 'application_defined';
+        continue;
+      }
+      if (m.provider === 'openrouter') {
+        const catalogModel = catalogArray.find((cm: any) => cm.id === (m.apiModelId || m.id) || cm.id === m.id);
+        if (catalogModel && catalogModel.pricing) {
+          const rawPrompt = String(catalogModel.pricing.prompt ?? '0');
+          const rawCompletion = String(catalogModel.pricing.completion ?? '0');
+          const promptCostPerToken = parseFloat(rawPrompt);
+          const completionCostPerToken = parseFloat(rawCompletion);
+          const inputCostPer1M = Number((!isNaN(promptCostPerToken) ? promptCostPerToken * 1000000 : 0).toFixed(6));
+          const outputCostPer1M = Number((!isNaN(completionCostPerToken) ? completionCostPerToken * 1000000 : 0).toFixed(6));
+
+          const isZeroCost = inputCostPer1M === 0 && outputCostPer1M === 0;
+          const isDesignatedFree = m.id.includes(':free') || m.id === 'openrouter/free' || Boolean(m.apiModelId && m.apiModelId.includes(':free'));
+          const isFreeModel = isZeroCost || isDesignatedFree;
+
+          m.inputCostPer1M = inputCostPer1M;
+          m.outputCostPer1M = outputCostPer1M;
+          m.isFree = isFreeModel;
+          m.availabilityTier = isFreeModel ? 'Free' : 'Pay-as-you-go';
+          m.pricingSource = 'provider_verified';
+          m.providerPricing = {
+            prompt: rawPrompt,
+            completion: rawCompletion
+          };
+        } else if (!m.pricingSource) {
+          m.pricingSource = 'application_defined';
+        }
+      }
+    }
+  }
+
   public static async syncWithProviderCatalog(apiKeys: { google?: string; openrouter?: string }): Promise<{
     timestamp: string;
     google: { synchronized: boolean; status: string; modelsFound?: number; message: string };
@@ -3310,6 +3353,12 @@ export class AIOrchestrator {
       google: { synchronized: false, status: 'NOT_SYNCHRONIZED', message: 'GEMINI_API_KEY binding not configured or offline runtime environment.' },
       openrouter: { synchronized: false, status: 'NOT_SYNCHRONIZED', message: 'OPENROUTER_API_KEY binding not configured or offline runtime environment.' }
     };
+
+    for (const m of this.DEFAULT_MODELS) {
+      if (m.provider === 'google') {
+        m.pricingSource = 'application_defined';
+      }
+    }
 
     const g: any = typeof globalThis !== 'undefined' ? globalThis : {};
     const googleKey = (apiKeys.google || g.process?.env?.GEMINI_API_KEY || g.GEMINI_API_KEY || '').trim();
@@ -3348,11 +3397,13 @@ export class AIOrchestrator {
         });
         if (res.ok) {
           const data: any = await res.json();
+          const catalogModels = Array.isArray(data.data) ? data.data : [];
+          this.applyProviderPricingCatalog(catalogModels);
           result.openrouter = {
             synchronized: true,
             status: 'OPERATIONAL',
-            modelsFound: data.data?.length || 0,
-            message: `Successfully synchronized with OpenRouter model catalog (${data.data?.length || 0} models verified).`
+            modelsFound: catalogModels.length,
+            message: `Successfully synchronized with OpenRouter model catalog (${catalogModels.length} models verified and authoritative pricing populated).`
           };
         } else {
           const errBody = await res.text().catch(() => '');
@@ -4038,6 +4089,10 @@ export class AIOrchestrator {
         googleComp += (record.completionTokens || 0);
         googleTot += (record.totalTokens || 0);
       }
+    }
+
+    if (!this.DEFAULT_MODELS.some(m => m.pricingSource === 'provider_verified')) {
+      await this.syncWithProviderCatalog({}).catch(() => {});
     }
 
     const googleModelsList = this.DEFAULT_MODELS.filter(m => m.provider === 'google');

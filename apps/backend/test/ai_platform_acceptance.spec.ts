@@ -235,5 +235,37 @@ describe("BusinessOS AI Platform - End-to-End Production Acceptance Audit", () =
       const rerankId = AIOrchestrator.selectBestModelForTask("reranking", models);
       expect(rerankId).toBe("llama-nemotron-rerank-vl-1b-v2");
     });
+
+    it("authoritatively derives pricing and free/paid classification from OpenRouter catalog metadata via applyProviderPricingCatalog", () => {
+      const mockCatalog = [
+        {
+          id: "qwen/qwen-2.5-coder-32b-instruct",
+          pricing: { prompt: "0.0000001", completion: "0.0000002" }
+        },
+        {
+          id: "llama-3.2-3b-instruct",
+          pricing: { prompt: "0", completion: "0" }
+        }
+      ];
+
+      AIOrchestrator.applyProviderPricingCatalog(mockCatalog);
+
+      const qwen = AIOrchestrator.DEFAULT_MODELS.find(m => m.id === "qwen/qwen-2.5-coder-32b-instruct");
+      expect(qwen?.pricingSource).toBe("provider_verified");
+      expect(qwen?.isFree).toBe(false);
+      expect(qwen?.availabilityTier).toBe("Pay-as-you-go");
+      expect(qwen?.inputCostPer1M).toBe(0.1);
+      expect(qwen?.outputCostPer1M).toBe(0.2);
+
+      const llamaFree = AIOrchestrator.DEFAULT_MODELS.find(m => m.id === "llama-3.2-3b-instruct");
+      expect(llamaFree?.pricingSource).toBe("provider_verified");
+      expect(llamaFree?.isFree).toBe(true);
+      expect(llamaFree?.availabilityTier).toBe("Free");
+      expect(llamaFree?.inputCostPer1M).toBe(0);
+      expect(llamaFree?.outputCostPer1M).toBe(0);
+
+      const googleModel = AIOrchestrator.DEFAULT_MODELS.find(m => m.provider === "google");
+      expect(googleModel?.pricingSource).toBe("application_defined");
+    });
   });
 });

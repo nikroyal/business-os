@@ -159,6 +159,12 @@ export interface ModelMetadataWithStats {
   availableForBenchmarking?: boolean;
   availableForPlayground?: boolean;
   visibleInRegistry?: boolean;
+  isFree?: boolean;
+  pricingSource?: 'provider_verified' | 'application_defined';
+  providerPricing?: {
+    prompt: string;
+    completion: string;
+  };
 }
 
 export interface RegistryValidationReport {
