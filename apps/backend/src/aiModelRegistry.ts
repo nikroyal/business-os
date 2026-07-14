@@ -21,7 +21,11 @@ export type ModelCapability =
   | 'moderation'
   | 'safety'
   | 'speech'
-  | 'audio';
+  | 'audio'
+  | 'streaming'
+  | 'tools'
+  | 'structured_output'
+  | 'long_context';
 
 export type TaskType = 
   | 'deep_research'
@@ -2077,8 +2081,8 @@ export class AIOrchestrator {
   }
 
   // --- TASK CLASSIFICATION MATRIX ---
-  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[], config?: any): string {
-    const decision = this.evaluateModelsForTask(task, models, config);
+  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[], config?: any, subsystem?: Subsystem): string {
+    const decision = this.evaluateModelsForTask(task, models, config, subsystem);
     return decision.winningModel;
   }
 

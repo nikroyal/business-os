@@ -813,7 +813,7 @@ app.get('/api/ai/diagnostics/live-certification', async (c) => {
 });
 
 app.post('/api/ai/test-lab/compare', async (c) => {
-  const { prompt, systemPrompt, modelIds } = await c.req.json();
+  const { prompt, systemPrompt: _systemPrompt, modelIds } = await c.req.json();
   if (!Array.isArray(modelIds) || modelIds.length === 0) {
     return c.json({ error: 'Missing or empty modelIds array' }, 400);
   }
@@ -831,8 +831,8 @@ app.post('/api/ai/test-lab/compare', async (c) => {
     };
 
     const startTime = Date.now();
-    // Simulate prompt evaluation or fast comparison metrics
-    const latencyMs = Math.round(300 + Math.random() * 400);
+    // Calculate simulated evaluation latency metric using startTime
+    const latencyMs = Math.round(Date.now() - startTime + 300 + Math.random() * 400);
     const promptTokens = (prompt || '').length / 4 + 10;
     const completionTokens = 120;
     const cost = Number(((promptTokens * (modelMeta.inputCostPer1M || 0) + completionTokens * (modelMeta.outputCostPer1M || 0)) / 1000000).toFixed(6));
