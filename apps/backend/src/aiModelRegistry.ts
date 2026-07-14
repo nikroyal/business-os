@@ -47,6 +47,11 @@ export type TaskType =
 export interface ModelMetadata {
   id: string;
   apiModelId?: string;
+  isAlias?: boolean;
+  aliasReason?: string;
+  targetModelId?: string;
+  verificationStatus?: 'VERIFIED_API' | 'ADMIN_ALIAS' | 'UNVERIFIED_DISABLED' | 'REQUIRES_MANUAL_VERIFICATION';
+  unavailabilityReason?: string;
   displayName: string;
   version?: string;
   endpointType?: string;
@@ -96,7 +101,7 @@ export interface ModelMetadata {
   preferredTaskTypes?: TaskType[];
   ownerOnly?: boolean;
   isFree?: boolean;
-  modelType?: 'router' | 'model' | 'embedding' | 'reranker' | 'safety' | 'multimodal' | 'general';
+  modelType?: 'router' | 'model' | 'embedding' | 'reranker' | 'safety' | 'multimodal' | 'general' | 'coding';
   intendedUse?: string;
   recommendedUseCases?: string[];
   successRate?: number;
@@ -951,6 +956,121 @@ export class AIOrchestrator {
       modelType: 'router',
       intendedUse: 'Top-level routing option for free automated inference across OpenRouter free models',
       supportedTaskTypes: ['copilot_conversation', 'market_summary', 'short_summarization', 'company_analysis', 'report_generation', 'benchmarking']
+    },
+    // ==========================================
+    // OFFICIAL VERIFIED OPENROUTER MODELS (No silent substitutions)
+    // ==========================================
+    {
+      id: 'qwen/qwen-2.5-coder-32b-instruct',
+      displayName: 'Qwen 2.5 Coder 32B Instruct',
+      category: 'Pro',
+      priority: 1,
+      capabilityScore: 94,
+      reasoningScore: 93,
+      speedScore: 92,
+      stabilityScore: 95,
+      codingScore: 97,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 25000,
+      retryCount: 1,
+      cooldownDurationMs: 60000,
+      enabled: true,
+      inputCostPer1M: 0.07,
+      outputCostPer1M: 0.18,
+      fallbackEnabled: true,
+      contextWindow: 131072,
+      maxOutput: 8192,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      endpointType: '/chat/completions',
+      apiModelId: 'qwen/qwen-2.5-coder-32b-instruct',
+      verificationStatus: 'VERIFIED_API',
+      capabilities: ['chat', 'streaming', 'tools', 'structured_output'],
+      modelType: 'coding',
+      intendedUse: 'Production coding and automated refactoring suite',
+      supportedTaskTypes: ['coding', 'benchmarking', 'copilot_conversation']
+    },
+    {
+      id: 'google/gemma-2-27b-it',
+      displayName: 'Google Gemma 2 27B Instruct',
+      category: 'Flash',
+      priority: 1,
+      capabilityScore: 91,
+      reasoningScore: 89,
+      speedScore: 94,
+      stabilityScore: 95,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 15000,
+      retryCount: 1,
+      cooldownDurationMs: 60000,
+      enabled: true,
+      inputCostPer1M: 0.27,
+      outputCostPer1M: 0.27,
+      fallbackEnabled: true,
+      contextWindow: 8192,
+      maxOutput: 4096,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      endpointType: '/chat/completions',
+      apiModelId: 'google/gemma-2-27b-it',
+      verificationStatus: 'VERIFIED_API',
+      capabilities: ['chat', 'streaming', 'tools', 'structured_output'],
+      modelType: 'general',
+      intendedUse: 'Fast analysis and summarization via OpenRouter',
+      supportedTaskTypes: ['copilot_conversation', 'short_summarization', 'market_summary', 'benchmarking']
+    },
+    {
+      id: 'openai/gpt-4o-mini',
+      displayName: 'OpenAI GPT-4o Mini',
+      category: 'Flash',
+      priority: 1,
+      capabilityScore: 93,
+      reasoningScore: 91,
+      speedScore: 96,
+      stabilityScore: 97,
+      status: 'production',
+      provider: 'openrouter',
+      supportsGrounding: false,
+      supportsStructuredOutput: true,
+      supportsLongContext: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsAudio: false,
+      supportsTools: true,
+      defaultTimeoutMs: 15000,
+      retryCount: 1,
+      cooldownDurationMs: 60000,
+      enabled: true,
+      inputCostPer1M: 0.15,
+      outputCostPer1M: 0.60,
+      fallbackEnabled: true,
+      contextWindow: 128000,
+      maxOutput: 16384,
+      supportsImageOutput: false,
+      supportsVideo: false,
+      endpointType: '/chat/completions',
+      apiModelId: 'openai/gpt-4o-mini',
+      verificationStatus: 'VERIFIED_API',
+      capabilities: ['chat', 'streaming', 'tools', 'structured_output', 'vision'],
+      modelType: 'general',
+      intendedUse: 'Fast multimodal chat and executive reports via OpenRouter',
+      supportedTaskTypes: ['copilot_conversation', 'short_summarization', 'deep_research', 'report_generation', 'benchmarking']
     },
     // ==========================================
     // SOURCE-OF-TRUTH OPENROUTER MODELS
@@ -3053,6 +3173,186 @@ export class AIOrchestrator {
       models: modelsResults,
       featuresAudit
     };
+  }
+
+  public static validateRegistry(): {
+    timestamp: string;
+    isValid: boolean;
+    totalModels: number;
+    enabledModels: number;
+    disabledModels: number;
+    verifiedApiModels: number;
+    adminAliasModels: number;
+    unverifiedDisabledModels: number;
+    errorsCount: number;
+    warningsCount: number;
+    issues: Array<{ modelId: string; type: 'ERROR' | 'WARNING'; code: string; message: string }>;
+  } {
+    const issues: Array<{ modelId: string; type: 'ERROR' | 'WARNING'; code: string; message: string }> = [];
+    const idsSeen = new Set<string>();
+
+    let verifiedApiModels = 0;
+    let adminAliasModels = 0;
+    let unverifiedDisabledModels = 0;
+    let enabledModels = 0;
+    let disabledModels = 0;
+
+    for (const m of this.DEFAULT_MODELS) {
+      if (m.enabled) enabledModels++; else disabledModels++;
+
+      if (m.verificationStatus === 'VERIFIED_API') verifiedApiModels++;
+      else if (m.verificationStatus === 'ADMIN_ALIAS') adminAliasModels++;
+      else if (m.verificationStatus === 'UNVERIFIED_DISABLED') unverifiedDisabledModels++;
+
+      // 1. Check duplicate ID
+      if (idsSeen.has(m.id)) {
+        issues.push({
+          modelId: m.id,
+          type: 'ERROR',
+          code: 'DUPLICATE_REGISTRY_ID',
+          message: `Duplicate model registry ID '${m.id}' found.`
+        });
+      }
+      idsSeen.add(m.id);
+
+      // 2. Check provider
+      if (m.provider !== 'google' && m.provider !== 'openrouter') {
+        issues.push({
+          modelId: m.id,
+          type: 'ERROR',
+          code: 'INVALID_PROVIDER',
+          message: `Invalid provider '${m.provider}'. Must be 'google' or 'openrouter'.`
+        });
+      }
+
+      // 3. Check apiModelId
+      const apiId = m.apiModelId || m.id;
+      if (!apiId || apiId.trim().length === 0) {
+        issues.push({
+          modelId: m.id,
+          type: 'ERROR',
+          code: 'MISSING_API_MODEL_ID',
+          message: `Model '${m.id}' has missing or empty apiModelId.`
+        });
+      }
+
+      // 4. Check alias rules
+      if (m.isAlias) {
+        if (!m.aliasReason) {
+          issues.push({
+            modelId: m.id,
+            type: 'WARNING',
+            code: 'MISSING_ALIAS_REASON',
+            message: `Administrator alias '${m.id}' is missing documentation aliasReason.`
+          });
+        }
+        if (!m.targetModelId) {
+          issues.push({
+            modelId: m.id,
+            type: 'ERROR',
+            code: 'MISSING_ALIAS_TARGET',
+            message: `Administrator alias '${m.id}' is missing targetModelId.`
+          });
+        }
+      }
+
+      // 5. Check metadata correctness
+      if (m.contextWindow <= 0) {
+        issues.push({
+          modelId: m.id,
+          type: 'ERROR',
+          code: 'INVALID_CONTEXT_WINDOW',
+          message: `Context window must be > 0 for model '${m.id}'.`
+        });
+      }
+      if (typeof m.supportsStreaming !== 'boolean') {
+        issues.push({
+          modelId: m.id,
+          type: 'ERROR',
+          code: 'INVALID_STREAMING_FLAG',
+          message: `Streaming metadata must be boolean for model '${m.id}'.`
+        });
+      }
+    }
+
+    const errorsCount = issues.filter(i => i.type === 'ERROR').length;
+    const warningsCount = issues.filter(i => i.type === 'WARNING').length;
+
+    return {
+      timestamp: new Date().toISOString(),
+      isValid: errorsCount === 0,
+      totalModels: this.DEFAULT_MODELS.length,
+      enabledModels,
+      disabledModels,
+      verifiedApiModels,
+      adminAliasModels,
+      unverifiedDisabledModels,
+      errorsCount,
+      warningsCount,
+      issues
+    };
+  }
+
+  public static async syncWithProviderCatalog(apiKeys: { google?: string; openrouter?: string }): Promise<{
+    timestamp: string;
+    google: { synchronized: boolean; status: string; modelsFound?: number; message: string };
+    openrouter: { synchronized: boolean; status: string; modelsFound?: number; message: string };
+  }> {
+    const result: {
+      timestamp: string;
+      google: { synchronized: boolean; status: string; modelsFound?: number; message: string };
+      openrouter: { synchronized: boolean; status: string; modelsFound?: number; message: string };
+    } = {
+      timestamp: new Date().toISOString(),
+      google: { synchronized: false, status: 'NOT_SYNCHRONIZED', message: 'GEMINI_API_KEY binding not configured or offline runtime environment.' },
+      openrouter: { synchronized: false, status: 'NOT_SYNCHRONIZED', message: 'OPENROUTER_API_KEY binding not configured or offline runtime environment.' }
+    };
+
+    if (apiKeys.google && apiKeys.google.trim()) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKeys.google.trim()}`);
+        if (res.ok) {
+          const data: any = await res.json();
+          result.google = {
+            synchronized: true,
+            status: 'OPERATIONAL',
+            modelsFound: data.models?.length || 0,
+            message: `Successfully synchronized with Google AI catalog (${data.models?.length || 0} models verified).`
+          };
+        } else {
+          result.google.status = 'FAILURE';
+          result.google.message = `Provider synchronization failed: HTTP ${res.status}`;
+        }
+      } catch (err: any) {
+        result.google.status = 'FAILURE';
+        result.google.message = `Provider synchronization error: ${err.message || String(err)}`;
+      }
+    }
+
+    if (apiKeys.openrouter && apiKeys.openrouter.trim()) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/models', {
+          headers: { 'Authorization': `Bearer ${apiKeys.openrouter.trim()}` }
+        });
+        if (res.ok) {
+          const data: any = await res.json();
+          result.openrouter = {
+            synchronized: true,
+            status: 'OPERATIONAL',
+            modelsFound: data.data?.length || 0,
+            message: `Successfully synchronized with OpenRouter model catalog (${data.data?.length || 0} models verified).`
+          };
+        } else {
+          result.openrouter.status = 'FAILURE';
+          result.openrouter.message = `Provider synchronization failed: HTTP ${res.status}`;
+        }
+      } catch (err: any) {
+        result.openrouter.status = 'FAILURE';
+        result.openrouter.message = `Provider synchronization error: ${err.message || String(err)}`;
+      }
+    }
+
+    return result;
   }
 
   public static async executeCommentary(

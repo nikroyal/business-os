@@ -812,6 +812,21 @@ app.get('/api/ai/diagnostics/live-certification', async (c) => {
   return c.json(report);
 });
 
+app.get('/api/ai/diagnostics/registry-validation', (c) => {
+  const report = AIOrchestrator.validateRegistry();
+  return c.json(report);
+});
+
+app.get('/api/ai/diagnostics/provider-sync', async (c) => {
+  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
+  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
+  const report = await AIOrchestrator.syncWithProviderCatalog({
+    google: geminiKey,
+    openrouter: openRouterKey
+  });
+  return c.json(report);
+});
+
 app.post('/api/ai/test-lab/compare', async (c) => {
   const { prompt, systemPrompt: _systemPrompt, modelIds } = await c.req.json();
   if (!Array.isArray(modelIds) || modelIds.length === 0) {

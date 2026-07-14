@@ -1214,6 +1214,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
                   <th style={{ padding: '0.5rem 0.25rem' }}>Model Details</th>
+                  <th style={{ padding: '0.5rem 0.25rem' }}>Exact API ID & SSOT Status</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Current runtime priority in chain">Priority</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }}>Provider</th>
                   <th style={{ padding: '0.5rem 0.25rem', textAlign: 'center' }} title="Primary Task Capability">Capability</th>
@@ -1244,6 +1245,20 @@ export const AIOrchestratorDashboard: React.FC = () => {
                           )}
                         </div>
                         <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{model.id}</div>
+                      </td>
+                      <td style={{ padding: '0.6rem 0.25rem' }}>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                          {model.apiModelId || model.id}
+                        </div>
+                        <div style={{ marginTop: '3px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {model.verificationStatus === 'VERIFIED_API' ? (
+                            <span style={{ fontSize: '0.55rem', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', padding: '1px 5px', borderRadius: '4px' }}>✓ Verified API ID</span>
+                          ) : model.verificationStatus === 'ADMIN_ALIAS' ? (
+                            <span style={{ fontSize: '0.55rem', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', padding: '1px 5px', borderRadius: '4px' }} title={model.aliasReason}>Admin Alias → {model.targetModelId || 'Primary'}</span>
+                          ) : (
+                            <span style={{ fontSize: '0.55rem', background: '#fef3c7', border: '1px solid #fde68a', color: '#b45309', padding: '1px 5px', borderRadius: '4px' }} title={model.unavailabilityReason}>Disabled / Requires Manual Verification</span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '0.6rem 0.25rem', textAlign: 'center' }}>
                         {isOwner ? (
