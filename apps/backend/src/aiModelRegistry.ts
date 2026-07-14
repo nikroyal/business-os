@@ -2990,7 +2990,7 @@ export class AIOrchestrator {
 
   public static async runLiveProviderCertificationSuite(
     apiKeys: { google?: string; openrouter?: string },
-    testLiveInference = false
+    _testLiveInference = false
   ): Promise<{
     timestamp: string;
     totalModels: number;
@@ -3010,14 +3010,12 @@ export class AIOrchestrator {
       message: string;
       latencyMs?: number;
     }>;
-    featuresAudit: Array<{
-      feature: string;
-      subsystem: string;
-      preferredProvider: string;
-      selectedModel: string;
-      apiModelId: string;
+    statutoryFeatures: Array<{
+      name: string;
+      subsystem: Subsystem;
       status: 'PASS' | 'FAIL' | 'MANUAL';
       message: string;
+      latencyMs?: number;
     }>;
   }> {
     const authStatus = await this.validateProviders(apiKeys);
@@ -3038,11 +3036,14 @@ export class AIOrchestrator {
     let failedCount = 0;
     let manualCount = 0;
 
+    const g: any = typeof globalThis !== 'undefined' ? globalThis : {};
+    const resolvedGoogleKey = (apiKeys.google || g.process?.env?.GEMINI_API_KEY || g.GEMINI_API_KEY || '').trim();
+    const resolvedOpenRouterKey = (apiKeys.openrouter || g.process?.env?.OPENROUTER_API_KEY || g.OPENROUTER_API_KEY || '').trim();
+
     for (const model of this.DEFAULT_MODELS) {
       const apiModelId = model.apiModelId || model.id;
-      const keyPresent = model.provider === 'google'
-        ? (apiKeys.google && apiKeys.google.trim().length > 0)
-        : (apiKeys.openrouter && apiKeys.openrouter.trim().length > 0);
+      const apiKeyToUse = model.provider === 'google' ? resolvedGoogleKey : resolvedOpenRouterKey;
+      const keyPresent = apiKeyToUse.length > 0;
 
       // Verify that apiModelId does not equal displayName or inferred invalid string
       if (apiModelId === model.displayName || !apiModelId || apiModelId.trim().length === 0) {
@@ -3061,9 +3062,8 @@ export class AIOrchestrator {
         continue;
       }
 
-      if (testLiveInference && keyPresent) {
+      if (keyPresent) {
         const adapter = this.adapters[model.provider];
-        const apiKeyToUse = model.provider === 'google' ? apiKeys.google! : apiKeys.openrouter!;
         const startMs = Date.now();
         try {
           if (adapter) {
@@ -3113,11 +3113,12 @@ export class AIOrchestrator {
             supportedTasks: model.supportedTaskTypes || [],
             verificationType: 'LIVE_API_TEST',
             status: 'FAIL',
-            message: `Live inference failed against provider '${model.provider}': ${err.message || String(err)}`
+            message: `Live inference failed against provider '${model.provider}' (${apiModelId}): ${err.message || String(err)}`
           });
         }
       } else {
         manualCount++;
+        const keyEnvName = model.provider === 'google' ? 'GEMINI_API_KEY' : 'OPENROUTER_API_KEY';
         modelsResults.push({
           id: model.id,
           displayName: model.displayName,
@@ -3127,7 +3128,7 @@ export class AIOrchestrator {
           supportedTasks: model.supportedTaskTypes || [],
           verificationType: 'MANUAL_PRODUCTION_VERIFICATION',
           status: 'MANUAL',
-          message: `Requires manual production verification against live ${model.provider === 'google' ? 'GEMINI_API_KEY' : 'OPENROUTER_API_KEY'} environment binding.`
+          message: `Requires manual production verification against live ${keyEnvName} environment binding (key missing/empty in runtime).`
         });
       }
     }
@@ -3308,9 +3309,13 @@ export class AIOrchestrator {
       openrouter: { synchronized: false, status: 'NOT_SYNCHRONIZED', message: 'OPENROUTER_API_KEY binding not configured or offline runtime environment.' }
     };
 
-    if (apiKeys.google && apiKeys.google.trim()) {
+    const g: any = typeof globalThis !== 'undefined' ? globalThis : {};
+    const googleKey = (apiKeys.google || g.process?.env?.GEMINI_API_KEY || g.GEMINI_API_KEY || '').trim();
+    const openRouterKey = (apiKeys.openrouter || g.process?.env?.OPENROUTER_API_KEY || g.OPENROUTER_API_KEY || '').trim();
+
+    if (googleKey) {
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKeys.google.trim()}`);
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${googleKey}`);
         if (res.ok) {
           const data: any = await res.json();
           result.google = {
@@ -3320,8 +3325,9 @@ export class AIOrchestrator {
             message: `Successfully synchronized with Google AI catalog (${data.models?.length || 0} models verified).`
           };
         } else {
+          const errBody = await res.text().catch(() => '');
           result.google.status = 'FAILURE';
-          result.google.message = `Provider synchronization failed: HTTP ${res.status}`;
+          result.google.message = `Provider synchronization failed: HTTP ${res.status} ${res.statusText} - ${errBody}`;
         }
       } catch (err: any) {
         result.google.status = 'FAILURE';
@@ -3329,10 +3335,14 @@ export class AIOrchestrator {
       }
     }
 
-    if (apiKeys.openrouter && apiKeys.openrouter.trim()) {
+    if (openRouterKey) {
       try {
         const res = await fetch('https://openrouter.ai/api/v1/models', {
-          headers: { 'Authorization': `Bearer ${apiKeys.openrouter.trim()}` }
+          headers: {
+            'Authorization': `Bearer ${openRouterKey}`,
+            'HTTP-Referer': 'https://business-os.cloud',
+            'X-Title': 'BusinessOS'
+          }
         });
         if (res.ok) {
           const data: any = await res.json();
@@ -3343,8 +3353,9 @@ export class AIOrchestrator {
             message: `Successfully synchronized with OpenRouter model catalog (${data.data?.length || 0} models verified).`
           };
         } else {
+          const errBody = await res.text().catch(() => '');
           result.openrouter.status = 'FAILURE';
-          result.openrouter.message = `Provider synchronization failed: HTTP ${res.status}`;
+          result.openrouter.message = `Provider synchronization failed: HTTP ${res.status} ${res.statusText} - ${errBody}`;
         }
       } catch (err: any) {
         result.openrouter.status = 'FAILURE';

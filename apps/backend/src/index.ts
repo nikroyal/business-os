@@ -799,10 +799,19 @@ app.get('/api/ai/diagnostics/lab', async (c) => {
   });
 });
 
+function resolveDiagnosticApiKey(c: any, keyName: string): string {
+  const g: any = typeof globalThis !== 'undefined' ? globalThis : {};
+  const val = c?.env?.[keyName] ??
+    g.process?.env?.[keyName] ??
+    g[keyName] ??
+    '';
+  return String(val).trim().replace(/^['"]|['"]$/g, '');
+}
+
 app.get('/api/ai/diagnostics/live-certification', async (c) => {
-  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
-  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
-  const testInference = c.req.query('testInference') === 'true';
+  const geminiKey = resolveDiagnosticApiKey(c, 'GEMINI_API_KEY');
+  const openRouterKey = resolveDiagnosticApiKey(c, 'OPENROUTER_API_KEY');
+  const testInference = c.req.query('testInference') !== 'false';
 
   const report = await AIOrchestrator.runLiveProviderCertificationSuite({
     google: geminiKey,
@@ -818,8 +827,8 @@ app.get('/api/ai/diagnostics/registry-validation', (c) => {
 });
 
 app.get('/api/ai/diagnostics/provider-sync', async (c) => {
-  const geminiKey = (c.env.GEMINI_API_KEY || '').trim();
-  const openRouterKey = (c.env.OPENROUTER_API_KEY || '').trim();
+  const geminiKey = resolveDiagnosticApiKey(c, 'GEMINI_API_KEY');
+  const openRouterKey = resolveDiagnosticApiKey(c, 'OPENROUTER_API_KEY');
   const report = await AIOrchestrator.syncWithProviderCatalog({
     google: geminiKey,
     openrouter: openRouterKey
