@@ -3010,12 +3010,14 @@ export class AIOrchestrator {
       message: string;
       latencyMs?: number;
     }>;
-    statutoryFeatures: Array<{
-      name: string;
-      subsystem: Subsystem;
+    featuresAudit: Array<{
+      feature: string;
+      subsystem: string;
+      preferredProvider: string;
+      selectedModel: string;
+      apiModelId: string;
       status: 'PASS' | 'FAIL' | 'MANUAL';
       message: string;
-      latencyMs?: number;
     }>;
   }> {
     const authStatus = await this.validateProviders(apiKeys);
