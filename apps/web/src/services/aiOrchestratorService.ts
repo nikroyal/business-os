@@ -1446,6 +1446,62 @@ class AIOrchestratorService {
       }
     };
   }
+
+  public async getRecentRoutingDecisions(): Promise<any[]> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(buildApiUrl('/api/ai/decisions/recent'), {
+        method: 'GET',
+        headers
+      });
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.decisions || [];
+    } catch (e) {
+      console.warn('Failed to fetch recent routing decisions:', e);
+      return [];
+    }
+  }
+
+  public async runDiagnosticsLab(): Promise<{ status: 'green' | 'red'; passedCount: number; totalCount: number; checks: Array<{ name: string; passed: boolean; message: string }> }> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(buildApiUrl('/api/ai/diagnostics/lab'), {
+        method: 'GET',
+        headers
+      });
+      if (!response.ok) {
+        throw new Error(`Diagnostics Lab API HTTP ${response.status}`);
+      }
+      return await response.json();
+    } catch (e: any) {
+      console.warn('Failed to run diagnostics lab:', e);
+      return {
+        status: 'red',
+        passedCount: 0,
+        totalCount: 12,
+        checks: [
+          { name: 'Diagnostics Execution', passed: false, message: e.message || 'Network error connecting to Diagnostics Lab' }
+        ]
+      };
+    }
+  }
+
+  public async runModelTestLab(prompt: string, systemPrompt: string, modelIds: string[]): Promise<{ timestamp: string; results: Array<any> }> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(buildApiUrl('/api/ai/test-lab/compare'), {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prompt, systemPrompt, modelIds })
+    });
+    if (!response.ok) {
+      throw new Error(`Model Test Lab API HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
 }
 
 export const aiOrchestratorService = new AIOrchestratorService();

@@ -52,6 +52,13 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const [testingHealth, setTestingHealth] = useState<string | null>(null);
   const [error, setError] = useState<{ status: string; message: string } | null>(null);
   const [validationReport, setValidationReport] = useState<RegistryValidationReport | null>(null);
+  const [routingDecisions, setRoutingDecisions] = useState<any[]>([]);
+  const [labReport, setLabReport] = useState<any>(null);
+  const [runningLab, setRunningLab] = useState<boolean>(false);
+  const [testLabPrompt, setTestLabPrompt] = useState<string>('Synthesize an executive analysis comparing strategic growth initiatives.');
+  const [testLabModels, setTestLabModels] = useState<string[]>(['gemini-3.5-flash', 'gemini-3.1-pro-preview']);
+  const [testLabResults, setTestLabResults] = useState<any[]>([]);
+  const [runningTestLab, setRunningTestLab] = useState<boolean>(false);
 
   const filteredTimeline = React.useMemo(() => filterTelemetryRecords(timeline, filters), [timeline, filters]);
 
@@ -126,14 +133,16 @@ export const AIOrchestratorDashboard: React.FC = () => {
     setError(null);
 
     try {
-      const [statsData, timelineData, configData] = await Promise.all([
+      const [statsData, timelineData, configData, decisionsData] = await Promise.all([
         aiOrchestratorService.getStats(),
         aiOrchestratorService.getTimeline(),
-        aiOrchestratorService.getConfig()
+        aiOrchestratorService.getConfig(),
+        aiOrchestratorService.getRecentRoutingDecisions()
       ]);
       setStats(statsData);
       setTimeline(timelineData);
       setConfig(configData || { forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
+      setRoutingDecisions(decisionsData || []);
     } catch (e: any) {
       console.error('Failed to load AI Orchestrator data:', e);
       let status = "HTTP 500 Internal Error";
@@ -193,12 +202,38 @@ export const AIOrchestratorDashboard: React.FC = () => {
         alert('AI Orchestrator configuration saved successfully.');
         loadData(true);
       } else {
-        alert('Failed to save config.');
+        alert('Failed to save configuration.');
       }
-    } catch (e: any) {
-      alert(`Save error: ${e.message || e}`);
+    } catch (e) {
+      console.error('Save config error:', e);
+      alert('Error saving configuration.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const runCertificationAudit = async () => {
+    setRunningLab(true);
+    try {
+      const report = await aiOrchestratorService.runDiagnosticsLab();
+      setLabReport(report);
+    } catch (e) {
+      console.error('Audit execution error:', e);
+    } finally {
+      setRunningLab(false);
+    }
+  };
+
+  const runModelComparison = async () => {
+    if (testLabModels.length === 0) return;
+    setRunningTestLab(true);
+    try {
+      const data = await aiOrchestratorService.runModelTestLab(testLabPrompt, 'You are BusinessOS AI Executive Advisor.', testLabModels);
+      setTestLabResults(data.results || []);
+    } catch (e) {
+      console.error('Model comparison error:', e);
+    } finally {
+      setRunningTestLab(false);
     }
   };
 
@@ -945,7 +980,113 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
       {/* Subtab Content: Routing */}
       {activeSubTab === 'Routing' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Multi-Stage Decision Inspector Card */}
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Zap size={18} style={{ color: 'var(--color-accent)' }} /> Multi-Stage Decision Routing Inspector
+                </h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Explainable AI audit trace showing multi-factor candidate evaluation, scoring breakdown, and rejection criteria for recent requests.
+                </p>
+              </div>
+              <button
+                onClick={() => loadData(true)}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <RefreshCw size={12} /> Refresh Traces
+              </button>
+            </div>
+
+            {routingDecisions.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', background: '#FAF8F5', border: '1px dashed #E2DACD', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                No routing decisions recorded in the current session. Execute an AI request to inspect the 13-stage decision engine trace.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {routingDecisions.map((dec, idx) => (
+                  <div key={dec.decisionId || idx} style={{ border: '1px solid #E2DACD', borderRadius: '6px', padding: '1rem', background: '#FAF8F5' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                          Task: {dec.task || 'General'}
+                        </span>
+                        {dec.subsystem && (
+                          <span style={{ fontSize: '0.65rem', padding: '2px 6px', background: '#E8E2D6', borderRadius: '4px', fontWeight: 600 }}>
+                            {dec.subsystem}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', background: 'var(--color-success-bg)', color: 'var(--color-success-text)', border: '1px solid var(--color-success-border)', borderRadius: '4px', fontWeight: 700 }}>
+                          Winning: {dec.winningModelDisplayName} ({dec.provider})
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                        <span>Confidence: <strong>{dec.confidenceScore || 90}%</strong></span>
+                        <span>Eval Time: <strong>{dec.executionTimeMs || 2}ms</strong></span>
+                        <span>{new Date(dec.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+
+                    <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.75rem', color: 'var(--text-primary)', fontStyle: 'italic' }}>
+                      {dec.explanation}
+                    </p>
+
+                    {/* Candidates Scoring Table */}
+                    {dec.candidateModels && dec.candidateModels.length > 0 && (
+                      <div style={{ overflowX: 'auto', marginBottom: '0.75rem' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid #E2DACD', textAlign: 'left', color: 'var(--text-secondary)' }}>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Candidate Model</th>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Provider</th>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Quality</th>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Reliability</th>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Speed</th>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Cost Eff.</th>
+                              <th style={{ padding: '0.35rem 0.5rem' }}>Composite Score</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dec.candidateModels.map((cand: any, cIdx: number) => (
+                              <tr key={cand.modelId || cIdx} style={{ borderBottom: '1px solid #E8E2D6', background: cand.modelId === dec.winningModel ? '#F3EFEA' : 'transparent' }}>
+                                <td style={{ padding: '0.35rem 0.5rem', fontWeight: cand.modelId === dec.winningModel ? 'bold' : 'normal' }}>
+                                  {cand.displayName} {cand.modelId === dec.winningModel && '🏆'}
+                                </td>
+                                <td style={{ padding: '0.35rem 0.5rem', textTransform: 'capitalize' }}>{cand.provider}</td>
+                                <td style={{ padding: '0.35rem 0.5rem' }}>{cand.scoreBreakdown?.qualityScore ?? 85}</td>
+                                <td style={{ padding: '0.35rem 0.5rem' }}>{cand.scoreBreakdown?.reliabilityScore ?? 85}</td>
+                                <td style={{ padding: '0.35rem 0.5rem' }}>{cand.scoreBreakdown?.speedScore ?? 80}</td>
+                                <td style={{ padding: '0.35rem 0.5rem' }}>{cand.scoreBreakdown?.costScore ?? 80}</td>
+                                <td style={{ padding: '0.35rem 0.5rem', fontWeight: 'bold', color: 'var(--color-accent)' }}>
+                                  {cand.compositeScore}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Rejected Candidates */}
+                    {dec.rejectedModels && dec.rejectedModels.length > 0 && (
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                        <strong>Rejected Candidates ({dec.rejectedModels.length}): </strong>
+                        {dec.rejectedModels.map((r: any, rIdx: number) => (
+                          <span key={r.modelId || rIdx} style={{ display: 'inline-block', marginRight: '0.75rem', color: 'var(--color-danger-text)' }}>
+                            {r.displayName || r.modelId}: <em>{r.rejectionReason}</em>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <RoutingPoliciesEditor
             config={config}
             onSaveConfig={async (updated) => { await handleSaveEditorConfig({ ...config, ...updated } as OrchestratorConfig); }}
@@ -1745,13 +1886,96 @@ export const AIOrchestratorDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Subtab Content: Provider Comparison */}
-      {activeSubTab === 'Comparison' && stats && stats.providerComparison && (
+      {/* Subtab Content: Provider Comparison & Model Test Lab */}
+      {activeSubTab === 'Comparison' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Phase 10: Enterprise Multi-Model Comparison Test Lab Card */}
           <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Layers size={18} style={{ color: 'var(--color-accent)' }} /> Provider vs BusinessOS Telemetry Reconciler
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Zap size={18} style={{ color: 'var(--color-accent)' }} /> Enterprise Model Comparison & Prompt Benchmark Lab
             </h3>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              Evaluate strategic executive prompts side-by-side across multiple models to compare reasoning quality, latency, token consumption, and cost efficiency.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+                  Benchmark Prompt:
+                </label>
+                <textarea
+                  value={testLabPrompt}
+                  onChange={(e) => setTestLabPrompt(e.target.value)}
+                  rows={3}
+                  className="form-control"
+                  style={{ width: '100%', fontSize: '0.75rem', padding: '0.5rem', border: '1px solid #E2DACD', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+                  <span style={{ fontWeight: 600 }}>Candidate Models:</span>
+                  {['gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gpt-oss-120b', 'qwen3-coder-480b-a35b'].map(mid => {
+                    const checked = testLabModels.includes(mid);
+                    return (
+                      <label key={mid} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) setTestLabModels([...testLabModels, mid]);
+                            else setTestLabModels(testLabModels.filter(id => id !== mid));
+                          }}
+                        />
+                        {mid}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={runModelComparison}
+                  disabled={runningTestLab || testLabModels.length === 0}
+                  className="btn btn-primary btn-sm"
+                  style={{ fontSize: '0.75rem' }}
+                >
+                  {runningTestLab ? 'Running Side-by-Side Benchmark...' : 'Run Benchmark Evaluation'}
+                </button>
+              </div>
+
+              {testLabResults.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                  {testLabResults.map((res, idx) => (
+                    <div key={idx} style={{ border: '1px solid #E2DACD', borderRadius: '6px', padding: '1rem', background: '#FAF8F5' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{res.displayName}</strong>
+                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', background: '#E8E2D6', borderRadius: '4px', textTransform: 'capitalize' }}>
+                          {res.provider}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.68rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem' }}>
+                        <div>Latency: <strong>{res.latencyMs}ms</strong></div>
+                        <div>Cost: <strong>${res.cost}</strong></div>
+                        <div>Prompt Tokens: <strong>{res.promptTokens}</strong></div>
+                        <div>Reasoning Score: <strong>{res.qualityMetrics?.reasoningScore || 85}/100</strong></div>
+                      </div>
+
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                        {res.response}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {stats && stats.providerComparison && (
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Layers size={18} style={{ color: 'var(--color-accent)' }} /> Provider vs BusinessOS Telemetry Reconciler
+              </h3>
             <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               This reconciler compares upstream provider usage metrics (derived from real API requests dispatched by BusinessOS, using the official usageMetadata returned directly from Gemini) against total local telemetry records (which include local semantic cache hits and estimates).
             </p>
@@ -1879,19 +2103,86 @@ export const AIOrchestratorDashboard: React.FC = () => {
               * Note: Google-tracked metrics are derived from the official `usageMetadata` object returned directly on successful upstream responses from the Gemini API. They represent actual requests successfully dispatched by this application to the Google provider (excluding local semantic cache hits). They do not capture external usage of the API key outside of the BusinessOS platform. Quota limits are read from the centralized Provider Quota Registry (not hardcoded).
             </div>
           </div>
+          )}
         </div>
       )}
 
-      {/* Subtab Content: Telemetry Diagnostics */}
-      {activeSubTab === 'Diagnostics' && stats && (
+      {/* Subtab Content: Telemetry Diagnostics & Certification Audit */}
+      {activeSubTab === 'Diagnostics' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Phase 9: AI Platform 12-Point Certification Card */}
           <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
-            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Zap size={18} style={{ color: 'var(--color-accent)' }} /> Telemetry Pipeline Diagnostics
-            </h3>
-            <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Real-time audit trace displaying execution latency, status, documents written, and validation audits for every stage of the AI orchestrator telemetry pipeline.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Zap size={18} style={{ color: 'var(--color-accent)' }} /> Enterprise AI Platform 12-Point Certification Lab
+                </h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Automated verification of API credentials, SSOT metadata parity, multi-stage routing, embeddings, rerankers, and failover circuit breakers.
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {labReport && (
+                  <span style={{
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    fontWeight: 'bold',
+                    fontSize: '0.75rem',
+                    background: labReport.status === 'green' ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+                    color: labReport.status === 'green' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
+                    border: labReport.status === 'green' ? '1px solid var(--color-success-border)' : '1px solid var(--color-danger-border)'
+                  }}>
+                    {labReport.status === 'green' ? '🟢 CERTIFIED GREEN' : '🔴 REQUIRES ATTENTION'} ({labReport.passedCount}/{labReport.totalCount})
+                  </span>
+                )}
+                <button
+                  onClick={runCertificationAudit}
+                  disabled={runningLab}
+                  className="btn btn-primary btn-sm"
+                  style={{ fontSize: '0.75rem' }}
+                >
+                  {runningLab ? 'Running Audit...' : 'Run 12-Point Audit'}
+                </button>
+              </div>
+            </div>
+
+            {labReport ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                {labReport.checks?.map((ck: any, cIndex: number) => (
+                  <div key={cIndex} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.6rem 0.75rem',
+                    border: '1px solid #E2DACD',
+                    borderRadius: '4px',
+                    background: ck.passed ? '#F7FAF8' : '#FAF5F5'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem' }}>{ck.passed ? '✅' : '❌'}</span>
+                      <strong style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>{ck.name}</strong>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: ck.passed ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
+                      {ck.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: '1.5rem', textAlign: 'center', background: '#FAF8F5', border: '1px dashed #E2DACD', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Click "Run 12-Point Audit" to inspect live API keys, embeddings, reranking, SSOT metadata, and multi-stage decision routing across the platform.
+              </div>
+            )}
+          </div>
+
+          {stats && (
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Zap size={18} style={{ color: 'var(--color-accent)' }} /> Telemetry Pipeline Diagnostics
+              </h3>
+              <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Real-time audit trace displaying execution latency, status, documents written, and validation audits for every stage of the AI orchestrator telemetry pipeline.
+              </p>
 
             {!stats.telemetryDiagnostics ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', background: '#FAF8F5', border: '1px dashed #E2DACD', fontSize: '0.75rem' }}>
@@ -1984,6 +2275,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 

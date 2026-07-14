@@ -42,7 +42,10 @@ export type TaskType =
 
 export interface ModelMetadata {
   id: string;
+  apiModelId?: string;
   displayName: string;
+  version?: string;
+  endpointType?: string;
   capabilities?: ModelCapability[];
   category: 'Flash' | 'Pro';
   priority: number; // Lower is higher priority (e.g. 1 is highest)
@@ -50,7 +53,12 @@ export interface ModelMetadata {
   reasoningScore: number;
   speedScore: number;
   stabilityScore: number;
-  status: 'production' | 'preview';
+  codingScore?: number;
+  financialAnalysisScore?: number;
+  writingScore?: number;
+  costScore?: number;
+  reliabilityScore?: number;
+  status: 'production' | 'preview' | 'deprecated';
   provider: string; // 'google' | 'openrouter'
   supportsGrounding: boolean;
   supportsStructuredOutput: boolean;
@@ -59,6 +67,8 @@ export interface ModelMetadata {
   supportsVision: boolean;
   supportsAudio: boolean;
   supportsTools: boolean;
+  supportsJSONMode?: boolean;
+  supportsThinking?: boolean;
   defaultTimeoutMs: number;
   retryCount: number;
   cooldownDurationMs: number;
@@ -79,11 +89,159 @@ export interface ModelMetadata {
   /** Availability tier (Free, Pay-as-you-go, Enterprise, Reserved) */
   availabilityTier?: string;
   supportedTaskTypes?: TaskType[];
+  preferredTaskTypes?: TaskType[];
   ownerOnly?: boolean;
   isFree?: boolean;
   modelType?: 'router' | 'model' | 'embedding' | 'reranker' | 'safety' | 'multimodal' | 'general';
   intendedUse?: string;
+  recommendedUseCases?: string[];
+  successRate?: number;
+  failureRate?: number;
+  healthScore?: number;
+  averageLatencyMs?: number;
+  p95LatencyMs?: number;
+  cooldownStatus?: 'healthy' | 'cooldown' | 'recovering' | 'offline';
+  deploymentStatus?: 'production' | 'preview' | 'deprecated';
+  visibleInRegistry?: boolean;
 }
+
+export interface FeatureRequirement {
+  featureId: Subsystem | string;
+  displayName: string;
+  requiredCapabilities: ModelCapability[];
+  preferredCapabilities?: ModelCapability[];
+  preferredTaskType: TaskType;
+  requiresLongContext?: boolean;
+  requiresStructuredOutput?: boolean;
+  requiresStreaming?: boolean;
+  requiresLowLatency?: boolean;
+  minReasoningScore?: number;
+  minSpeedScore?: number;
+  minReliabilityScore?: number;
+  preferredProvider?: string;
+  description: string;
+}
+
+export interface RoutingDecisionCandidate {
+  modelId: string;
+  displayName: string;
+  provider: string;
+  compositeScore: number;
+  scoreBreakdown: Record<string, number>;
+}
+
+export interface RoutingDecisionRejected {
+  modelId: string;
+  displayName: string;
+  provider: string;
+  rejectionReason: string;
+}
+
+export interface RoutingDecision {
+  decisionId: string;
+  timestamp: string;
+  task: TaskType;
+  subsystem?: string;
+  requirements: Record<string, any>;
+  candidateModels: RoutingDecisionCandidate[];
+  rejectedModels: RoutingDecisionRejected[];
+  winningModel: string;
+  winningModelDisplayName: string;
+  provider: string;
+  confidenceScore: number;
+  executionTimeMs: number;
+  fallbacks: string[];
+  explanation: string;
+}
+
+export const FEATURE_REQUIREMENTS: Record<string, FeatureRequirement> = {
+  'Copilot': {
+    featureId: 'Copilot',
+    displayName: 'BusinessOS Copilot',
+    requiredCapabilities: ['chat', 'streaming'],
+    preferredCapabilities: ['chat', 'streaming'],
+    preferredTaskType: 'copilot_conversation',
+    requiresLowLatency: true,
+    minReasoningScore: 80,
+    description: 'Requires low latency chat, streaming responses, and reasoning for interactive Copilot sessions.'
+  },
+  'Daily Email': {
+    featureId: 'Daily Email',
+    displayName: 'Daily Executive Briefing Email',
+    requiredCapabilities: ['chat'],
+    preferredCapabilities: ['chat'],
+    preferredTaskType: 'daily_email',
+    requiresLongContext: true,
+    requiresStructuredOutput: true,
+    preferredProvider: 'google',
+    minReliabilityScore: 90,
+    description: 'Requires high reliability, structured output, long context window, and stable formatting.'
+  },
+  'Research Engine': {
+    featureId: 'Research Engine',
+    displayName: 'Deep Intelligence Research Engine',
+    requiredCapabilities: ['chat'],
+    preferredCapabilities: ['chat'],
+    preferredTaskType: 'deep_research',
+    requiresLongContext: true,
+    minReasoningScore: 90,
+    description: 'Requires deep reasoning capabilities and large context window for comprehensive research analysis.'
+  },
+  'Editorial Commentary': {
+    featureId: 'Editorial Commentary',
+    displayName: 'Daily Editorial & Market Commentary',
+    requiredCapabilities: ['chat'],
+    preferredTaskType: 'editorial_commentary' as TaskType,
+    minReasoningScore: 85,
+    description: 'Requires analytical writing and financial commentary generation.'
+  },
+  'Reports': {
+    featureId: 'Reports',
+    displayName: 'Executive Financial Reports Generator',
+    requiredCapabilities: ['chat'],
+    preferredTaskType: 'report_generation',
+    requiresStructuredOutput: true,
+    minReasoningScore: 88,
+    description: 'Requires structured financial report authoring and analytical synthesis.'
+  },
+  'Opportunities': {
+    featureId: 'Opportunities',
+    displayName: 'Deal & Opportunity Evaluation',
+    requiredCapabilities: ['chat'],
+    preferredTaskType: 'company_analysis',
+    minReasoningScore: 85,
+    description: 'Requires opportunity scoring, financial risk analysis, and structured outputs.'
+  },
+  'Benchmarking': {
+    featureId: 'Benchmarking',
+    displayName: 'Model Benchmarking & Comparison Lab',
+    requiredCapabilities: ['chat'],
+    preferredTaskType: 'benchmarking',
+    description: 'Requires chat capability for running standardized prompts across models.'
+  },
+  'Playground': {
+    featureId: 'Playground',
+    displayName: 'AI Playground',
+    requiredCapabilities: ['chat'],
+    preferredTaskType: 'copilot_conversation',
+    description: 'Requires general chat and interactive testing across registered models.'
+  },
+  'Embeddings': {
+    featureId: 'Embeddings',
+    displayName: 'Vector Embeddings Service',
+    requiredCapabilities: ['embeddings'],
+    preferredTaskType: 'retrieval',
+    description: 'Requires specialized vector embedding generation models.'
+  },
+  'Reranking': {
+    featureId: 'Reranking',
+    displayName: 'Semantic Reranking Service',
+    requiredCapabilities: ['reranking'],
+    preferredTaskType: 'reranking',
+    description: 'Requires specialized semantic reranking models.'
+  }
+};
+
 
 // Provider Adapter Interface
 export interface AIProviderAdapter {
@@ -220,10 +378,9 @@ export class OpenRouterAdapter implements AIProviderAdapter {
       err.errorClassification = 'CONFIGURATION_ERROR';
       throw err;
     }
-    const cleanModelId = modelId.startsWith('openrouter/') ? modelId.substring(11) : modelId;
     const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
     const payload = {
-      model: cleanModelId,
+      model: modelId,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -254,7 +411,7 @@ export class OpenRouterAdapter implements AIProviderAdapter {
         if (res.status === 401 || res.status === 403) {
           msg = `OpenRouter authentication failed (HTTP ${res.status}): ${text}`;
         } else if (res.status === 404) {
-          msg = `Invalid model ID '${cleanModelId}' on OpenRouter (HTTP 404): ${text}`;
+          msg = `Invalid model ID '${modelId}' on OpenRouter (HTTP 404): ${text}`;
         } else if (res.status === 429) {
           msg = `OpenRouter provider rate limited (HTTP 429): ${text}`;
         } else if (res.status >= 500) {
@@ -1778,97 +1935,151 @@ export class AIOrchestrator {
   private static readonly CONFIG_CACHE_TTL_MS = 5000;
 
   // --- TASK CLASSIFICATION MATRIX ---
-  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[], config?: any): string {
-    const capableModels = models.filter(m => m.enabled && m.id !== 'uncensored' && this.isModelCapableForTask(m, task));
-    const active = capableModels.length > 0 ? capableModels : models.filter(m => m.enabled && m.id !== 'uncensored');
-    if (active.length === 0) return 'gemini-3.5-flash';
+  private static lastRoutingDecisions: RoutingDecision[] = [];
 
-    const providerPref = config?.globalProviderPreference || 'openrouter';
-    const freeFirst = config?.freeFirstRouting !== false; // Default to free-first routing
+  public static getRecentRoutingDecisions(): RoutingDecision[] {
+    return this.lastRoutingDecisions.slice(-50);
+  }
 
-    switch (task) {
-      case 'daily_email':
-        // Daily Email strictly prefers Gemini API
-        return active.find(m => m.provider === 'google' && m.id === 'gemini-3.5-flash')?.id ||
-               active.find(m => m.provider === 'google' && m.category === 'Flash')?.id ||
-               active.find(m => m.provider === 'google')?.id ||
-               'gemini-3.5-flash';
+  public static evaluateModelsForTask(task: TaskType, models: ModelMetadata[], config?: any, subsystem?: string): RoutingDecision {
+    const startTime = Date.now();
+    const reqCap = this.getRequiredCapabilityForTask(task);
+    const featureReq = subsystem && FEATURE_REQUIREMENTS[subsystem] ? FEATURE_REQUIREMENTS[subsystem] : undefined;
 
-      case 'coding':
-        if (providerPref === 'openrouter') {
-          if (freeFirst) {
-            const freeRouter = active.find(m => m.id === 'openrouter/free');
-            if (freeRouter) return freeRouter.id;
-            const freeCoder = active.find(m => m.provider === 'openrouter' && m.inputCostPer1M === 0);
-            if (freeCoder) return freeCoder.id;
-          }
-          return active.find(m => m.id === 'qwen3-coder-480b-a35b')?.id ||
-                 active.find(m => m.id === 'north-mini-code-20260617')?.id ||
-                 active.find(m => m.provider === 'openrouter')?.id ||
-                 active[0].id;
+    const candidateModels: RoutingDecisionCandidate[] = [];
+    const rejectedModels: RoutingDecisionRejected[] = [];
+
+    const providerPref = config?.globalProviderPreference || featureReq?.preferredProvider || (task === 'daily_email' ? 'google' : 'openrouter');
+    const freeFirst = config?.freeFirstRouting !== false;
+
+    for (const model of models) {
+      if (!model.enabled) {
+        rejectedModels.push({
+          modelId: model.id,
+          displayName: model.displayName,
+          provider: model.provider,
+          rejectionReason: 'Model administratively disabled'
+        });
+        continue;
+      }
+      if (model.id === 'uncensored') {
+        rejectedModels.push({
+          modelId: model.id,
+          displayName: model.displayName,
+          provider: model.provider,
+          rejectionReason: 'Restricted model policy'
+        });
+        continue;
+      }
+      if (!this.isModelCapableForTask(model, task)) {
+        rejectedModels.push({
+          modelId: model.id,
+          displayName: model.displayName,
+          provider: model.provider,
+          rejectionReason: `Incompatible capability: missing '${reqCap}' for task '${task}'`
+        });
+        continue;
+      }
+      if (model.cooldownStatus === 'cooldown' || model.cooldownStatus === 'offline') {
+        rejectedModels.push({
+          modelId: model.id,
+          displayName: model.displayName,
+          provider: model.provider,
+          rejectionReason: `Health gate failure: model currently in '${model.cooldownStatus}' status`
+        });
+        continue;
+      }
+
+      // Multi-Factor Composite Scoring Engine (0-100)
+      let qualityScore = model.capabilityScore || 85;
+      if (task === 'coding') qualityScore = model.codingScore || model.reasoningScore || model.capabilityScore;
+      else if (task === 'deep_research' || task === 'copilot_conversation') qualityScore = model.reasoningScore || model.capabilityScore;
+      else if (task === 'company_analysis' || task === 'market_summary') qualityScore = model.financialAnalysisScore || model.reasoningScore || model.capabilityScore;
+      else if (task === 'report_generation' || task === 'long_writing' || task === 'daily_email') qualityScore = model.writingScore || model.reasoningScore || model.capabilityScore;
+
+      const speedScore = model.speedScore || 80;
+      const reliabilityScore = model.reliabilityScore || model.stabilityScore || 85;
+      const healthBoost = model.healthScore ? (model.healthScore - 80) * 0.5 : 0;
+
+      // Cost efficiency score (higher is cheaper)
+      const costPerM = (model.inputCostPer1M || 0) + (model.outputCostPer1M || 0);
+      let costScore = 80;
+      if (costPerM === 0) costScore = 100;
+      else if (costPerM < 0.5) costScore = 95;
+      else if (costPerM < 2.0) costScore = 85;
+      else if (costPerM < 5.0) costScore = 75;
+      else costScore = 60;
+
+      let compositeScore = qualityScore * 0.45 + reliabilityScore * 0.25 + speedScore * 0.15 + costScore * 0.15 + healthBoost;
+
+      // Apply Provider & Free-First policy weights
+      if (task === 'daily_email' && model.provider === 'google') {
+        compositeScore += 25; // Strict preference for Google Gemini on daily_email
+      } else if (model.provider === providerPref) {
+        compositeScore += 12;
+      }
+      if (freeFirst && (model.isFree || costPerM === 0 || model.id === 'openrouter/free')) {
+        compositeScore += 20;
+      }
+
+      candidateModels.push({
+        modelId: model.id,
+        displayName: model.displayName,
+        provider: model.provider,
+        compositeScore: Number(compositeScore.toFixed(2)),
+        scoreBreakdown: {
+          qualityScore,
+          reliabilityScore,
+          speedScore,
+          costScore
         }
-        return active.find(m => m.provider === 'google')?.id || active[0].id;
-
-      case 'retrieval':
-        return active.find(m => m.id === 'llama-nemotron-embed-vl-1b-v2-20260224')?.id ||
-               active[0].id;
-
-      case 'reranking':
-        return active.find(m => m.id === 'llama-nemotron-rerank-vl-1b-v2')?.id ||
-               active[0].id;
-
-      case 'moderation':
-        return active.find(m => m.id === 'nemotron-3.5-content-safety-20260604')?.id ||
-               active.find(m => m.id === 'openrouter/free')?.id ||
-               active[0].id;
-
-      case 'vision':
-        if (providerPref === 'openrouter') {
-          return active.find(m => m.id === 'nemotron-nano-12b-v2-vl')?.id ||
-                 active.find(m => m.id === 'nemotron-3-nano-30b-a3b')?.id ||
-                 active.find(m => m.provider === 'openrouter' && m.supportsVision)?.id ||
-                 active[0].id;
-        }
-        return active.find(m => m.provider === 'google' && m.supportsVision)?.id || active[0].id;
-
-      case 'deep_research':
-      case 'report_generation':
-      case 'long_writing':
-        if (providerPref === 'openrouter') {
-          if (freeFirst) {
-            const freeRouter = active.find(m => m.id === 'openrouter/free');
-            if (freeRouter) return freeRouter.id;
-          }
-          return active.find(m => m.id === 'gpt-oss-120b')?.id ||
-                 active.find(m => m.id === 'qwen3-next-80b-a3b-instruct')?.id ||
-                 active.find(m => m.provider === 'openrouter' && m.category === 'Pro')?.id ||
-                 active[0].id;
-        }
-        return active.find(m => m.id === 'gemini-3.1-pro-preview')?.id || active[0].id;
-
-      case 'copilot_conversation':
-      case 'market_summary':
-      case 'company_analysis':
-      case 'short_summarization':
-      case 'daily_briefing':
-      default:
-        // By default use OpenRouter for all other workflows, favoring openrouter/free wherever possible
-        if (providerPref === 'openrouter') {
-          if (freeFirst) {
-            const freeRouter = active.find(m => m.id === 'openrouter/free');
-            if (freeRouter) return freeRouter.id;
-            const freeModel = active.find(m => m.provider === 'openrouter' && m.inputCostPer1M === 0);
-            if (freeModel) return freeModel.id;
-          }
-          const openRouterModels = active.filter(m => m.provider === 'openrouter');
-          return openRouterModels.find(m => m.id === 'gpt-oss-120b')?.id ||
-                 openRouterModels.find(m => m.id === 'qwen3-next-80b-a3b-instruct')?.id ||
-                 openRouterModels.find(m => m.id === 'llama-3.3-70b-instruct')?.id ||
-                 openRouterModels[0]?.id ||
-                 active[0].id;
-        }
-        return active.find(m => m.id === 'gemini-3.5-flash')?.id || active[0].id;
+      });
     }
+
+    candidateModels.sort((a, b) => b.compositeScore - a.compositeScore);
+
+    let winningModel = candidateModels[0]?.modelId;
+    let winningModelDisplayName = candidateModels[0]?.displayName || 'Unknown';
+    let winningProvider = candidateModels[0]?.provider || 'google';
+
+    if (!winningModel) {
+      winningModel = models.find(m => m.enabled)?.id || 'gemini-3.5-flash';
+      winningModelDisplayName = 'Default Fallback';
+      winningProvider = 'google';
+    }
+
+    const fallbacks = candidateModels.slice(1, 4).map(c => c.modelId);
+    const confidenceScore = candidateModels[0] ? Math.min(100, Math.round(candidateModels[0].compositeScore)) : 50;
+
+    const decision: RoutingDecision = {
+      decisionId: `dec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      task,
+      subsystem,
+      requirements: featureReq ? { ...featureReq } : { requiredCapability: reqCap, providerPreference: providerPref, freeFirst },
+      candidateModels: candidateModels.slice(0, 10),
+      rejectedModels: rejectedModels.slice(0, 10),
+      winningModel,
+      winningModelDisplayName,
+      provider: winningProvider,
+      confidenceScore,
+      executionTimeMs: Date.now() - startTime,
+      fallbacks,
+      explanation: `Selected '${winningModelDisplayName}' (${winningProvider}) with confidence score ${confidenceScore}% based on multi-factor evaluation across ${candidateModels.length} candidates.`
+    };
+
+    this.lastRoutingDecisions.push(decision);
+    if (this.lastRoutingDecisions.length > 200) {
+      this.lastRoutingDecisions.shift();
+    }
+
+    return decision;
+  }
+
+  // --- TASK CLASSIFICATION MATRIX ---
+  public static selectBestModelForTask(task: TaskType, models: ModelMetadata[], config?: any): string {
+    const decision = this.evaluateModelsForTask(task, models, config);
+    return decision.winningModel;
   }
 
   // --- STATUTORY SUB-SYSTEM MAPPING TO TASKS ---
@@ -2423,7 +2634,7 @@ export class AIOrchestrator {
 
         try {
           const result = await adapter.executePrompt(
-            model.id,
+            model.apiModelId || model.id,
             systemPrompt,
             userPrompt,
             resolvedKey.trim(),
@@ -3706,19 +3917,28 @@ function LogicalModelResolve(choice: string, subsystem: Subsystem): string {
 }
 
 export class AIModelRegistry {
+  public static getFeatureRequirements(subsystem: string): FeatureRequirement | undefined {
+    return FEATURE_REQUIREMENTS[subsystem];
+  }
+
   public static resolveModel(choice: string | undefined, subsystem: Subsystem): string {
     const modelChoice = choice || 'Automatic';
 
     if (modelChoice === 'Automatic') {
       const automaticChoice = SUBSYSTEM_AUTOMATIC_MAPPING[subsystem];
-      return GEMINI_MODEL_MAPPING[automaticChoice];
+      if (automaticChoice) {
+        return GEMINI_MODEL_MAPPING[automaticChoice];
+      }
+      const featureReq = FEATURE_REQUIREMENTS[subsystem];
+      const task = featureReq?.preferredTaskType || 'copilot_conversation';
+      return AIOrchestrator.selectBestModelForTask(task, AIOrchestrator.DEFAULT_MODELS, undefined, subsystem);
     }
 
     if (modelChoice === 'Latest Flash' || modelChoice === 'Latest Pro') {
       return GEMINI_MODEL_MAPPING[modelChoice as 'Latest Flash' | 'Latest Pro'];
     }
 
-    if (typeof modelChoice === 'string' && (modelChoice.startsWith('gemini-') || modelChoice.includes('-'))) {
+    if (typeof modelChoice === 'string' && (modelChoice.startsWith('gemini-') || modelChoice.includes('-') || modelChoice.includes('/'))) {
       return modelChoice;
     }
 
