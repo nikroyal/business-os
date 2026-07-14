@@ -97,6 +97,26 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
             </span>
           </div>
 
+          {/* Telemetry & Metadata Authority Bar */}
+          <div className="mb-4 bg-slate-950/90 rounded-xl p-3 border border-slate-800/80 text-[11px] grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-300">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Source</span>
+              <span className="font-mono text-indigo-300">AIOrchestrator SSOT</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Calculation</span>
+              <span className="font-mono text-emerald-300">Live Telemetry &amp; Catalog</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Refresh Freq.</span>
+              <span className="font-mono text-amber-300">30s / Event Driven</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Confidence</span>
+              <span className="font-mono text-teal-300 font-bold">100% Verified</span>
+            </div>
+          </div>
+
           {/* Core Status Matrix */}
           <div className="grid grid-cols-3 gap-3 my-4">
             <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">

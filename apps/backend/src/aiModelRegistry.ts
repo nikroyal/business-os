@@ -50,7 +50,7 @@ export interface ModelMetadata {
   isAlias?: boolean;
   aliasReason?: string;
   targetModelId?: string;
-  verificationStatus?: 'VERIFIED_API' | 'ADMIN_ALIAS' | 'UNVERIFIED_DISABLED' | 'REQUIRES_MANUAL_VERIFICATION';
+  verificationStatus?: 'VERIFIED_API' | 'ADMIN_ALIAS' | 'UNVERIFIED_DISABLED' | 'REQUIRES_MANUAL_VERIFICATION' | 'PENDING_VERIFICATION';
   unavailabilityReason?: string;
   displayName: string;
   version?: string;
@@ -3211,7 +3211,7 @@ export class AIOrchestrator {
 
       if (m.verificationStatus === 'VERIFIED_API') verifiedApiModels++;
       else if (m.verificationStatus === 'ADMIN_ALIAS') adminAliasModels++;
-      else if (m.verificationStatus === 'UNVERIFIED_DISABLED') unverifiedDisabledModels++;
+      else if (m.verificationStatus === 'UNVERIFIED_DISABLED' || m.verificationStatus === 'PENDING_VERIFICATION') unverifiedDisabledModels++;
 
       // 1. Check duplicate ID
       if (idsSeen.has(m.id)) {
@@ -3328,12 +3328,20 @@ export class AIOrchestrator {
           m.isFree = isFreeModel;
           m.availabilityTier = isFreeModel ? 'Free' : 'Pay-as-you-go';
           m.pricingSource = 'provider_verified';
+          m.verificationStatus = 'VERIFIED_API';
+          m.unavailabilityReason = undefined;
           m.providerPricing = {
             prompt: rawPrompt,
             completion: rawCompletion
           };
-        } else if (!m.pricingSource) {
-          m.pricingSource = 'application_defined';
+        } else {
+          if (!m.pricingSource) {
+            m.pricingSource = 'application_defined';
+          }
+          if (catalogArray.length > 0 && m.verificationStatus !== 'ADMIN_ALIAS') {
+            m.verificationStatus = 'PENDING_VERIFICATION';
+            m.unavailabilityReason = 'Awaiting live provider catalog confirmation';
+          }
         }
       }
     }

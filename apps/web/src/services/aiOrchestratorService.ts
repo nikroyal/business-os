@@ -115,7 +115,7 @@ export interface ModelMetadataWithStats {
   isAlias?: boolean;
   aliasReason?: string;
   targetModelId?: string;
-  verificationStatus?: 'VERIFIED_API' | 'ADMIN_ALIAS' | 'UNVERIFIED_DISABLED' | 'REQUIRES_MANUAL_VERIFICATION';
+  verificationStatus?: 'VERIFIED_API' | 'ADMIN_ALIAS' | 'UNVERIFIED_DISABLED' | 'REQUIRES_MANUAL_VERIFICATION' | 'PENDING_VERIFICATION';
   unavailabilityReason?: string;
   displayName: string;
   capabilities?: string[];
