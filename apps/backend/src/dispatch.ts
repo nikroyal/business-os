@@ -3811,6 +3811,16 @@ export async function checkAndRunScheduled(env: {
     console.error('[Scheduler] Telemetry retention cleanup error:', cleanupErr);
   }
 
+  // Trigger proactive background AI model health probing
+  try {
+    await AIOrchestrator.runBackgroundProactiveHealthProbe({
+      google: env.GEMINI_API_KEY,
+      openrouter: (env as any).OPENROUTER_API_KEY
+    }, env.FIREBASE_PROJECT_ID);
+  } catch (probeErr) {
+    console.error('[Scheduler] Proactive background health probe error:', probeErr);
+  }
+
   const finnhub = new FinnhubClient((env.FINNHUB_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''), env.FIREBASE_PROJECT_ID);
   const gemini = new GeminiClient((env.GEMINI_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));
   const resend = new ResendClient((env.RESEND_API_KEY || '').trim().replace(/^['"]|['"]$/g, ''));

@@ -568,11 +568,151 @@ function fromFirestoreValue(val: any): any {
   return null;
 }
 
+class ConcurrencyGate {
+  private active = 0;
+  private queue: Array<() => void> = [];
+  constructor(private maxConcurrent: number) {}
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.maxConcurrent) {
+      await new Promise<void>(resolve => this.queue.push(resolve));
+    }
+    this.active++;
+    try {
+      return await fn();
+    } finally {
+      this.active--;
+      const next = this.queue.shift();
+      if (next) next();
+    }
+  }
+}
+
+const providerGates: Record<string, ConcurrencyGate> = {
+  'google': new ConcurrencyGate(10),
+  'openrouter': new ConcurrencyGate(5)
+};
+
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const tokens = text.match(/\w+|[^\w\s]+/g) || [];
+  let count = 0;
+  for (const t of tokens) {
+    if (t.length <= 4) {
+      count += 1;
+    } else {
+      count += Math.ceil(t.length / 3);
+    }
+  }
+  const spaces = text.match(/\s+/g) || [];
+  count += spaces.length;
+  return count;
+}
+
+const inMemoryResponseCache = new Map<string, { response: string; promptTokens: number; completionTokens: number; expiry: number }>();
+
 export class AIOrchestrator {
   private static adapters: Record<string, AIProviderAdapter> = {
     'google': new GoogleGeminiAdapter(),
     'openrouter': new OpenRouterAdapter()
   };
+
+  private static async computeHash(str: string): Promise<string> {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  private static async getCachedResponse(
+    projectId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    modelId: string,
+    token?: string
+  ): Promise<{ response: string; promptTokens: number; completionTokens: number } | null> {
+    const key = `${systemPrompt}|||${userPrompt}|||${modelId}`;
+    const hash = await this.computeHash(key);
+    
+    // Tier 1: In-Memory Cache
+    const mem = inMemoryResponseCache.get(hash);
+    if (mem && mem.expiry > Date.now()) {
+      return {
+        response: mem.response,
+        promptTokens: mem.promptTokens,
+        completionTokens: mem.completionTokens
+      };
+    } else if (mem) {
+      inMemoryResponseCache.delete(hash);
+    }
+
+    // Tier 2: Firestore Cache
+    try {
+      const res = await firestoreFetch(projectId, `aiResponseCache/${hash}`, token);
+      if (res.ok) {
+        const data = fromFirestoreDoc(await res.json());
+        if (data && data.expiry > Date.now()) {
+          // Warm up Layer 1 cache
+          inMemoryResponseCache.set(hash, {
+            response: data.response,
+            promptTokens: data.promptTokens,
+            completionTokens: data.completionTokens,
+            expiry: data.expiry
+          });
+          return {
+            response: data.response,
+            promptTokens: data.promptTokens,
+            completionTokens: data.completionTokens
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[AIOrchestrator Cache] Firestore cache fetch failed:', err);
+    }
+    return null;
+  }
+
+  private static async setCachedResponse(
+    projectId: string,
+    systemPrompt: string,
+    userPrompt: string,
+    modelId: string,
+    response: string,
+    promptTokens: number,
+    completionTokens: number,
+    token?: string
+  ): Promise<void> {
+    const key = `${systemPrompt}|||${userPrompt}|||${modelId}`;
+    const hash = await this.computeHash(key);
+    const expiry = Date.now() + 2 * 60 * 60 * 1000; // 2 hours TTL
+
+    // Update Tier 1: In-Memory
+    inMemoryResponseCache.set(hash, {
+      response,
+      promptTokens,
+      completionTokens,
+      expiry
+    });
+
+    // Update Tier 2: Firestore
+    try {
+      const doc = {
+        fields: {
+          response: toFirestoreValue(response),
+          expiry: toFirestoreValue(expiry),
+          modelId: toFirestoreValue(modelId),
+          promptTokens: toFirestoreValue(promptTokens),
+          completionTokens: toFirestoreValue(completionTokens)
+        }
+      };
+      await firestoreFetch(projectId, `aiResponseCache/${hash}`, token, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+    } catch (err) {
+      console.warn('[AIOrchestrator Cache] Firestore cache set failed:', err);
+    }
+  }
 
   public static getModelCapabilities(model: ModelMetadata): ModelCapability[] {
     if (model.capabilities && Array.isArray(model.capabilities) && model.capabilities.length > 0) {
@@ -2698,6 +2838,90 @@ export class AIOrchestrator {
 
     const requestedModel = targetModelId;
 
+    // 3.1. Dual-Layer Caching Check
+    const cacheHit = await this.getCachedResponse(projectId, systemPrompt, userPrompt, targetModelId, token).catch(() => null);
+    if (cacheHit) {
+      const totalLatency = Date.now() - startTime;
+      const totalTokens = cacheHit.promptTokens + cacheHit.completionTokens;
+      
+      const matched = registryList.find(m => m.id === targetModelId);
+      const cost = matched ? (((cacheHit.promptTokens / 1000000) * matched.inputCostPer1M) +
+                              ((cacheHit.completionTokens / 1000000) * matched.outputCostPer1M)) : 0.0;
+      
+      const selectedProvider = matched?.provider || 'google';
+
+      const telemetry = {
+        timestamp: new Date().toISOString(),
+        user: userId,
+        workspace: workspaceId,
+        feature: subsystem,
+        provider: selectedProvider,
+        selectedModel: requestedModel,
+        actualModel: targetModelId,
+        fallbackModel: '',
+        promptTokens: cacheHit.promptTokens,
+        completionTokens: cacheHit.completionTokens,
+        totalTokens,
+        latency: totalLatency,
+        success: true,
+        errorClassification: '',
+        retryCount: 0,
+        estimatedCost: cost,
+        cachedResponse: true,
+        tokenCountSource: 'estimated' as const
+      };
+
+      const telemetryResult = await this.recordTelemetry(projectId, telemetry, token);
+      
+      // Update statistics
+      await this.updatePersistentStats(projectId, targetModelId, selectedProvider, totalLatency, true, undefined, token).catch(() => {});
+
+      // Build payload matching standard structure
+      const finalPayload: any = {
+        candidates: [{
+          content: {
+            parts: [{
+              text: cacheHit.response
+            }]
+          }
+        }]
+      };
+
+      // Save diagnostics to Firestore
+      const dateStr = new Date().toISOString().split('T')[0];
+      try {
+        const diagDoc = {
+          timestamp: new Date().toISOString(),
+          requestId: telemetryResult.docId,
+          stages: [
+            { name: 'User Request', status: 'success', time: new Date(startTime).toISOString(), executionTimeMs: totalLatency },
+            { name: 'AI Orchestrator', status: 'success', details: `Resolved model to ${targetModelId} (Cache Hit)` },
+            { name: 'Cache Read', status: 'success', details: 'Served from Dual-Layer Response Cache' },
+            { name: 'Telemetry Write', status: telemetryResult.success ? 'success' : 'failed', docId: `aiTelemetry/${telemetryResult.docId}` }
+          ]
+        };
+        const doc = { fields: {} as any };
+        for (const [k, v] of Object.entries(diagDoc)) {
+          doc.fields[k] = toFirestoreValue(v);
+        }
+        await firestoreFetch(projectId, 'system/telemetryDiagnostics', token, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(doc)
+        });
+      } catch (diagErr) {
+        console.warn('[AIOrchestrator] Failed to save cache telemetry diagnostics:', diagErr);
+      }
+
+      return {
+        data: finalPayload,
+        originalModel: requestedModel,
+        actualModel: targetModelId,
+        retries: 0,
+        fallbackUsed: false
+      };
+    }
+
     // Filter models by capability FIRST before considering provider, priority, free-first routing, cost, or fallback
     const capableModels = registryList.filter(m => m.enabled && m.id !== 'uncensored' && this.isModelCapableForTask(m, taskType));
     const activeModels = capableModels.length > 0 ? capableModels : registryList.filter(m => m.enabled && m.id !== 'uncensored');
@@ -2749,6 +2973,192 @@ export class AIOrchestrator {
       chain.push(...sortedFallbackChain.filter(m => m.id !== effectiveRequestedModel));
     }
 
+    const isJsonTask = ['report_generation', 'company_analysis', 'market_summary', 'benchmarking', 'daily_email'].includes(taskType);
+
+    // Concurrency-gated provider prompt execution with rate-limit retries and json repair
+    const executeModelWithRetry = async (model: typeof chain[number]) => {
+      const adapter = this.adapters[model.provider];
+      if (!adapter) {
+        throw new Error(`Unsupported provider: ${model.provider}`);
+      }
+
+      const gate = providerGates[model.provider] || providerGates['openrouter'];
+      return await gate.run(async () => {
+        const modelStartTime = Date.now();
+        let resolvedKey = '';
+        if (typeof apiKey === 'object' && apiKey !== null) {
+          resolvedKey = model.provider === 'openrouter' ? (apiKey.openrouter || '') : (apiKey.google || '');
+        } else if (typeof apiKey === 'string') {
+          resolvedKey = apiKey;
+        }
+
+        if (!resolvedKey || !resolvedKey.trim()) {
+          const missingEnv = model.provider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'GEMINI_API_KEY';
+          const provName = model.provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini';
+          const configErr: any = new Error(`Configuration Error: ${missingEnv} is missing or not configured in Worker runtime environment bindings. ${provName} models cannot be executed.`);
+          configErr.status = 400;
+          configErr.errorClassification = 'CONFIGURATION_ERROR';
+          throw configErr;
+        }
+
+        const maxRetries = model.retryCount || 1;
+        let lastErr: any = null;
+        let lastResultText = '';
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          if (attempt > 0) retriesCount++;
+
+          let currentUserPrompt = userPrompt;
+          if (attempt > 0 && isJsonTask && lastResultText) {
+            currentUserPrompt = `${userPrompt}\n\n[Auto-Repair System Warning]: Your previous response was not valid JSON. You must output valid, parsable JSON matching the required schema. Please correct your previous output:\n${lastResultText}`;
+          }
+
+          try {
+            const result = await adapter.executePrompt(
+              model.apiModelId || model.id,
+              systemPrompt,
+              currentUserPrompt,
+              resolvedKey.trim(),
+              model.defaultTimeoutMs
+            );
+
+            lastResultText = result.text;
+
+            if (isJsonTask) {
+              try {
+                JSON.parse(result.text.trim());
+              } catch (jsonErr) {
+                const errJson: any = new Error(`JSON_PARSE_ERROR: Response is not valid JSON.`);
+                errJson.status = 422;
+                throw errJson;
+              }
+            }
+
+            const hasRealTokens = typeof result.promptTokens === 'number' && typeof result.completionTokens === 'number';
+            const pTokens = hasRealTokens ? result.promptTokens! : estimateTokens(systemPrompt + currentUserPrompt);
+            const cTokens = hasRealTokens ? result.completionTokens! : estimateTokens(result.text);
+            const tcSource = hasRealTokens ? 'provider' : 'estimated';
+            const latency = Date.now() - modelStartTime;
+
+            // Record stats success locally
+            const mStats = modelLocalStats.get(model.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+            mStats.success++;
+            mStats.totalLatencyMs += latency;
+            modelLocalStats.set(model.id, mStats);
+
+            const pStats = providerLocalStats.get(model.provider) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+            pStats.success++;
+            pStats.totalLatencyMs += latency;
+            providerLocalStats.set(model.provider, pStats);
+
+            return {
+              payload: result.rawResponse,
+              promptTokens: pTokens,
+              completionTokens: cTokens,
+              tokenCountSource: tcSource,
+              latency,
+              modelId: model.id,
+              text: result.text
+            };
+          } catch (e: any) {
+            lastErr = e;
+            const attemptBody = e.message || String(e);
+            let attemptStatus = typeof e.status === 'number' ? e.status : 500;
+            if (attemptBody.includes('HTTP 429')) attemptStatus = 429;
+            
+            const errClass = this.classifyError(attemptStatus, attemptBody);
+            if (['MODEL_OVERLOADED', 'DAILY_QUOTA_EXCEEDED', 'RATE_LIMITED'].includes(errClass)) {
+              const cooldownExpiry = Date.now() + model.cooldownDurationMs;
+              this.setPersistentCooldown(projectId, model.id, cooldownExpiry, token).catch(() => {});
+            }
+
+            if (attempt < maxRetries) {
+              const backoffTime = attemptStatus === 429 ? Math.min(1000 * Math.pow(2, attempt), 5000) : Math.min(500 * Math.pow(2, attempt), 2000);
+              await new Promise(r => setTimeout(r, backoffTime));
+            }
+          }
+        }
+
+        // Record stats failure locally
+        const mStats = modelLocalStats.get(model.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+        mStats.failure++;
+        mStats.lastFailure = new Date().toISOString();
+        modelLocalStats.set(model.id, mStats);
+
+        const pStats = providerLocalStats.get(model.provider) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+        pStats.failure++;
+        providerLocalStats.set(model.provider, pStats);
+
+        throw lastErr;
+      });
+    };
+
+    // Speculative cascade execution runner with cascading soft timeouts
+    const runCascade = async (): Promise<{ payload: any; promptTokens: number; completionTokens: number; tokenCountSource: 'provider' | 'estimated'; latency: number; modelId: string; text: string }> => {
+      const activePromises: Array<{ promise: Promise<any>; model: typeof chain[number]; timerId: any }> = [];
+      const errors: Array<{ modelId: string; error: any }> = [];
+      let nextModelIndex = 0;
+      let resolved = false;
+
+      return new Promise((resolve, reject) => {
+        const launchNextModel = () => {
+          if (resolved || nextModelIndex >= chain.length) return;
+          const currentModel = chain[nextModelIndex++];
+
+          // Increment stats request count
+          const mStats = modelLocalStats.get(currentModel.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+          mStats.requests++;
+          modelLocalStats.set(currentModel.id, mStats);
+
+          const pStats = providerLocalStats.get(currentModel.provider) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
+          pStats.requests++;
+          providerLocalStats.set(currentModel.provider, pStats);
+
+          const softTimeoutDuration = currentModel.category === 'Flash' ? 3000 : 6000;
+          const timerId = setTimeout(() => {
+            launchNextModel();
+          }, softTimeoutDuration);
+
+          const promise = executeModelWithRetry(currentModel);
+          activePromises.push({ promise, model: currentModel, timerId });
+
+          promise.then(
+            (res) => {
+              if (resolved) return;
+              resolved = true;
+              activePromises.forEach(ap => clearTimeout(ap.timerId));
+              resolve(res);
+            },
+            (err) => {
+              clearTimeout(timerId);
+
+              if (err.status === 400 || err.errorClassification === 'CONFIGURATION_ERROR' || err.message?.includes('Configuration Error')) {
+                resolved = true;
+                activePromises.forEach(ap => clearTimeout(ap.timerId));
+                reject(err);
+                return;
+              }
+
+              errors.push({ modelId: currentModel.id, error: err });
+              const idx = activePromises.findIndex(ap => ap.model.id === currentModel.id);
+              if (idx !== -1) activePromises.splice(idx, 1);
+
+              if (!resolved && activePromises.length === 0) {
+                if (nextModelIndex < chain.length) {
+                  launchNextModel();
+                } else {
+                  resolved = true;
+                  reject(new Error(`All models failed: ${errors.map(e => `${e.modelId}: ${e.error.message || e.error}`).join('; ')}`));
+                }
+              }
+            }
+          );
+        };
+
+        launchNextModel();
+      });
+    };
+
     let lastErrorType = 'UNKNOWN_PROVIDER_ERROR';
     let lastErrorMsg = 'All models are down';
     let finalPayload: any = null;
@@ -2760,118 +3170,29 @@ export class AIOrchestrator {
     let modelLatency = 0;
     let attemptSuccess = false;
 
-    // 4. Try models in fallback chain
-    for (let i = 0; i < chain.length; i++) {
-      const model = chain[i];
-      finalModelId = model.id;
-      fallbackUsed = model.id !== requestedModel;
+    try {
+      const result = await runCascade();
+      finalPayload = result.payload;
+      finalModelId = result.modelId;
+      fallbackUsed = result.modelId !== requestedModel;
+      finalPromptTokens = result.promptTokens;
+      finalCompletionTokens = result.completionTokens;
+      tokenCountSource = result.tokenCountSource;
+      modelLatency = result.latency;
+      attemptSuccess = true;
 
-      const adapter = this.adapters[model.provider];
-      if (!adapter) {
-        console.error(`[AIOrchestrator] Unsupported provider adapter: ${model.provider}`);
-        continue;
+      // Cache the successful response
+      if (result.text) {
+        await this.setCachedResponse(projectId, systemPrompt, userPrompt, finalModelId, result.text, finalPromptTokens, finalCompletionTokens, token).catch(() => {});
       }
-
-      // Track model request
-      const modelStats = modelLocalStats.get(model.id) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
-      modelStats.requests++;
-
-      // Track provider request
-      const provStats = providerLocalStats.get(model.provider) || { requests: 0, success: 0, failure: 0, totalLatencyMs: 0 };
-      provStats.requests++;
-
-      let attemptStatus = 200;
-      let attemptBody = '';
-      const modelStartTime = Date.now();
-
-      let resolvedKey = '';
-      if (typeof apiKey === 'object' && apiKey !== null) {
-        resolvedKey = model.provider === 'openrouter'
-          ? (apiKey.openrouter || '')
-          : (apiKey.google || '');
-      } else if (typeof apiKey === 'string') {
-        resolvedKey = apiKey;
-      }
-
-      if (!resolvedKey || !resolvedKey.trim()) {
-        const missingEnv = model.provider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'GEMINI_API_KEY';
-        const provName = model.provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini';
-        const configErr: any = new Error(`Configuration Error: ${missingEnv} is missing or not configured in Worker runtime environment bindings. ${provName} models cannot be executed.`);
-        configErr.status = 400;
-        configErr.errorClassification = 'CONFIGURATION_ERROR';
-        throw configErr;
-      }
-
-      const maxRetries = model.retryCount || 1;
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        if (attempt > 0) retriesCount++;
-
-        try {
-          const result = await adapter.executePrompt(
-            model.apiModelId || model.id,
-            systemPrompt,
-            userPrompt,
-            resolvedKey.trim(),
-            model.defaultTimeoutMs
-          );
-
-          finalPayload = result.rawResponse;
-          attemptSuccess = true;
-
-          // Use actual provider token counts when available; fall back to estimation.
-          const hasRealTokens = typeof result.promptTokens === 'number' && typeof result.completionTokens === 'number';
-          finalPromptTokens = hasRealTokens ? result.promptTokens! : Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-          finalCompletionTokens = hasRealTokens ? result.completionTokens! : Math.ceil(result.text.length / 4);
-          tokenCountSource = hasRealTokens ? 'provider' : 'estimated';
-
-          modelLatency = Date.now() - modelStartTime;
-
-          modelStats.success++;
-          modelStats.totalLatencyMs += modelLatency;
-          modelLocalStats.set(model.id, modelStats);
-
-          provStats.success++;
-          provStats.totalLatencyMs += modelLatency;
-          providerLocalStats.set(model.provider, provStats);
-          break;
-        } catch (e: any) {
-          modelLatency = Date.now() - modelStartTime;
-          attemptBody = e.message || String(e);
-          attemptStatus = typeof e.status === 'number' ? e.status : 500;
-          if (attemptBody.includes('HTTP 429')) attemptStatus = 429;
-          else if (attemptBody.includes('HTTP 401') || attemptBody.includes('HTTP 403')) attemptStatus = 401;
-          else if (attemptBody.includes('HTTP 404')) attemptStatus = 404;
-          else if (attemptBody.includes('HTTP 503')) attemptStatus = 503;
-          else if (attemptBody.includes('Configuration Error')) attemptStatus = 400;
-
-          if (attemptStatus === 400 || attemptBody.includes('Configuration Error')) {
-            throw e;
-          }
-
-          if (attempt < maxRetries) {
-            await new Promise(r => setTimeout(r, Math.min(1000 * Math.pow(2, attempt), 3000)));
-          }
-        }
-      }
-
-      if (attemptSuccess) {
-        break;
-      } else {
-        modelStats.failure++;
-        modelStats.lastFailure = new Date().toISOString();
-        modelStats.lastFailureReason = lastErrorType;
-        modelLocalStats.set(model.id, modelStats);
-
-        provStats.failure++;
-        providerLocalStats.set(model.provider, provStats);
-
-        lastErrorType = this.classifyError(attemptStatus, attemptBody);
-        lastErrorMsg = attemptBody;
-
-        if (['MODEL_OVERLOADED', 'DAILY_QUOTA_EXCEEDED', 'RATE_LIMITED'].includes(lastErrorType)) {
-          const cooldownExpiry = Date.now() + model.cooldownDurationMs;
-          await this.setPersistentCooldown(projectId, model.id, cooldownExpiry, token);
-        }
+    } catch (cascadeErr: any) {
+      attemptSuccess = false;
+      lastErrorMsg = cascadeErr.message || String(cascadeErr);
+      lastErrorType = 'UNKNOWN_PROVIDER_ERROR';
+      if (lastErrorMsg.includes('Configuration Error') || lastErrorMsg.includes('missing')) {
+        lastErrorType = 'CONFIGURATION_ERROR';
+      } else if (lastErrorMsg.includes('JSON_PARSE_ERROR')) {
+        lastErrorType = 'JSON_PARSE_FAILURE';
       }
     }
 
@@ -3227,6 +3548,57 @@ export class AIOrchestrator {
       models: modelsResults,
       featuresAudit
     };
+  }
+
+  public static async runBackgroundProactiveHealthProbe(apiKeys: { google?: string; openrouter?: string }, projectId: string, token?: string): Promise<void> {
+    const g: any = typeof globalThis !== 'undefined' ? globalThis : {};
+    const googleKey = (apiKeys.google || g.process?.env?.GEMINI_API_KEY || g.GEMINI_API_KEY || '').trim();
+    const openRouterKey = (apiKeys.openrouter || g.process?.env?.OPENROUTER_API_KEY || g.OPENROUTER_API_KEY || '').trim();
+
+    const enabledOrModels = this.DEFAULT_MODELS.filter(m => m.enabled && m.provider === 'openrouter');
+    const enabledGoogleModels = this.DEFAULT_MODELS.filter(m => m.enabled && m.provider === 'google');
+
+    const probeModel = async (model: ModelMetadata, apiKey: string) => {
+      if (!apiKey) return;
+      const adapter = this.adapters[model.provider];
+      if (!adapter) return;
+      
+      try {
+        await adapter.executePrompt(
+          model.apiModelId || model.id,
+          'You are a health probe bot.',
+          'Respond with strictly the word OK.',
+          apiKey,
+          5000 // 5 seconds timeout
+        );
+      } catch (err: any) {
+        console.warn(`[Health Probe] Model '${model.id}' failed health probe: ${err.message || err}`);
+        const attemptBody = err.message || String(err);
+        let attemptStatus = typeof err.status === 'number' ? err.status : 500;
+        if (attemptBody.includes('HTTP 429')) attemptStatus = 429;
+        const errClass = this.classifyError(attemptStatus, attemptBody);
+        
+        if (['MODEL_OVERLOADED', 'DAILY_QUOTA_EXCEEDED', 'RATE_LIMITED'].includes(errClass)) {
+          const cooldownExpiry = Date.now() + model.cooldownDurationMs;
+          await this.setPersistentCooldown(projectId, model.id, cooldownExpiry, token).catch(() => {});
+        }
+      }
+    };
+
+    const promises: Promise<any>[] = [];
+    if (googleKey) {
+      const mainGemini = enabledGoogleModels.find(m => m.id === 'gemini-3.5-flash');
+      if (mainGemini) promises.push(probeModel(mainGemini, googleKey));
+    }
+    if (openRouterKey) {
+      for (const m of enabledOrModels) {
+        if (m.id !== 'openrouter/free') {
+          promises.push(probeModel(m, openRouterKey));
+        }
+      }
+    }
+
+    await Promise.allSettled(promises);
   }
 
   public static validateRegistry(): {
