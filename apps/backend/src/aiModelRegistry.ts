@@ -1084,6 +1084,7 @@ export class AIOrchestrator {
     {
       id: 'north-mini-code-20260617',
       displayName: 'Cohere North Mini Code',
+      apiModelId: 'cohere/north-mini-code',
       category: 'Flash',
       priority: 1,
       capabilityScore: 93,
@@ -1122,6 +1123,7 @@ export class AIOrchestrator {
     {
       id: 'gemma-4-26b-a4b',
       displayName: 'Gemma 4 26B A4B',
+      apiModelId: 'google/gemma-4-26b-a4b-it',
       category: 'Flash',
       priority: 2,
       capabilityScore: 90,
@@ -1159,6 +1161,7 @@ export class AIOrchestrator {
     {
       id: 'gemma-4-31b-a4b',
       displayName: 'Gemma 4 31B',
+      apiModelId: 'google/gemma-4-31b-it',
       category: 'Pro',
       priority: 3,
       capabilityScore: 92,
@@ -1272,6 +1275,7 @@ export class AIOrchestrator {
     {
       id: 'llama-3.2-3b-instruct',
       displayName: 'Llama 3.2 3B Instruct',
+      apiModelId: 'meta-llama/llama-3.2-3b-instruct',
       category: 'Flash',
       priority: 1,
       capabilityScore: 86,
@@ -1310,6 +1314,7 @@ export class AIOrchestrator {
     {
       id: 'llama-3.3-70b-instruct',
       displayName: 'Llama 3.3 70B Instruct',
+      apiModelId: 'meta-llama/llama-3.3-70b-instruct',
       category: 'Pro',
       priority: 2,
       capabilityScore: 94,
@@ -1348,6 +1353,7 @@ export class AIOrchestrator {
     {
       id: 'hermes-3-405b-instruct',
       displayName: 'Hermes 3 405B Instruct',
+      apiModelId: 'nousresearch/hermes-3-llama-3.1-405b',
       category: 'Pro',
       priority: 4,
       capabilityScore: 96,
@@ -1462,6 +1468,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-3-nano-30b-a3b',
       displayName: 'Nemotron 3 Nano 30B A3B',
+      apiModelId: 'nvidia/nemotron-3-nano-30b-a3b',
       category: 'Pro',
       priority: 3,
       capabilityScore: 93,
@@ -1499,6 +1506,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-3-nano-omni-30b-a3b-reasoning-20260428',
       displayName: 'Nemotron 3 Nano Omni 30B Reasoning',
+      apiModelId: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
       category: 'Pro',
       priority: 4,
       capabilityScore: 95,
@@ -1536,6 +1544,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-3-super',
       displayName: 'Nemotron 3 Super',
+      apiModelId: 'nvidia/nemotron-3-super-120b-a12b',
       category: 'Pro',
       priority: 5,
       capabilityScore: 96,
@@ -1573,6 +1582,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-3-ultra',
       displayName: 'Nemotron 3 Ultra',
+      apiModelId: 'nvidia/nemotron-3-ultra-550b-a55b',
       category: 'Pro',
       priority: 6,
       capabilityScore: 98,
@@ -1610,6 +1620,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-3.5-content-safety-20260604',
       displayName: 'Nemotron 3.5 Content Safety',
+      apiModelId: 'nvidia/nemotron-3.5-content-safety',
       capabilities: ['safety', 'moderation'],
       category: 'Flash',
       priority: 1,
@@ -1648,6 +1659,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-nano-12b-v2-vl',
       displayName: 'Nemotron Nano 12B v2 VL',
+      apiModelId: 'nvidia/nemotron-nano-12b-v2-vl',
       category: 'Flash',
       priority: 2,
       capabilityScore: 90,
@@ -1685,6 +1697,7 @@ export class AIOrchestrator {
     {
       id: 'nemotron-nano-9b-v2',
       displayName: 'Nemotron Nano 9B v2',
+      apiModelId: 'nvidia/nemotron-nano-9b-v2',
       category: 'Flash',
       priority: 2,
       capabilityScore: 88,
@@ -1724,6 +1737,7 @@ export class AIOrchestrator {
     {
       id: 'gpt-oss-120b',
       displayName: 'GPT-OSS 120B',
+      apiModelId: 'openai/gpt-oss-120b',
       category: 'Pro',
       priority: 1,
       capabilityScore: 96,
@@ -1761,6 +1775,7 @@ export class AIOrchestrator {
     {
       id: 'gpt-oss-20b',
       displayName: 'GPT-OSS 20B',
+      apiModelId: 'openai/gpt-oss-20b',
       category: 'Flash',
       priority: 1,
       capabilityScore: 89,
@@ -1800,6 +1815,7 @@ export class AIOrchestrator {
     {
       id: 'laguna-m.1',
       displayName: 'Laguna M.1',
+      apiModelId: 'poolside/laguna-m.1',
       category: 'Pro',
       priority: 4,
       capabilityScore: 91,
@@ -1837,6 +1853,7 @@ export class AIOrchestrator {
     {
       id: 'laguna-xs-2.1',
       displayName: 'Laguna XS 2.1',
+      apiModelId: 'poolside/laguna-xs-2.1',
       category: 'Flash',
       priority: 4,
       capabilityScore: 87,
@@ -1912,6 +1929,7 @@ export class AIOrchestrator {
     {
       id: 'qwen3-coder-480b-a35b',
       displayName: 'Qwen3 Coder 480B A35B',
+      apiModelId: 'qwen/qwen3-coder',
       category: 'Pro',
       priority: 1,
       capabilityScore: 97,
@@ -1949,6 +1967,7 @@ export class AIOrchestrator {
     {
       id: 'qwen3-next-80b-a3b-instruct',
       displayName: 'Qwen3 Next 80B A3B Instruct',
+      apiModelId: 'qwen/qwen3-next-80b-a3b-instruct',
       category: 'Pro',
       priority: 2,
       capabilityScore: 95,
@@ -1987,6 +2006,7 @@ export class AIOrchestrator {
     {
       id: 'hy3',
       displayName: 'Tencent Hy3',
+      apiModelId: 'tencent/hy3',
       category: 'Pro',
       priority: 3,
       capabilityScore: 93,
@@ -2025,6 +2045,7 @@ export class AIOrchestrator {
     {
       id: 'uncensored',
       displayName: 'Venice Uncensored',
+      apiModelId: 'cognitivecomputations/dolphin-mistral-24b-venice-edition',
       category: 'Pro',
       priority: 99,
       capabilityScore: 88,
@@ -3353,9 +3374,13 @@ export class AIOrchestrator {
           if (freeCatalogModel && isFreeModel) {
             m.inputCostPer1M = 0;
             m.outputCostPer1M = 0;
+            m.apiModelId = freeCatalogModel.id;
           } else {
             m.inputCostPer1M = inputCostPer1M;
             m.outputCostPer1M = outputCostPer1M;
+            if (catalogModel) {
+              m.apiModelId = catalogModel.id;
+            }
           }
 
           m.isFree = isFreeModel;
