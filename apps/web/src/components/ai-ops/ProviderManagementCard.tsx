@@ -80,133 +80,188 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
     };
 
     return (
-      <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col justify-between hover:border-slate-700 transition-all shadow-lg">
+      <div className="card" style={{
+        background: '#fff',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        boxShadow: 'var(--shadow-subtle)',
+        gap: '1rem'
+      }}>
         <div>
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl ${providerKey === 'google' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'} border border-slate-800`}>
-                {providerKey === 'google' ? <Server className="w-5 h-5" /> : <Globe className="w-5 h-5" />}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                padding: '0.6rem',
+                borderRadius: '6px',
+                background: providerKey === 'google' ? 'var(--color-success-bg)' : '#F0EEFD',
+                color: providerKey === 'google' ? 'var(--color-success-text)' : '#4f46e5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {providerKey === 'google' ? <Server size={18} /> : <Globe size={18} />}
               </div>
               <div>
-                <h4 className="text-base font-bold text-white tracking-tight">{name}</h4>
-                <p className="text-xs text-slate-400">{description}</p>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>{name}</h4>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{description}</p>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.65rem',
+              fontWeight: 'bold',
+              background: 'var(--color-success-bg)',
+              color: 'var(--color-success-text)',
+              border: '1px solid var(--color-success-border)'
+            }}>
+              <span style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'var(--color-success-text)'
+              }} />
               {providerStatus}
             </span>
           </div>
 
           {/* Telemetry & Metadata Authority Bar */}
-          <div className="mb-4 bg-slate-950/90 rounded-xl p-3 border border-slate-800/80 text-[11px] grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-300">
+          <div style={{
+            marginBottom: '1rem',
+            background: '#FCFAF6',
+            borderRadius: '6px',
+            padding: '0.6rem 0.8rem',
+            border: '1px solid #E2DACD',
+            fontSize: '0.65rem',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '0.5rem',
+            color: 'var(--text-secondary)'
+          }}>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Source</span>
-              <span className="font-mono text-indigo-300">AIOrchestrator SSOT</span>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontWeight: 'bold' }}>SOURCE</span>
+              <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>AIOrchestrator SSOT</div>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Calculation</span>
-              <span className="font-mono text-emerald-300">Live Telemetry &amp; Catalog</span>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontWeight: 'bold' }}>CALCULATION</span>
+              <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>Live Telemetry</div>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Refresh Freq.</span>
-              <span className="font-mono text-amber-300">30s / Event Driven</span>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontWeight: 'bold' }}>REFRESH</span>
+              <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>Event Driven</div>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Confidence</span>
-              <span className="font-mono text-teal-300 font-bold">100% Verified</span>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', fontWeight: 'bold' }}>CONFIDENCE</span>
+              <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-success-text)', fontWeight: 'bold' }}>100% Verified</div>
             </div>
           </div>
 
           {/* Core Status Matrix */}
-          <div className="grid grid-cols-3 gap-3 my-4">
-            <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 uppercase font-medium block">Provider Status</span>
-              <span className="text-xs font-bold text-emerald-400 mt-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.5rem 0.75rem', border: '1px solid #E2DACD' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 500 }}>Provider</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--color-success-text)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <CheckCircle2 size={12} />
                 {providerStatus}
               </span>
             </div>
-            <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 uppercase font-medium block">Provider Health</span>
-              <span className="text-xs font-bold text-white mt-1 block">{providerHealth}</span>
+            <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.5rem 0.75rem', border: '1px solid #E2DACD' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 500 }}>Health</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-primary)', marginTop: '2px', display: 'block' }}>{providerHealth}</span>
             </div>
-            <div className="bg-slate-950/70 rounded-xl p-3 border border-slate-800/80">
-              <span className="text-[10px] text-slate-400 uppercase font-medium block">API Key Status</span>
-              <span className="text-xs font-bold text-indigo-300 mt-1 flex items-center gap-1">
-                <Key className="w-3.5 h-3.5" />
-                {apiKeyStatus}
+            <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.5rem 0.75rem', border: '1px solid #E2DACD' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 500 }}>API Key</span>
+              <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--color-accent)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Key size={12} />
+                {apiKeyStatus === 'Configured & Verified' ? 'Verified' : apiKeyStatus}
               </span>
             </div>
           </div>
 
           {/* Model Registry breakdown */}
-          <div className="bg-slate-950/40 rounded-xl p-3.5 border border-slate-800/80 mb-5">
-            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
-              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+          <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.75rem', border: '1px solid #E2DACD', marginBottom: '1rem' }}>
+            <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem' }}>
+              <Layers size={14} style={{ color: 'var(--color-accent)' }} />
               Model Registry Breakdown
             </span>
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-white block">{modelCountsDynamic.available}</span>
-                <span className="text-[10px] text-slate-400">Available</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
+              <div style={{ background: '#fff', borderRadius: '4px', padding: '4px', border: '1px solid #E2DACD' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-primary)', display: 'block' }}>{modelCountsDynamic.available}</span>
+                <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Available</span>
               </div>
-              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-emerald-400 block">{modelCountsDynamic.enabled}</span>
-                <span className="text-[10px] text-slate-400">Enabled</span>
+              <div style={{ background: '#fff', borderRadius: '4px', padding: '4px', border: '1px solid #E2DACD' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--color-success-text)', display: 'block' }}>{modelCountsDynamic.enabled}</span>
+                <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Enabled</span>
               </div>
-              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-indigo-300 block">{modelCountsDynamic.free}</span>
-                <span className="text-[10px] text-slate-400">Free Tier</span>
+              <div style={{ background: '#fff', borderRadius: '4px', padding: '4px', border: '1px solid #E2DACD' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#4f46e5', display: 'block' }}>{modelCountsDynamic.free}</span>
+                <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Free</span>
               </div>
-              <div className="bg-slate-900/80 rounded-lg p-2 border border-slate-800">
-                <span className="text-base font-bold text-amber-300 block">{modelCountsDynamic.paid}</span>
-                <span className="text-[10px] text-slate-400">Paid Tier</span>
+              <div style={{ background: '#fff', borderRadius: '4px', padding: '4px', border: '1px solid #E2DACD' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--color-warning-text)', display: 'block' }}>{modelCountsDynamic.paid}</span>
+                <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>Paid</span>
               </div>
             </div>
           </div>
 
           {/* Operational Metrics */}
-          <div className="grid grid-cols-3 gap-3 my-4">
-            <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block uppercase font-medium">RPM (1m)</span>
-              <span className="text-lg font-bold text-white mt-0.5 block">{s.rpm}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.5rem 0.75rem', border: '1px solid #E2DACD' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 500 }}>RPM (1m)</span>
+              <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '2px', display: 'block' }}>{s.rpm}</span>
             </div>
-            <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block uppercase font-medium">TPM (Tokens/m)</span>
-              <span className="text-lg font-bold text-white mt-0.5 block">{(s.tpm / 1000).toFixed(1)}k</span>
+            <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.5rem 0.75rem', border: '1px solid #E2DACD' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 500 }}>TPM (1m)</span>
+              <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '2px', display: 'block' }}>{(s.tpm / 1000).toFixed(1)}k</span>
             </div>
-            <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block uppercase font-medium">Requests Today</span>
-              <span className="text-lg font-bold text-white mt-0.5 block">{s.rpd}</span>
+            <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.5rem 0.75rem', border: '1px solid #E2DACD' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 500 }}>Requests Today</span>
+              <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '2px', display: 'block' }}>{s.rpd}</span>
             </div>
           </div>
 
           {/* Quota Progress */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-medium">
-              <span className="text-slate-400">Daily Request Volume</span>
-              <span className="text-slate-200">{s.rpd} / {defaultQuota} ({utilization}%)</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+              <span>Daily Request Volume</span>
+              <span>{s.rpd} / {defaultQuota} ({utilization}%)</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: '#E2DACD', overflow: 'hidden' }}>
               <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  utilization > 85 ? 'bg-amber-500' : providerKey === 'google' ? 'bg-emerald-500' : 'bg-indigo-500'
-                }`}
-                style={{ width: `${utilization}%` }}
+                style={{
+                  height: '100%',
+                  width: `${utilization}%`,
+                  background: utilization > 85 ? 'var(--color-danger-text)' : 'var(--color-primary)',
+                  transition: 'width 0.5s ease'
+                }}
               />
             </div>
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-slate-500" />
+        <div style={{
+          marginTop: '1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #E2DACD',
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '0.65rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Activity size={12} style={{ color: 'var(--text-muted)' }} />
             Last Sync: {s.lastUpdated ? new Date(s.lastUpdated).toLocaleTimeString() : 'Just now'}
           </span>
-          <span className="text-slate-300 font-semibold">
-            {s.quotaRemaining} Requests Remaining
+          <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>
+            {s.quotaRemaining.toLocaleString()} Requests Remaining
           </span>
         </div>
       </div>
@@ -214,13 +269,13 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
-          <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'normal', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase' }}>
             AI Provider Infrastructure & Health Console
           </h3>
-          <p className="text-xs text-slate-400">
+          <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Real-time status, API authentication state, model availability, and quota telemetry across configured AI gateways.
           </p>
         </div>
@@ -228,15 +283,16 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
           <button
             onClick={onRefresh}
             disabled={isSyncing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 transition-colors"
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', borderRadius: '6px' }}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RefreshCw size={12} style={{ animation: isSyncing ? 'spin 1.5s linear infinite' : 'none' }} />
             {isSyncing ? 'Syncing...' : 'Sync Providers'}
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
         {renderProviderPanel(
           'Google Gemini Native Provider',
           'google',
@@ -254,6 +310,13 @@ export const ProviderManagementCard: React.FC<ProviderManagementCardProps> = ({
           { available: 22, enabled: 22, free: 8, paid: 14 }
         )}
       </div>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
+export default ProviderManagementCard;

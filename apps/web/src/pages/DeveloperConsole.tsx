@@ -24,55 +24,20 @@ const ApiErrorDisplay: React.FC<{
 }> = ({ endpoint, error, onRetry }) => {
   if (!error) return null;
   return (
-    <div className="card" style={{ padding: '2rem', border: '1px solid var(--color-danger-border)', background: 'var(--color-danger-bg)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center', margin: '1.5rem 0', boxShadow: 'var(--shadow-subtle)' }}>
-      <strong style={{ color: 'var(--color-danger-text)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)' }}>API Connection Error</strong>
+    <div className="card" style={{ padding: '2rem', border: '1px solid var(--color-danger-border)', background: 'var(--color-danger-bg)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center', margin: '1.5rem 0', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
+      <strong style={{ color: 'var(--color-danger-text)', fontSize: '1.1rem', fontFamily: 'var(--font-sans)' }}>API Connection Error</strong>
       <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
         Unable to load platform data.
       </p>
-      <div style={{ background: '#fff', border: '1px solid #E2DACD', padding: '0.75rem 1rem', width: '100%', maxWidth: '400px', fontSize: '0.75rem', textAlign: 'left', fontFamily: 'var(--font-mono)' }}>
+      <div style={{ background: '#fff', border: '1px solid #E2DACD', padding: '0.75rem 1rem', width: '100%', maxWidth: '400px', fontSize: '0.75rem', textAlign: 'left', fontFamily: 'var(--font-mono)', borderRadius: '6px' }}>
         <div><strong>Endpoint:</strong> {endpoint}</div>
         <div><strong>Status:</strong> {error.status}</div>
         <div style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}><strong>Error Message:</strong> {error.message}</div>
       </div>
-      <button onClick={onRetry} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#FCFAF6', border: '1px solid #C4B9A7' }}>
+      <button onClick={onRetry} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#FCFAF6', border: '1px solid #C4B9A7', borderRadius: '6px' }}>
         <RefreshCw size={12} /> Retry Request
       </button>
     </div>
-  );
-};
-
-const getMetricClassification = (key: string): { label: string; title: string; color: string; bg: string } => {
-  const k = key.toLowerCase();
-  if (['firestore', 'user usage today'].includes(k)) return { label: 'L', title: 'Live: Computed instantly at runtime', color: '#059669', bg: '#D1FAE5' };
-  if (['gemini', 'queue health', 'workers', 'firebaseauth'].includes(k)) return { label: 'D', title: 'Derived: Computed from system runtime variables', color: '#2563EB', bg: '#DBEAFE' };
-  if (['fred', 'secedgar', 'resend'].includes(k)) return { label: 'C', title: 'Cached: Read from stored DB cache', color: '#7C3AED', bg: '#EDE9FE' };
-  if (['gemini daily tokens', 'finnhub daily requests', 'user reports count', 'finnhub requests', 'total token overhead'].includes(k)) return { label: 'A', title: 'Aggregated: Pre-calculated sums/totals', color: '#D97706', bg: '#FEF3C7' };
-  if (['daily cost estimate', 'monthly cost projection', 'estimated cost savings'].includes(k)) return { label: 'E', title: 'Estimated: Projected values or algorithms', color: '#DB2777', bg: '#FCE7F3' };
-  if (['feature flags toggles'].includes(k)) return { label: 'Config', title: 'Configuration: Operational toggles', color: '#4F46E5', bg: '#E0E7FF' };
-  if (['audit trail records'].includes(k)) return { label: 'H', title: 'Historical: Chronological database query', color: '#475569', bg: '#F1F5F9' };
-  return { label: 'S', title: 'Static/Mock: Placeholder baseline', color: '#64748B', bg: '#F8FAFC' };
-};
-
-const ClassificationBadge: React.FC<{ name: string }> = ({ name }) => {
-  const badge = getMetricClassification(name);
-  return (
-    <span 
-      title={badge.title} 
-      style={{ 
-        display: 'inline-block', 
-        padding: '1px 6px', 
-        borderRadius: '4px', 
-        fontSize: '0.65rem', 
-        fontWeight: 'bold', 
-        background: badge.bg, 
-        color: badge.color, 
-        marginLeft: '6px',
-        verticalAlign: 'middle',
-        letterSpacing: '0.02em'
-      }}
-    >
-      [{badge.label}]
-    </span>
   );
 };
 
@@ -353,33 +318,33 @@ export const DeveloperConsole: React.FC = () => {
 
       {/* Stats Quick-Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
-            Firestore Latency <ClassificationBadge name="firestore" />
+            Firestore Latency
           </span>
           <strong style={{ fontSize: '1.5rem', color: health?.firestore?.status === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {health?.firestore?.latency || 0} ms
           </strong>
         </div>
-        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
-            Gemini Daily Tokens <ClassificationBadge name="gemini daily tokens" />
+            Gemini Daily Tokens
           </span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {(apiAnalytics?.gemini?.totalTokens ?? apiAnalytics?.gemini?.totalTokensToday ?? 0).toLocaleString()}
           </strong>
         </div>
-        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
-            Finnhub Requests <ClassificationBadge name="finnhub requests" />
+            Finnhub Requests
           </span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {apiAnalytics?.finnhub?.requestsToday || 0} / 3000
           </strong>
         </div>
-        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: 0, boxShadow: 'var(--shadow-subtle)' }}>
+        <div className="card" style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
-            Queue Health <ClassificationBadge name="queue health" />
+            Queue Health
           </span>
           <strong style={{ fontSize: '1.5rem', color: 'var(--color-success-text)', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
             {apiAnalytics?.sec?.queueHealth?.toUpperCase() || 'HEALTHY'}
@@ -475,7 +440,7 @@ export const DeveloperConsole: React.FC = () => {
                     return (
                       <tr key={node} style={{ borderBottom: '1px solid #E2DACD' }}>
                         <td style={{ padding: '0.6rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                          {node.toUpperCase()} <ClassificationBadge name={node} />
+                          {node.toUpperCase()}
                         </td>
                         <td style={{ padding: '0.6rem 0.5rem' }}>
                           <span style={{ color, fontWeight: 'bold' }}>
@@ -507,31 +472,27 @@ export const DeveloperConsole: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Primary Routing Model:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Gemini 2.5 Flash <ClassificationBadge name="feature flags toggles" /></strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>Gemini 3.5 Flash</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Active Fallback Model:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>Gemini 2.5 Pro <ClassificationBadge name="feature flags toggles" /></strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>Gemini 3.1 Pro</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Total Daily Requests: <ClassificationBadge name="gemini daily tokens" /></span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Total Daily Requests:</span>
                     <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini?.requestsToday ?? 0} calls</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Total Daily Tokens: <ClassificationBadge name="gemini daily tokens" /></span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Total Daily Tokens:</span>
                     <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{(apiAnalytics.gemini?.totalTokens ?? apiAnalytics.gemini?.totalTokensToday ?? 0).toLocaleString()}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Daily Token Billing Estimate: <ClassificationBadge name="daily cost estimate" /></span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Daily Cost Estimate:</span>
                     <strong style={{ color: 'var(--color-success-text)', fontSize: '1rem' }}>${(apiAnalytics.gemini?.dailyCost ?? 0).toFixed(4)}</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Monthly Projection: <ClassificationBadge name="monthly cost projection" /></span>
-                    <strong style={{ color: 'var(--text-primary)' }}>${(apiAnalytics.gemini?.monthlyCostProjection ?? 0).toFixed(2)}</strong>
-                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.25rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio: <ClassificationBadge name="finnhub requests" /></span>
-                    <strong style={{ color: 'var(--color-warning-text)' }}>{apiAnalytics.gemini?.hitRate ?? apiAnalytics.gemini?.cacheHitRate ?? 0}% (${(apiAnalytics.gemini?.estimatedCostSavings ?? 0).toFixed(3)} saved)</strong>
+                    <span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio:</span>
+                    <strong style={{ color: 'var(--color-warning-text)' }}>{apiAnalytics.gemini?.hitRate ?? apiAnalytics.gemini?.cacheHitRate ?? 0}%</strong>
                   </div>
                 </div>
               </div>
@@ -577,7 +538,7 @@ export const DeveloperConsole: React.FC = () => {
                     return (
                       <tr key={key} style={{ borderBottom: '1px solid #E2DACD' }}>
                         <td style={{ padding: '0.6rem 0.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                          {key} <ClassificationBadge name="firestore" />
+                          {key}
                         </td>
                         <td style={{ padding: '0.6rem 0.5rem' }}>
                           <span style={{ color, fontWeight: 'bold' }}>● {status.toUpperCase().replace(/_/g, ' ')}</span>
@@ -610,15 +571,15 @@ export const DeveloperConsole: React.FC = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>FRED Economic Cache: <ClassificationBadge name="fred" /></span> 
+                    <span style={{ color: 'var(--text-secondary)' }}>FRED Economic Cache:</span> 
                     <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.fred?.cachedIndicators ?? 0} indicators</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>SEC EDGAR Coverage: <ClassificationBadge name="secedgar" /></span> 
+                    <span style={{ color: 'var(--text-secondary)' }}>SEC EDGAR Coverage:</span> 
                     <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.companiesCached ?? 0} companies ({apiAnalytics?.sec?.filingsCached ?? 0} filings)</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Finnhub Rate Limits (429s): <ClassificationBadge name="finnhub daily requests" /></span> 
+                    <span style={{ color: 'var(--text-secondary)' }}>Finnhub Rate Limits (429s):</span> 
                     <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics?.finnhub?.count429 ?? 0} errors today</strong>
                   </div>
                 </div>

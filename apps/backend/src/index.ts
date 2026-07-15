@@ -3098,15 +3098,12 @@ app.get('/api/admin/system-stats', async (c) => {
   }
 
   const health = {
-    pages: { status: 'operational', latency: 45 },
-    workers: { status: 'operational', latency: 28 },
-    firebaseAuth: { status: 'operational', latency: 120 },
     firestore: { status: dbLatency > 0 ? 'operational' : 'degraded', latency: dbLatency },
     finnhub: { status: finnhubKey ? 'operational' : 'not_configured', latency: finnhubKey ? (finnhubTelemetryDoc?.latency ?? 180) : 0 },
     gemini: { status: geminiKey ? 'operational' : 'not_configured', latency: geminiKey ? 320 : 0 },
+    openrouter: { status: c.env.OPENROUTER_API_KEY ? 'operational' : 'not_configured', latency: c.env.OPENROUTER_API_KEY ? 450 : 0 },
     fred: { status: fredStatus, latency: 150 },
-    secEdgar: { status: secStatus, latency: 210 },
-    resend: { status: 'operational', latency: 85 }
+    secEdgar: { status: secStatus, latency: 210 }
   };
 
   // Fetch real AI orchestrator telemetry for gemini analytics (replaces hardcoded mock)
@@ -3141,7 +3138,7 @@ app.get('/api/admin/system-stats', async (c) => {
       count429: finnhubTelemetryDoc?.count429 ?? 0,
       latency: finnhubTelemetryDoc?.latency ?? 0
     },
-    fred: { requests: 220, cachedIndicators: indicatorCount, lastRefresh: cachedFred?.updatedAt || new Date().toISOString() },
+    fred: { cachedIndicators: indicatorCount, lastRefresh: cachedFred?.updatedAt || new Date().toISOString() },
     sec: { companiesCached, filingsCached, lastIngestion: secSchedulerState?.lastExecution || new Date().toISOString(), queueHealth: schedulerFailed ? 'degraded' : 'healthy' }
   };
 

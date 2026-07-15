@@ -115,79 +115,130 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 p-6 border border-indigo-500/20 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Terminal className="w-5 h-5 text-indigo-400" />
-              Interactive AI Prompt Engineering Playground
-            </h3>
-            <p className="text-sm text-slate-300 mt-1 max-w-3xl">
-              Fine-tune system instructions, adjust sampling hyperparameters (Temperature, Top P, Max Tokens), and evaluate reasoning output simultaneously across single or multiple AI models.
-            </p>
-          </div>
-        </div>
+      <div className="card" style={{
+        background: '#FAF8F5',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1.25rem 1.5rem',
+        boxShadow: 'var(--shadow-subtle)'
+      }}>
+        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'normal', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Terminal size={18} style={{ color: 'var(--color-accent)' }} />
+          Interactive AI Prompt Engineering Playground
+        </h3>
+        <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '800px' }}>
+          Fine-tune system instructions, adjust sampling hyperparameters (Temperature, Top P, Max Tokens), and evaluate reasoning output simultaneously across single or multiple AI models.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem', alignItems: 'start' }} className="playground-grid-responsive">
         {/* Left 2 Columns: Prompt Editors */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 shadow-lg space-y-5">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center justify-between">
-                <span>System Prompt (Instructions & Persona)</span>
-                <span className="text-[11px] text-slate-500 font-normal">Controls model behavior</span>
-              </label>
-              <textarea
-                rows={3}
-                value={systemPrompt}
-                onChange={e => setSystemPrompt(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
-                placeholder="Enter system prompt instructions..."
-              />
-            </div>
+        <div className="card" style={{
+          background: '#fff',
+          border: 'var(--border-thin)',
+          borderRadius: '8px',
+          padding: '1.5rem',
+          boxShadow: 'var(--shadow-subtle)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem'
+        }}>
+          <div>
+            <label style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>
+              <span>System Prompt (Instructions & Persona)</span>
+              <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>Controls model behavior</span>
+            </label>
+            <textarea
+              rows={3}
+              value={systemPrompt}
+              onChange={e => setSystemPrompt(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#FCFAF6',
+                border: '1px solid #C4B9A7',
+                borderRadius: '6px',
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                color: 'var(--text-primary)',
+                outline: 'none',
+                fontFamily: 'var(--font-mono)'
+              }}
+              placeholder="Enter system prompt instructions..."
+            />
+          </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 flex items-center justify-between">
-                <span>User Input Prompt</span>
-                <span className="text-[11px] text-slate-500 font-normal">Primary evaluation task</span>
-              </label>
-              <textarea
-                rows={5}
-                value={userPrompt}
-                onChange={e => setUserPrompt(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
-                placeholder="Enter user prompt or input payload..."
-              />
-            </div>
+          <div>
+            <label style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>
+              <span>User Input Prompt</span>
+              <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>Primary evaluation task</span>
+            </label>
+            <textarea
+              rows={5}
+              value={userPrompt}
+              onChange={e => setUserPrompt(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#FCFAF6',
+                border: '1px solid #C4B9A7',
+                borderRadius: '6px',
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                color: 'var(--text-primary)',
+                outline: 'none',
+                fontFamily: 'var(--font-mono)'
+              }}
+              placeholder="Enter user prompt or input payload..."
+            />
+          </div>
 
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={executePlayground}
-                disabled={loading || !userPrompt.trim()}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-50"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                {loading ? 'Executing Across Selected Models...' : 'Run Prompt Suite'}
-              </button>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px' }}>
+            <button
+              onClick={executePlayground}
+              disabled={loading || !userPrompt.trim()}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.75rem',
+                borderRadius: '6px',
+                padding: '0.5rem 1.25rem',
+                background: 'var(--color-primary)',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              <Play size={14} style={{ fill: 'currentColor' }} />
+              {loading ? 'Executing Across Selected Models...' : 'Run Prompt Suite'}
+            </button>
           </div>
         </div>
 
-        {/* Right 1 Column: Hyperparameters & Model Selection */}
-        <div className="space-y-6">
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 shadow-lg space-y-5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Settings2 className="w-4 h-4 text-indigo-400" />
+        {/* Right Column: Hyperparameters & Model Selection */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="card" style={{
+            background: '#fff',
+            border: 'var(--border-thin)',
+            borderRadius: '8px',
+            padding: '1.25rem',
+            boxShadow: 'var(--shadow-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <h4 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+              <Settings2 size={14} style={{ color: 'var(--color-accent)' }} />
               Sampling Hyperparameters
             </h4>
 
             <div>
-              <div className="flex justify-between text-xs mb-1.5 font-medium">
-                <span className="text-slate-300">Temperature</span>
-                <span className="text-indigo-400 font-mono">{temperature.toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '4px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                <span>Temperature</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>{temperature.toFixed(2)}</span>
               </div>
               <input
                 type="range"
@@ -196,15 +247,15 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
                 step={0.05}
                 value={temperature}
                 onChange={e => setTemperature(parseFloat(e.target.value))}
-                className="w-full accent-indigo-500 cursor-pointer"
+                style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-accent)' }}
               />
-              <span className="text-[10px] text-slate-500 block mt-1">Lower is deterministic, higher is creative</span>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>Lower is deterministic, higher is creative</span>
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1.5 font-medium">
-                <span className="text-slate-300">Top P (Nucleus Sampling)</span>
-                <span className="text-indigo-400 font-mono">{topP.toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '4px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                <span>Top P (Nucleus Sampling)</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>{topP.toFixed(2)}</span>
               </div>
               <input
                 type="range"
@@ -213,14 +264,14 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
                 step={0.05}
                 value={topP}
                 onChange={e => setTopP(parseFloat(e.target.value))}
-                className="w-full accent-indigo-500 cursor-pointer"
+                style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-accent)' }}
               />
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1.5 font-medium">
-                <span className="text-slate-300">Max Tokens</span>
-                <span className="text-indigo-400 font-mono">{maxTokens}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '4px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                <span>Max Tokens</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>{maxTokens}</span>
               </div>
               <input
                 type="range"
@@ -229,15 +280,15 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
                 step={256}
                 value={maxTokens}
                 onChange={e => setMaxTokens(parseInt(e.target.value))}
-                className="w-full accent-indigo-500 cursor-pointer"
+                style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-accent)' }}
               />
             </div>
 
-            <div className="border-t border-slate-800 pt-4">
-              <h5 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">
+            <div style={{ borderTop: '1px solid #E2DACD', paddingTop: '0.75rem' }}>
+              <h5 style={{ margin: '0 0 0.5rem 0', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
                 Target Models ({selectedModels.length})
               </h5>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '180px', overflowY: 'auto' }}>
                 {playgroundModels.map(mod => {
                   const active = selectedModels.includes(mod.id);
                   const providerName = mod.provider === 'google' ? 'Google Gemini' : 'OpenRouter';
@@ -245,17 +296,33 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
                     <button
                       key={mod.id}
                       onClick={() => toggleModel(mod.id)}
-                      className={`w-full text-left p-2.5 rounded-xl border text-xs transition-all flex items-center justify-between ${
-                        active
-                          ? 'bg-indigo-500/15 border-indigo-500/50 text-white'
-                          : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '6px 8px',
+                        borderRadius: '4px',
+                        border: active ? '1px solid var(--color-accent)' : '1px solid #E2DACD',
+                        background: active ? '#FDF2F2' : '#FCFAF6',
+                        color: active ? 'var(--color-accent)' : 'var(--text-primary)',
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
                     >
-                      <div className="truncate pr-2">
-                        <span className="font-bold block truncate">{mod.displayName}</span>
-                        <span className="text-[10px] text-slate-400">{providerName}</span>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '4px' }}>
+                        <span style={{ fontWeight: 'bold', display: 'block' }}>{mod.displayName}</span>
+                        <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>{providerName}</span>
                       </div>
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-indigo-400' : 'bg-slate-700'}`} />
+                      <span style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        background: active ? 'var(--color-accent)' : '#C4B9A7'
+                      }} />
                     </button>
                   );
                 })}
@@ -267,42 +334,63 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
 
       {/* Output Results */}
       {results.length > 0 && (
-        <div className="space-y-4">
-          <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+          <h4 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Evaluation Output & Complete Telemetry
           </h4>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
             {results.map((r, idx) => (
-              <div key={idx} className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col justify-between shadow-lg">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div key={idx} className="card" style={{
+                background: '#fff',
+                border: 'var(--border-thin)',
+                borderRadius: '8px',
+                padding: '1.25rem',
+                boxShadow: 'var(--shadow-subtle)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 block">
+                      <span style={{ fontSize: '0.55rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--color-accent)', display: 'block' }}>
                         {r.provider}
                       </span>
-                      <h5 className="text-sm font-bold text-white">{r.modelId}</h5>
+                      <h5 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{r.modelId}</h5>
                     </div>
-                    <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">
+                    <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', padding: '2px 8px', borderRadius: '12px', background: '#FCFAF6', border: '1px solid #E2DACD', color: 'var(--text-secondary)' }}>
                       {r.latencyMs} ms
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="bg-slate-950 rounded-xl p-2.5 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase">Prompt Tokens</span>
-                      <span className="font-bold text-white">{r.promptTokens}</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', textAlign: 'center', fontSize: '0.7rem', marginBottom: '0.5rem' }}>
+                    <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.4rem', border: '1px solid #E2DACD' }}>
+                      <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>Prompt</span>
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{r.promptTokens}</span>
                     </div>
-                    <div className="bg-slate-950 rounded-xl p-2.5 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase">Output Tokens</span>
-                      <span className="font-bold text-white">{r.completionTokens}</span>
+                    <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.4rem', border: '1px solid #E2DACD' }}>
+                      <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>Output</span>
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{r.completionTokens}</span>
                     </div>
-                    <div className="bg-slate-950 rounded-xl p-2.5 border border-slate-800">
-                      <span className="text-[10px] text-slate-400 block uppercase">Total Tokens</span>
-                      <span className="font-bold text-indigo-300">{r.totalTokens}</span>
+                    <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.4rem', border: '1px solid #E2DACD' }}>
+                      <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>Total</span>
+                      <span style={{ fontWeight: 'bold', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>{r.totalTokens}</span>
                     </div>
                   </div>
 
-                  <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800/80 text-xs text-slate-300 font-mono leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  <div style={{
+                    background: '#FCFAF6',
+                    borderRadius: '6px',
+                    padding: '0.75rem',
+                    border: '1px solid #E2DACD',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'var(--font-mono)',
+                    lineHeight: '1.5',
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: '260px',
+                    overflowY: 'auto'
+                  }}>
                     {r.output}
                   </div>
                 </div>
@@ -311,6 +399,14 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
           </div>
         </div>
       )}
+      <style>{`
+        @media (max-width: 768px) {
+          .playground-grid-responsive {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
+export default AIPlayground;

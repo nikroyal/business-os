@@ -39,7 +39,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const { profile } = useAuth();
   const isOwner = profile?.role === 'OWNER';
 
-  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Providers' | 'Routing' | 'Playground' | 'Benchmark' | 'Registry' | 'Models' | 'Comparison' | 'Usage' | 'Diagnostics' | 'Timeline' | 'Controls'>('Overview');
+  const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Routing' | 'Diagnostics' | 'Playground' | 'Controls'>('Overview');
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [trendHorizon, setTrendHorizon] = useState<'1h' | '24h' | '7d' | '30d' | '90d'>('7d');
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
@@ -374,7 +374,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
 
   const handleDrillDown = (field: keyof OpsFilterState, value: string) => {
     setFilters({ ...filters, [field]: value });
-    setActiveSubTab('Timeline');
+    setActiveSubTab('Overview');
   };
 
   return (
@@ -458,16 +458,21 @@ export const AIOrchestratorDashboard: React.FC = () => {
       </div>
 
       {/* Sub tabs */}
-      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto' }}>
-        {(['Overview', 'Providers', 'Routing', 'Playground', 'Benchmark', 'Registry', 'Models', 'Comparison', 'Usage', 'Diagnostics', 'Timeline', 'Controls'] as const).map(tab => {
+      <div style={{ display: 'flex', gap: '0.25rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0', overflowX: 'auto', marginBottom: '1rem' }}>
+        {(['Overview', 'Routing', 'Diagnostics', 'Playground', 'Controls'] as const).map(tab => {
           if (tab === 'Controls' && !isOwner) return null;
           const isTabActive = activeSubTab === tab;
+          const label = tab === 'Controls' ? '⚙️ System Controls' 
+                      : tab === 'Overview' ? '📈 Overview & Analytics' 
+                      : tab === 'Routing' ? '🔀 Models & Routing' 
+                      : tab === 'Diagnostics' ? '🔬 Diagnostics & Benchmarks' 
+                      : '💬 AI Playground';
           return (
             <button
               key={tab}
               onClick={() => setActiveSubTab(tab)}
               style={{
-                padding: '0.5rem 0.75rem',
+                padding: '0.6rem 1rem',
                 fontSize: '0.75rem',
                 fontFamily: 'var(--font-sans)',
                 fontWeight: isTabActive ? 'bold' : 500,
@@ -478,84 +483,26 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 color: isTabActive ? 'var(--color-accent)' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease-in-out',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                borderRadius: '6px 6px 0 0'
               }}
             >
-              {tab === 'Controls' ? '🔧 Developer Controls' : tab}
+              {label}
             </button>
           );
         })}
       </div>
 
-      <GlobalFilterBar
-        filters={filters}
-        onFilterChange={setFilters}
-        timeline={timeline}
-        filteredCount={filteredTimeline.length}
-        totalCount={timeline.length}
-        availableModels={models.map(m => ({ id: m.id, displayName: m.displayName }))}
-      />
-
       {/* Subtab Content: Overview */}
       {activeSubTab === 'Overview' && overview && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          {/* AI Operations Health Score Banner */}
-          {stats.healthScore && (
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-subtle)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{
-                  width: '54px',
-                  height: '54px',
-                  borderRadius: '50%',
-                  background: stats.healthScore.score >= 90 ? 'rgba(34, 197, 94, 0.1)' : stats.healthScore.score >= 75 ? 'rgba(234, 179, 8, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                  border: stats.healthScore.score >= 90 ? '2px solid rgb(34, 197, 94)' : stats.healthScore.score >= 75 ? '2px solid rgb(234, 179, 8)' : '2px solid rgb(239, 68, 68)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.3rem',
-                  fontWeight: 'bold',
-                  color: stats.healthScore.score >= 90 ? 'rgb(34, 197, 94)' : stats.healthScore.score >= 75 ? 'rgb(234, 179, 8)' : 'rgb(239, 68, 68)',
-                  fontFamily: 'var(--font-mono)'
-                }}>
-                  {stats.healthScore.score}
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>AI Operations Health Score</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                    Current System status: <span style={{
-                      fontWeight: 'bold',
-                      color: stats.healthScore.score >= 90 ? 'var(--color-success-text)' : stats.healthScore.score >= 75 ? 'var(--color-warning-text)' : 'var(--color-danger-text)'
-                    }}>{stats.healthScore.status}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.7rem' }}>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Success Rate</div>
-                  <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{overview.overallSuccessRate}%</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Average Latency</div>
-                  <div style={{ fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{overview.averageLatencyMs}ms</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Budget Exhaustion</div>
-                  <div style={{ fontWeight: 'bold', color: stats.forecasting?.monthlyBudgetRisk === 'High Risk' ? 'var(--color-danger-text)' : 'var(--text-primary)' }}>
-                    {stats.forecasting?.monthlyExhaustionDays} days ({stats.forecasting?.monthlyBudgetRisk})
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Diagnostic overview status grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             
             {/* Provider Health vs Model Health */}
             {provider && (
-              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Provider Node Health</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: provider.health === 'operational' ? 'var(--color-success-text)' : 'var(--color-danger-text)' }}>
                   {provider.health === 'operational' ? <CheckCircle2 size={16} style={{ color: 'var(--color-success-text)' }} /> : <AlertCircle size={16} style={{ color: 'var(--color-danger-text)' }} />}
@@ -566,7 +513,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                   <button
                     onClick={() => handleHealthTest('provider', provider.id)}
                     disabled={testingHealth !== null}
-                    style={{ fontSize: '0.65rem', background: '#FCFAF6', color: 'var(--text-secondary)', border: '1px solid #C4B9A7', padding: '2px 8px', marginTop: '0.5rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
+                    style={{ fontSize: '0.65rem', background: '#FCFAF6', color: 'var(--text-secondary)', border: '1px solid #C4B9A7', padding: '2px 8px', marginTop: '0.5rem', cursor: 'pointer', fontFamily: 'var(--font-mono)', borderRadius: '4px' }}
                   >
                     {testingHealth === provider.id ? 'Testing...' : 'Test Connection'}
                   </button>
@@ -574,8 +521,8 @@ export const AIOrchestratorDashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Overall AI Health</div>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Overall AI Success</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.15rem', fontWeight: 600, color: overview.overallHealth === 'healthy' ? 'var(--color-success-text)' : 'var(--color-warning-text)' }}>
                 {overview.overallHealth === 'healthy' ? <CheckCircle2 size={18} style={{ color: 'var(--color-success-text)' }} /> : <AlertCircle size={18} style={{ color: 'var(--color-danger-text)' }} />}
                 {overview.overallHealth === 'healthy' ? 'HEALTHY' : 'DEGRADED'}
@@ -583,22 +530,22 @@ export const AIOrchestratorDashboard: React.FC = () => {
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Success Rate: {overview.overallSuccessRate || 0}% | Failovers: {overview.totalFailovers || 0}</div>
             </div>
 
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Volume & Latency</div>
               <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)' }}>{overview.averageLatencyMs || 0} ms</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday || 0} | Monthly: {overview.requestsThisMonth || 0}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Requests Today: {overview.requestsToday || 0}</div>
             </div>
 
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Operational Cost Today</div>
               <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-success-text)' }}>${(overview.estimatedDailyCost || 0).toFixed(4)}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Monthly Projection: ${(overview.estimatedMonthlyCost || 0).toFixed(2)}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Calculated from actual token usage logs</div>
             </div>
 
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderRadius: '8px', boxShadow: 'var(--shadow-subtle)' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cache Performance</div>
               <div style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--color-warning-text)' }}>{overview.cacheHitRate || 0}%</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached | Saved ${(overview.estimatedCostSavings || 0).toFixed(4)}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Hit Rate | {overview.cachedResponses || 0} cached responses</div>
             </div>
           </div>
 
@@ -712,44 +659,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
           {/* Second Row Grid: Forecasting, Percentiles, Errors, Fallback System */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
             
-            {/* Quota Forecasting Card */}
-            {stats.forecasting && (
-              <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.25rem', boxShadow: 'var(--shadow-subtle)' }}>
-                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>
-                  Predictive Capacity & Budget Forecasting
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                      <strong>Daily Quota Exhaustion (RPD limit):</strong>
-                      <span style={{
-                        fontWeight: 'bold',
-                        color: stats.forecasting.dailyQuotaRisk === 'High Risk' ? 'var(--color-danger-text)' : 'var(--color-success-text)'
-                      }}>
-                        {stats.forecasting.dailyQuotaRisk}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                      Based on current traffic acceleration today, the daily quota is estimated to exhaust in <strong>{stats.forecasting.dailyExhaustionHours} hours</strong>.
-                    </div>
-                  </div>
-                  <div style={{ borderTop: '1px dashed #E2DACD', paddingTop: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                      <strong>Monthly Budget Limit exhaustion ($100 limit):</strong>
-                      <span style={{
-                        fontWeight: 'bold',
-                        color: stats.forecasting.monthlyBudgetRisk === 'High Risk' ? 'var(--color-danger-text)' : 'var(--color-success-text)'
-                      }}>
-                        {stats.forecasting.monthlyBudgetRisk}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                      Based on 7-day cost trends, the allocated budget threshold of $100 is estimated to exhaust in <strong>{stats.forecasting.monthlyExhaustionDays} days</strong>.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Quota Forecasting Card removed as requested */}
 
             {/* Latency Percentiles Card */}
             {stats.globalPercentiles && (
@@ -988,7 +898,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Subtab Content: Providers */}
-      {activeSubTab === 'Providers' && (
+      {activeSubTab === 'Routing' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <ProviderManagementCard
             googleStats={stats?.providerComparison?.google}
@@ -998,40 +908,67 @@ export const AIOrchestratorDashboard: React.FC = () => {
           />
 
           {providerSyncReport && (
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <div className="card" style={{
+              background: '#fff',
+              border: 'var(--border-thin)',
+              borderRadius: '8px',
+              padding: '1.25rem',
+              boxShadow: 'var(--shadow-subtle)',
+              marginTop: '1rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-serif)' }}>
+                  <CheckCircle2 size={16} style={{ color: 'var(--color-success-text)' }} />
                   Live Provider Synchronization Report
                 </h4>
-                <span className="text-xs font-mono text-slate-400">
+                <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
                   Last Sync: {new Date(providerSyncReport.timestamp || Date.now()).toLocaleTimeString()}
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-950/70 rounded-xl p-4 border border-slate-800/80">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-white">Google Gemini Provider</span>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${providerSyncReport.google?.status === 'OPERATIONAL' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.75rem', border: '1px solid #E2DACD' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>Google Gemini Provider</span>
+                    <span style={{
+                      fontSize: '0.6rem',
+                      fontWeight: 'bold',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      background: providerSyncReport.google?.status === 'OPERATIONAL' ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
+                      color: providerSyncReport.google?.status === 'OPERATIONAL' ? 'var(--color-success-text)' : 'var(--color-warning-text)',
+                      border: `1px solid ${providerSyncReport.google?.status === 'OPERATIONAL' ? 'var(--color-success-border)' : 'var(--color-warning-border)'}`
+                    }}>
                       {providerSyncReport.google?.status || 'UNKNOWN'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 mb-1">{providerSyncReport.google?.message}</p>
+                  <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{providerSyncReport.google?.message}</p>
                   {providerSyncReport.google?.modelsFound !== undefined && (
-                    <span className="text-[11px] font-mono text-indigo-300">Models Verified: {providerSyncReport.google.modelsFound}</span>
+                    <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', fontWeight: 'bold' }}>
+                      Models Verified: {providerSyncReport.google.modelsFound}
+                    </span>
                   )}
                 </div>
 
-                <div className="bg-slate-950/70 rounded-xl p-4 border border-slate-800/80">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-white">OpenRouter Provider</span>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${providerSyncReport.openrouter?.status === 'OPERATIONAL' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                <div style={{ background: '#FCFAF6', borderRadius: '6px', padding: '0.75rem', border: '1px solid #E2DACD' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>OpenRouter Provider</span>
+                    <span style={{
+                      fontSize: '0.6rem',
+                      fontWeight: 'bold',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      background: providerSyncReport.openrouter?.status === 'OPERATIONAL' ? 'var(--color-success-bg)' : 'var(--color-warning-bg)',
+                      color: providerSyncReport.openrouter?.status === 'OPERATIONAL' ? 'var(--color-success-text)' : 'var(--color-warning-text)',
+                      border: `1px solid ${providerSyncReport.openrouter?.status === 'OPERATIONAL' ? 'var(--color-success-border)' : 'var(--color-warning-border)'}`
+                    }}>
                       {providerSyncReport.openrouter?.status || 'UNKNOWN'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 mb-1">{providerSyncReport.openrouter?.message}</p>
+                  <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{providerSyncReport.openrouter?.message}</p>
                   {providerSyncReport.openrouter?.modelsFound !== undefined && (
-                    <span className="text-[11px] font-mono text-indigo-300">Models Verified: {providerSyncReport.openrouter.modelsFound}</span>
+                    <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', fontWeight: 'bold' }}>
+                      Models Verified: {providerSyncReport.openrouter.modelsFound}
+                    </span>
                   )}
                 </div>
               </div>
@@ -1165,14 +1102,14 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Subtab Content: Benchmark */}
-      {activeSubTab === 'Benchmark' && (
+      {activeSubTab === 'Diagnostics' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <BenchmarkLab />
         </div>
       )}
 
       {/* Subtab Content: Registry */}
-      {activeSubTab === 'Registry' && (
+      {activeSubTab === 'Routing' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <FallbackPriorityEditor
             models={models}
@@ -1554,11 +1491,11 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Subtab Content: Usage Analytics */}
-      {activeSubTab === 'Usage' && stats && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {activeSubTab === 'Overview' && stats && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1rem' }}>
           {/* Summary stats row: token split + cache metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)', borderRadius: '8px' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Prompt Tokens Today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)' }}>{(overview?.promptTokensToday || 0).toLocaleString()}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Input to AI models</div>
@@ -1568,7 +1505,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <div><strong>Confidence:</strong> {stats?.providerComparison?.google?.promptTokens ? '100% (Authoritative)' : '95% (Estimated)'}</div>
               </div>
             </div>
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)', borderRadius: '8px' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Completion Tokens Today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#a855f7', fontFamily: 'var(--font-mono)' }}>{(overview?.completionTokensToday || 0).toLocaleString()}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Output from AI models</div>
@@ -1578,22 +1515,12 @@ export const AIOrchestratorDashboard: React.FC = () => {
                 <div><strong>Confidence:</strong> {stats?.providerComparison?.google?.completionTokens ? '100% (Authoritative)' : '95% (Estimated)'}</div>
               </div>
             </div>
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)', borderRadius: '8px' }}>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Cached Responses Today</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-warning-text)', fontFamily: 'var(--font-mono)' }}>{overview?.cachedResponses || 0}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Cache hit rate: {overview?.cacheHitRate || 0}%</div>
               <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.5rem', paddingTop: '0.4rem', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <div><strong>Source:</strong> Cached (Semantic Cache)</div>
-                <div><strong>Updated:</strong> Just now (10s poll)</div>
-                <div><strong>Confidence:</strong> 100%</div>
-              </div>
-            </div>
-            <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontFamily: 'var(--font-mono)' }}>Est. Cost Savings (Cache)</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-success-text)', fontFamily: 'var(--font-mono)' }}>${(overview?.estimatedCostSavings || 0).toFixed(4)}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>Avoided via cached responses</div>
-              <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.5rem', paddingTop: '0.4rem', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <div><strong>Source:</strong> Derived (BusinessOS Pricing)</div>
                 <div><strong>Updated:</strong> Just now (10s poll)</div>
                 <div><strong>Confidence:</strong> 100%</div>
               </div>
@@ -1763,7 +1690,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Subtab Content: Models */}
-      {activeSubTab === 'Models' && stats && (
+      {activeSubTab === 'Routing' && stats && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Layers size={18} style={{ color: 'var(--color-accent)' }} /> Per-Model Operations Cards
@@ -1964,7 +1891,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Subtab Content: Provider Comparison & Model Test Lab */}
-      {activeSubTab === 'Comparison' && (
+      {activeSubTab === 'Diagnostics' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Phase 10: Enterprise Multi-Model Comparison Test Lab Card */}
           <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', boxShadow: 'var(--shadow-subtle)' }}>
@@ -2357,8 +2284,17 @@ export const AIOrchestratorDashboard: React.FC = () => {
       )}
 
       {/* Subtab Content: Timeline logs */}
-      {activeSubTab === 'Timeline' && (
-        <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)' }}>
+      {activeSubTab === 'Overview' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
+          <GlobalFilterBar
+            filters={filters}
+            onFilterChange={setFilters}
+            timeline={timeline}
+            filteredCount={filteredTimeline.length}
+            totalCount={timeline.length}
+            availableModels={models.map(m => ({ id: m.id, displayName: m.displayName }))}
+          />
+          <div className="card" style={{ background: '#fff', border: '1px solid #E2DACD', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-subtle)', borderRadius: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
             <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Recent Execution Telemetry Feed</h3>
             <button
@@ -2468,6 +2404,7 @@ export const AIOrchestratorDashboard: React.FC = () => {
           ) : (
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No telemetry events match active filter criteria.</div>
           )}
+          </div>
         </div>
       )}
 

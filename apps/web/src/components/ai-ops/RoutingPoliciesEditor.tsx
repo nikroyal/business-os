@@ -163,71 +163,121 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 border border-indigo-500/20 shadow-xl">
-        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400">
-              <GitBranch className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                Dynamic AI Routing Policies
-                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Real-time Application
-                </span>
-              </h3>
-              <p className="text-sm text-slate-300 mt-1 max-w-2xl">
-                Configure primary provider targets and failover preferences per BusinessOS feature. By default, <strong className="text-emerald-300">Daily Executive Email</strong> is locked to Google Gemini, while <strong className="text-indigo-300">OpenRouter</strong> powers general intelligence tasks.
-              </p>
-            </div>
+      <div className="card" style={{
+        background: '#FAF8F5',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1.25rem 1.5rem',
+        boxShadow: 'var(--shadow-subtle)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'start', gap: '0.75rem' }}>
+          <div style={{
+            padding: '0.5rem',
+            borderRadius: '6px',
+            background: 'var(--color-success-bg)',
+            color: 'var(--color-success-text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: '2px'
+          }}>
+            <GitBranch size={20} />
           </div>
-
-          {isOwner && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleReset}
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reset Defaults
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                {saving ? 'Saving...' : 'Persist Policies'}
-              </button>
-            </div>
-          )}
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'normal', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Dynamic AI Routing Policies
+              <span style={{ fontSize: '0.6rem', fontWeight: 'bold', padding: '1px 6px', borderRadius: '12px', background: '#EAF6F0', color: 'var(--color-success-text)', border: '1px solid var(--color-success-border)' }}>
+                Real-time Application
+              </span>
+            </h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '600px' }}>
+              Configure primary provider targets and failover preferences per BusinessOS feature. By default, <strong style={{ color: 'var(--color-success-text)' }}>Daily Executive Email</strong> is locked to Google Gemini, while <strong style={{ color: 'var(--color-accent)' }}>OpenRouter</strong> powers general intelligence tasks.
+            </p>
+          </div>
         </div>
 
+        {isOwner && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={handleReset}
+              disabled={saving}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', borderRadius: '6px' }}
+            >
+              <RotateCcw size={12} />
+              Reset Defaults
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="btn btn-primary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.75rem',
+                borderRadius: '6px',
+                padding: '0.5rem 1.25rem',
+                background: 'var(--color-primary)',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              <Save size={12} />
+              {saving ? 'Saving...' : 'Persist Policies'}
+            </button>
+          </div>
+        )}
+
         {saveMessage && (
-          <div className="mt-4 flex items-center gap-2 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl">
-            <CheckCircle2 className="w-4 h-4" />
+          <div style={{
+            width: '100%',
+            marginTop: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '0.7rem',
+            fontWeight: 'bold',
+            color: 'var(--color-success-text)',
+            background: 'var(--color-success-bg)',
+            border: '1px solid var(--color-success-border)',
+            padding: '4px 10px',
+            borderRadius: '6px'
+          }}>
+            <CheckCircle2 size={12} />
             {saveMessage}
           </div>
         )}
       </div>
 
       {/* Global Provider Strategy */}
-      <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-6 border border-slate-800 shadow-lg">
-        <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-indigo-400" />
+      <div className="card" style={{
+        background: '#fff',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1.25rem',
+        boxShadow: 'var(--shadow-subtle)'
+      }}>
+        <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+          <Cpu size={14} style={{ color: 'var(--color-accent)' }} />
           Global Default Routing Preference
         </h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           {[
             {
               id: 'openrouter',
               title: 'OpenRouter Primary (Recommended)',
               subtitle: 'Multi-model access across Anthropic Claude 3.5, OpenAI GPT-4o, and Llama 3.3',
-              badge: 'Default for Platform'
+              badge: 'Default'
             },
             {
               id: 'google',
@@ -248,21 +298,29 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
                 key={option.id}
                 onClick={() => isOwner && setGlobalPref(option.id as any)}
                 disabled={!isOwner}
-                className={`text-left p-4 rounded-xl border transition-all relative ${
-                  active
-                    ? 'bg-indigo-500/10 border-indigo-500/50 shadow-md shadow-indigo-500/10'
-                    : 'bg-slate-800/40 border-slate-800 hover:border-slate-700'
-                }`}
+                style={{
+                  textAlign: 'left',
+                  padding: '1rem',
+                  borderRadius: '6px',
+                  border: active ? '1px solid var(--color-accent)' : '1px solid #E2DACD',
+                  background: active ? '#FDF2F2' : '#FCFAF6',
+                  cursor: isOwner ? 'pointer' : 'default',
+                  transition: 'all 0.15s ease',
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-sm font-bold ${active ? 'text-indigo-300' : 'text-slate-200'}`}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: active ? 'var(--color-accent)' : 'var(--text-primary)' }}>
                     {option.title}
                   </span>
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+                  <span style={{ fontSize: '0.55rem', textTransform: 'uppercase', fontWeight: 'bold', padding: '1px 6px', borderRadius: '4px', background: '#fff', border: '1px solid #E2DACD', color: 'var(--text-secondary)' }}>
                     {option.badge}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">{option.subtitle}</p>
+                <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{option.subtitle}</p>
               </button>
             );
           })}
@@ -270,45 +328,75 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
       </div>
 
       {/* Free-First Inference Routing Policy Card */}
-      <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl p-6 border border-slate-800 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="card" style={{
+        background: '#fff',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1rem 1.25rem',
+        boxShadow: 'var(--shadow-subtle)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
         <div>
-          <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <h4 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+            <ShieldCheck size={14} style={{ color: 'var(--color-success-text)' }} />
             Free-First Inference Policy (OpenRouter)
           </h4>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            Automatically routes tasks to <strong className="text-emerald-300">openrouter/free</strong> and zero-cost OpenRouter models wherever possible before falling back to pay-as-you-go models.
+          <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+            Automatically routes tasks to <strong style={{ color: 'var(--color-success-text)' }}>openrouter/free</strong> and zero-cost OpenRouter models wherever possible before falling back to pay-as-you-go models.
           </p>
         </div>
         <button
           onClick={() => isOwner && setFreeFirstRouting(!freeFirstRouting)}
           disabled={!isOwner}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${
-            freeFirstRouting
-              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-lg shadow-emerald-500/10'
-              : 'bg-slate-800 border-slate-700 text-slate-400'
-          }`}
+          style={{
+            padding: '4px 10px',
+            borderRadius: '6px',
+            fontSize: '0.7rem',
+            fontWeight: 'bold',
+            cursor: isOwner ? 'pointer' : 'default',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: freeFirstRouting ? 'var(--color-success-bg)' : '#FCFAF6',
+            color: freeFirstRouting ? 'var(--color-success-text)' : 'var(--text-secondary)',
+            border: freeFirstRouting ? '1px solid var(--color-success-border)' : '1px solid #C4B9A7',
+            transition: 'all 0.15s ease'
+          }}
         >
-          <span className={`w-2.5 h-2.5 rounded-full ${freeFirstRouting ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: freeFirstRouting ? 'var(--color-success-text)' : '#C4B9A7'
+          }} />
           {freeFirstRouting ? 'Free-First Enabled' : 'Free-First Disabled'}
         </button>
       </div>
 
       {/* Feature-Level Routing Policies Table */}
-      <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
-              Feature-Specific Routing & Model Targets
-            </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Override global routing per task domain. Changes take effect on next dispatch without redeploy.
-            </p>
-          </div>
+      <div className="card" style={{
+        background: '#fff',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: 0,
+        boxShadow: 'var(--shadow-subtle)',
+        overflow: 'hidden'
+      }}>
+        <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid #E2DACD', background: '#FCFAF6' }}>
+          <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+            Feature-Specific Routing & Model Targets
+          </h4>
+          <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+            Override global routing per task domain. Changes take effect on next dispatch without redeploy.
+          </p>
         </div>
 
-        <div className="divide-y divide-slate-800/80">
-          {FEATURE_LIST.map(feature => {
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {FEATURE_LIST.map((feature, idx) => {
             const currentPolicy = featureRouting[feature.id] || {
               provider: feature.defaultProvider,
               preferredModel: feature.defaultModel
@@ -316,62 +404,75 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
             const isDailyEmail = feature.id === 'Daily Email' || feature.id === 'daily_email';
 
             return (
-              <div key={feature.id} className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-800/20 transition-colors">
-                <div className="max-w-md">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white">{feature.name}</span>
+              <div
+                key={feature.id}
+                style={{
+                  padding: '1rem 1.25rem',
+                  borderBottom: idx === FEATURE_LIST.length - 1 ? 'none' : '1px solid #E2DACD',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem'
+                }}
+              >
+                <div style={{ maxWidth: '400px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{feature.name}</span>
                     {isDailyEmail && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                        <Lock className="w-2.5 h-2.5" />
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '0.6rem',
+                        fontWeight: 'bold',
+                        background: 'var(--color-success-bg)',
+                        color: 'var(--color-success-text)',
+                        border: '1px solid var(--color-success-border)'
+                      }}>
+                        <Lock size={10} />
                         Gemini Reserved
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">{feature.description}</p>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{feature.description}</p>
                   {feature.lockedNote && (
-                    <p className="text-[11px] text-emerald-400/90 mt-1.5 flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.65rem', color: 'var(--color-success-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <ShieldCheck size={12} />
                       {feature.lockedNote}
                     </p>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   {/* Provider Selector */}
-                  <div className="flex items-center bg-slate-950 rounded-xl p-1 border border-slate-800">
-                    <button
-                      onClick={() => handleFeatureProviderChange(feature.id, 'google')}
-                      disabled={!isOwner}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        currentPolicy.provider === 'google'
-                          ? 'bg-indigo-600 text-white shadow'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Google Gemini
-                    </button>
-                    <button
-                      onClick={() => handleFeatureProviderChange(feature.id, 'openrouter')}
-                      disabled={!isOwner}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        currentPolicy.provider === 'openrouter'
-                          ? 'bg-indigo-600 text-white shadow'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      OpenRouter
-                    </button>
-                    <button
-                      onClick={() => handleFeatureProviderChange(feature.id, 'auto')}
-                      disabled={!isOwner}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                        currentPolicy.provider === 'auto'
-                          ? 'bg-indigo-600 text-white shadow'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Auto
-                    </button>
+                  <div style={{ display: 'flex', background: '#FCFAF6', border: '1px solid #C4B9A7', borderRadius: '6px', padding: '2px', overflow: 'hidden' }}>
+                    {[
+                      { id: 'google', label: 'Gemini' },
+                      { id: 'openrouter', label: 'OpenRouter' },
+                      { id: 'auto', label: 'Auto' }
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleFeatureProviderChange(feature.id, p.id as any)}
+                        disabled={!isOwner}
+                        style={{
+                          background: currentPolicy.provider === p.id ? 'var(--color-primary)' : 'transparent',
+                          color: currentPolicy.provider === p.id ? '#fff' : 'var(--text-primary)',
+                          border: 'none',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.65rem',
+                          fontWeight: currentPolicy.provider === p.id ? 'bold' : 'normal',
+                          cursor: isOwner ? 'pointer' : 'default',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
                   </div>
 
                   {/* Preferred Model Dropdown */}
@@ -379,7 +480,15 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
                     value={currentPolicy.preferredModel || feature.defaultModel}
                     onChange={e => handleFeatureModelChange(feature.id, e.target.value)}
                     disabled={!isOwner}
-                    className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                    style={{
+                      padding: '4px 6px',
+                      border: '1px solid #C4B9A7',
+                      borderRadius: '4px',
+                      background: '#FCFAF6',
+                      fontSize: '0.7rem',
+                      outline: 'none',
+                      color: 'var(--text-primary)'
+                    }}
                   >
                     {routingModels.map(model => (
                       <option key={model.id} value={model.id}>
@@ -396,3 +505,4 @@ export const RoutingPoliciesEditor: React.FC<RoutingPoliciesEditorProps> = ({
     </div>
   );
 };
+export default RoutingPoliciesEditor;

@@ -211,65 +211,86 @@ export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 p-6 border border-indigo-500/20 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-400" />
-              Parallel Multi-Model Benchmark Lab
-            </h3>
-            <p className="text-sm text-slate-300 mt-1 max-w-3xl">
-              Execute identical analytical instructions concurrently across any number of registered AI models. Compare latency, token efficiency, response quality, and export structured datasets for ChatGPT analysis.
-            </p>
-          </div>
-
-          {results.length > 0 && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={downloadCSV}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
-              >
-                <FileText className="w-4 h-4 text-emerald-400" />
-                Export CSV
-              </button>
-              <button
-                onClick={downloadJSON}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors"
-              >
-                <FileJson className="w-4 h-4 text-indigo-400" />
-                Export JSON
-              </button>
-            </div>
-          )}
+      <div className="card" style={{
+        background: '#FAF8F5',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1.25rem 1.5rem',
+        boxShadow: 'var(--shadow-subtle)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'normal', fontFamily: 'var(--font-serif)', color: 'var(--text-primary)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={18} style={{ color: 'var(--color-accent)' }} />
+            Parallel Multi-Model Benchmark Lab
+          </h3>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', maxWidth: '800px' }}>
+            Execute identical analytical instructions concurrently across any number of registered AI models. Compare latency, token efficiency, response quality, and export structured datasets for ChatGPT analysis.
+          </p>
         </div>
+
+        {results.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={downloadCSV}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', borderRadius: '6px' }}
+            >
+              <FileText size={12} style={{ color: 'var(--color-success-text)' }} />
+              Export CSV
+            </button>
+            <button
+              onClick={downloadJSON}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', borderRadius: '6px' }}
+            >
+              <FileJson size={12} style={{ color: 'var(--color-accent)' }} />
+              Export JSON
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Model Multi-Select & Prompt Editor */}
-      <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 p-6 shadow-lg space-y-5">
+      <div className="card" style={{
+        background: '#fff',
+        border: 'var(--border-thin)',
+        borderRadius: '8px',
+        padding: '1.5rem',
+        boxShadow: 'var(--shadow-subtle)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.25rem'
+      }}>
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
               Select Candidate Models ({selectedModels.length} selected)
             </span>
-            <div className="flex items-center gap-3 text-xs">
+            <div style={{ display: 'flex', gap: '10px', fontSize: '0.7rem' }}>
               <button
                 onClick={selectAllModels}
-                className="text-indigo-400 hover:text-indigo-300 font-medium"
+                style={{ background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontWeight: 'bold' }}
               >
                 Select All
               </button>
+              <span style={{ color: '#C4B9A7' }}>|</span>
               <button
                 onClick={clearSelection}
-                className="text-slate-400 hover:text-slate-300 font-medium"
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
               >
                 Clear Selection
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.5rem' }}>
             {benchmarkModels.map(model => {
               const isSelected = selectedModels.includes(model.id);
               const providerName = model.provider === 'google' ? 'Google Gemini' : 'OpenRouter';
@@ -277,23 +298,30 @@ export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
                 <button
                   key={model.id}
                   onClick={() => toggleModelSelection(model.id)}
-                  className={`flex items-center justify-between p-3.5 rounded-xl border transition-all text-left ${
-                    isSelected
-                      ? 'bg-indigo-500/15 border-indigo-500/50 text-white shadow-sm'
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: isSelected ? '1px solid var(--color-accent)' : '1px solid #E2DACD',
+                    background: isSelected ? '#FDF2F2' : '#FCFAF6',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    textAlign: 'left'
+                  }}
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                     {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                      <CheckSquare size={13} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
                     ) : (
-                      <Square className="w-4 h-4 text-slate-600 flex-shrink-0" />
+                      <Square size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                     )}
-                    <div>
-                      <span className={`text-xs font-bold block ${isSelected ? 'text-white' : 'text-slate-300'}`}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 'bold', display: 'block', color: 'var(--text-primary)' }}>
                         {model.displayName}
                       </span>
-                      <span className="text-[10px] text-slate-400">
+                      <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>
                         {providerName} • {model.category}
                       </span>
                     </div>
@@ -306,13 +334,14 @@ export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
 
         {/* Preset Prompts */}
         <div>
-          <span className="text-xs font-medium text-slate-400 block mb-2">Preset Benchmark Instructions:</span>
-          <div className="flex flex-wrap gap-2">
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Preset Benchmark Instructions:</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {PRESET_PROMPTS.map((p, idx) => (
               <button
                 key={idx}
                 onClick={() => setPromptText(p.prompt)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px' }}
               >
                 {p.label}
               </button>
@@ -321,25 +350,47 @@ export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          <label style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>
             Test Evaluation Prompt
           </label>
           <textarea
             rows={3}
             value={promptText}
             onChange={e => setPromptText(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+            style={{
+              width: '100%',
+              background: '#FCFAF6',
+              border: '1px solid #C4B9A7',
+              borderRadius: '6px',
+              padding: '0.5rem 0.75rem',
+              fontSize: '0.8rem',
+              color: 'var(--text-primary)',
+              outline: 'none'
+            }}
             placeholder="Enter instruction prompt for parallel execution across selected models..."
           />
         </div>
 
-        <div className="flex justify-end">
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={runParallelBenchmark}
             disabled={loading || selectedModels.length === 0 || !promptText.trim()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-50"
+            className="btn btn-primary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.75rem',
+              borderRadius: '6px',
+              padding: '0.5rem 1.25rem',
+              background: 'var(--color-primary)',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
           >
-            <Play className="w-4 h-4 fill-current" />
+            <Play size={14} style={{ fill: 'currentColor' }} />
             {loading ? 'Executing Parallel Benchmark Suite...' : `Execute Benchmark Across ${selectedModels.length} Models`}
           </button>
         </div>
@@ -347,50 +398,70 @@ export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
 
       {/* Results Table & Cards */}
       {results.length > 0 && (
-        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
-          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+        <div className="card" style={{
+          background: '#fff',
+          border: 'var(--border-thin)',
+          borderRadius: '8px',
+          padding: 0,
+          boxShadow: 'var(--shadow-subtle)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid #E2DACD', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FCFAF6' }}>
+            <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
               Parallel Execution Telemetry & Comparison Matrix
             </h4>
-            <span className="text-xs text-slate-400">
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
               {results.length} model evaluations completed
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Provider</th>
-                  <th className="py-3.5 px-4">Model ID</th>
-                  <th className="py-3.5 px-4">Latency</th>
-                  <th className="py-3.5 px-4">Tokens (P/C/Total)</th>
-                  <th className="py-3.5 px-4">Est. Cost</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Response Output Preview</th>
+                <tr style={{ borderBottom: '2px solid var(--color-primary)', color: 'var(--text-secondary)', background: '#FCFAF6', fontWeight: 'bold' }}>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Provider</th>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Model ID</th>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Latency</th>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Tokens (P/C/Total)</th>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Est. Cost</th>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Status</th>
+                  <th style={{ padding: '0.5rem 0.75rem' }}>Response Output Preview</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-xs">
+              <tbody>
                 {results.map((rec, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-4 px-4 font-semibold text-slate-300">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] bg-slate-800 border border-slate-700">
+                  <tr key={idx} style={{ borderBottom: '1px solid #E2DACD' }}>
+                    <td style={{ padding: '0.6rem 0.75rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
+                      <span style={{ fontSize: '0.6rem', border: '1px solid #C4B9A7', background: '#FCFAF6', padding: '1px 6px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', borderRadius: '4px' }}>
                         {rec.provider}
                       </span>
                     </td>
-                    <td className="py-4 px-4 font-bold text-white">{rec.modelId}</td>
-                    <td className="py-4 px-4 text-slate-300 font-mono">{rec.latencyMs} ms</td>
-                    <td className="py-4 px-4 text-slate-300 font-mono">
-                      {rec.promptTokens} / {rec.completionTokens} / <strong className="text-white">{rec.totalTokens}</strong>
+                    <td style={{ padding: '0.6rem 0.75rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>{rec.modelId}</td>
+                    <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{rec.latencyMs} ms</td>
+                    <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                      {rec.promptTokens} / {rec.completionTokens} / <strong style={{ color: 'var(--text-primary)' }}>{rec.totalTokens}</strong>
                     </td>
-                    <td className="py-4 px-4 text-emerald-400 font-semibold">{rec.cost}</td>
-                    <td className="py-4 px-4">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                        <CheckCircle2 className="w-3 h-3" />
+                    <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-success-text)', fontWeight: 'bold' }}>{rec.cost}</td>
+                    <td style={{ padding: '0.6rem 0.75rem' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '0.6rem',
+                        fontWeight: 'bold',
+                        background: 'var(--color-success-bg)',
+                        color: 'var(--color-success-text)',
+                        border: '1px solid var(--color-success-border)'
+                      }}>
+                        <CheckCircle2 size={10} />
                         {rec.errorClassification}
                       </span>
                     </td>
-                    <td className="py-4 px-4 max-w-md text-slate-300 truncate">
+                    <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.response}>
                       {rec.response.slice(0, 140)}...
                     </td>
                   </tr>
@@ -403,3 +474,4 @@ export const BenchmarkLab: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
     </div>
   );
 };
+export default BenchmarkLab;
