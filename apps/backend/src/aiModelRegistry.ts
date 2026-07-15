@@ -3037,7 +3037,7 @@ export class AIOrchestrator {
             const hasRealTokens = typeof result.promptTokens === 'number' && typeof result.completionTokens === 'number';
             const pTokens = hasRealTokens ? result.promptTokens! : estimateTokens(systemPrompt + currentUserPrompt);
             const cTokens = hasRealTokens ? result.completionTokens! : estimateTokens(result.text);
-            const tcSource = hasRealTokens ? 'provider' : 'estimated';
+            const tcSource: 'provider' | 'estimated' = hasRealTokens ? 'provider' : 'estimated';
             const latency = Date.now() - modelStartTime;
 
             // Record stats success locally

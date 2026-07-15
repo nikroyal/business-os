@@ -3110,7 +3110,7 @@ app.get('/api/admin/system-stats', async (c) => {
   // Fetch real AI orchestrator telemetry for gemini analytics (replaces hardcoded mock)
   let aiOrchestratorOverview: any = null;
   try {
-    const aiStats = await AIOrchestrator.getOperationalStats(projectId);
+    const aiStats = await AIOrchestrator.getOperationalStats(projectId, token);
     aiOrchestratorOverview = aiStats.overview;
   } catch (aiErr) {
     console.warn('[system-stats] AI Orchestrator stats fetch failed:', aiErr);
