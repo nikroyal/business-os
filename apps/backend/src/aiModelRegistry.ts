@@ -2118,6 +2118,17 @@ export class AIOrchestrator {
         });
         continue;
       }
+      if (model.cooldownStatus === 'recovering') {
+        if (Math.random() >= 0.05) {
+          rejectedModels.push({
+            modelId: model.id,
+            displayName: model.displayName,
+            provider: model.provider,
+            rejectionReason: 'Health gate canary recovery phase (95% throttle)'
+          });
+          continue;
+        }
+      }
 
       // Multi-Factor Composite Scoring Engine (0-100)
       let qualityScore = model.capabilityScore || 85;
@@ -2605,13 +2616,14 @@ export class AIOrchestrator {
     apiKey: string | Record<string, string>,
     userId: string,
     workspaceId = 'default',
-    token?: string
+    token?: string,
+    sandboxConfig?: any
   ): Promise<{ data: any; originalModel: string; actualModel: string; retries: number; fallbackUsed: boolean; errorReason?: string }> {
     const startTime = Date.now();
     let retriesCount = 0;
     
     // 1. Fetch system configs and checks
-    const config = await this.getOrchestratorConfig(projectId, token);
+    const config = sandboxConfig || await this.getOrchestratorConfig(projectId, token);
     const maintenanceMode = config?.maintenanceMode || false;
     if (maintenanceMode) {
       throw new Error('AIOrchestrator: System is currently undergoing scheduled maintenance. Please try again shortly.');
@@ -2624,13 +2636,25 @@ export class AIOrchestrator {
     const persistentCooldowns = await this.getPersistentCooldowns(projectId, token);
 
     // Build model objects mapping configurations
+    const now = Date.now();
     const registryList = this.DEFAULT_MODELS.map(m => {
       const override = modelOverrides[m.id];
+      const cd = persistentCooldowns[m.id] || 0;
+      const cooldownRemaining = Math.max(0, cd - now);
+      let cooldownStatus: 'healthy' | 'cooldown' | 'recovering' = 'healthy';
+      if (cd > 0) {
+        if (cooldownRemaining > 0) {
+          cooldownStatus = 'cooldown';
+        } else if (now - cd < 300000) { // 5-minute canary recovery window
+          cooldownStatus = 'recovering';
+        }
+      }
       return {
         ...m,
         enabled: override && override.enabled !== undefined ? override.enabled : m.enabled,
         priority: override && override.priority !== undefined ? override.priority : m.priority,
-        cooldownDurationMs: override && override.cooldownDurationMs !== undefined ? override.cooldownDurationMs : m.cooldownDurationMs
+        cooldownDurationMs: override && override.cooldownDurationMs !== undefined ? override.cooldownDurationMs : m.cooldownDurationMs,
+        cooldownStatus
       };
     });
 
@@ -3448,7 +3472,8 @@ export class AIOrchestrator {
     apiKey: string | Record<string, string>,
     userId: string,
     workspaceId = 'default',
-    token?: string
+    token?: string,
+    sandboxConfig?: any
   ): Promise<any> {
     const { data, fallbackUsed, actualModel } = await this.execute(
       'Editorial Commentary',
@@ -3459,7 +3484,8 @@ export class AIOrchestrator {
       apiKey,
       userId,
       workspaceId,
-      token
+      token,
+      sandboxConfig
     );
 
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || data.choices?.[0]?.message?.content;
@@ -3949,13 +3975,16 @@ export class AIOrchestrator {
 
       const rel = modelReliability[m.id] || { success: 0, failure: 0, retries: 0, failovers: 0, code429: 0, code500: 0, code503: 0, consecutiveFailures: 0 };
 
-      const currentHealth = cooldownRemaining > 0
-        ? `Cooldown (${Math.ceil(cooldownRemaining / 1000)}s)`
-        : stats.requests > 0 && successRate < 80
-        ? 'Disabled'
-        : successRate < 95 && stats.requests > 0
-        ? 'Warning'
-        : 'Healthy';
+      let currentHealth = 'Healthy';
+      if (cooldownRemaining > 0) {
+        currentHealth = `Cooldown (${Math.ceil(cooldownRemaining / 1000)}s)`;
+      } else if (cd > 0 && (now - cd < 300000)) {
+        currentHealth = 'Canary Recovery';
+      } else if (stats.requests > 0 && successRate < 80) {
+        currentHealth = 'Disabled';
+      } else if (successRate < 95 && stats.requests > 0) {
+        currentHealth = 'Warning';
+      }
 
       return {
         ...m,

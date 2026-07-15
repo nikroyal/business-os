@@ -31,6 +31,41 @@ export const AIPlayground: React.FC<{ models?: ModelMetadataWithStats[] }> = ({ 
     }
   }, [models]);
 
+  useEffect(() => {
+    const handleReplay = () => {
+      const payloadStr = localStorage.getItem('playground_replay_payload');
+      if (payloadStr) {
+        try {
+          const payload = JSON.parse(payloadStr);
+          if (payload.modelId) {
+            setSelectedModels([payload.modelId]);
+          }
+          if (payload.feature) {
+            const feat = payload.feature.toLowerCase();
+            if (feat.includes('email')) {
+              setUserPrompt('Summarize key market moves and interest rates for the morning briefing.');
+            } else if (feat.includes('copilot')) {
+              setUserPrompt('Explain modern portfolio theory in a single sentence.');
+            } else if (feat.includes('report')) {
+              setUserPrompt('Draft an outline for a mid-market financial expansion report.');
+            } else if (feat.includes('research')) {
+              setUserPrompt('Compare key performance indicators of top payment networks.');
+            } else {
+              setUserPrompt(`Analyze performance and generate recommendations for the ${payload.feature} feature.`);
+            }
+          }
+          localStorage.removeItem('playground_replay_payload');
+        } catch (e) {
+          console.error('Playground replay load failed:', e);
+        }
+      }
+    };
+    
+    handleReplay();
+    window.addEventListener('playground_replay', handleReplay);
+    return () => window.removeEventListener('playground_replay', handleReplay);
+  }, []);
+
   const playgroundModels = aiOrchestratorService.filterPlaygroundModels(registryModels);
 
   const [systemPrompt, setSystemPrompt] = useState<string>(

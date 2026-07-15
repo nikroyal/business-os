@@ -1376,10 +1376,21 @@ class AIOrchestratorService {
       };
     }
     const headers = await this.getAuthHeaders();
+    
+    let sandboxConfig = undefined;
+    if (typeof window !== 'undefined' && localStorage.getItem('local_sandbox_overrides') === 'true') {
+      const sandboxStr = localStorage.getItem('sandbox_config');
+      if (sandboxStr) {
+        try {
+          sandboxConfig = JSON.parse(sandboxStr);
+        } catch (e) {}
+      }
+    }
+
     const res = await fetch(buildApiUrl('api/ai/execute-commentary'), {
       method: 'POST',
       headers,
-      body: JSON.stringify({ systemPrompt, userPrompt, model })
+      body: JSON.stringify({ systemPrompt, userPrompt, model, sandboxConfig })
     });
     if (!res.ok) {
       return {

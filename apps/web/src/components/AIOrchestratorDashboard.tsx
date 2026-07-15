@@ -40,6 +40,9 @@ export const AIOrchestratorDashboard: React.FC = () => {
   const isOwner = profile?.role === 'OWNER';
 
   const [activeSubTab, setActiveSubTab] = useState<'Overview' | 'Routing' | 'Diagnostics' | 'Playground' | 'Controls'>('Overview');
+  const [isSandboxMode, setIsSandboxMode] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && localStorage.getItem('local_sandbox_overrides') === 'true';
+  });
   const [stats, setStats] = useState<OrchestratorStats | null>(null);
   const [trendHorizon, setTrendHorizon] = useState<'1h' | '24h' | '7d' | '30d' | '90d'>('7d');
   const [timeline, setTimeline] = useState<TelemetryRecord[]>([]);
@@ -143,7 +146,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
       ]);
       setStats(statsData);
       setTimeline(timelineData);
-      setConfig(configData || { forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 });
+      let activeConfig = configData || { forcedModel: null, modelOverrides: {}, maintenanceMode: false, retentionDays: 30 };
+      if (typeof window !== 'undefined' && localStorage.getItem('local_sandbox_overrides') === 'true') {
+        const sandboxStr = localStorage.getItem('sandbox_config');
+        if (sandboxStr) {
+          try {
+            activeConfig = JSON.parse(sandboxStr);
+          } catch (e) {
+            console.error('Failed to parse local sandbox config:', e);
+          }
+        }
+      }
+      setConfig(activeConfig);
       setRoutingDecisions(decisionsData || []);
     } catch (e: any) {
       console.error('Failed to load AI Orchestrator data:', e);
@@ -167,7 +181,16 @@ export const AIOrchestratorDashboard: React.FC = () => {
   useEffect(() => {
     loadData();
     const interval = setInterval(() => loadData(true), 10000);
-    return () => clearInterval(interval);
+    
+    const handleReplay = () => {
+      setActiveSubTab('Playground');
+    };
+    window.addEventListener('playground_replay', handleReplay);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('playground_replay', handleReplay);
+    };
   }, []);
 
   const handleToggleModel = (modelId: string, enabled: boolean) => {
@@ -199,12 +222,18 @@ export const AIOrchestratorDashboard: React.FC = () => {
     if (!isOwner) return;
     setSaving(true);
     try {
-      const ok = await aiOrchestratorService.saveConfig(config);
-      if (ok) {
-        alert('AI Orchestrator configuration saved successfully.');
+      if (isSandboxMode) {
+        localStorage.setItem('sandbox_config', JSON.stringify(config));
+        alert('Local Sandbox settings updated successfully (isolated to this browser session).');
         loadData(true);
       } else {
-        alert('Failed to save configuration.');
+        const ok = await aiOrchestratorService.saveConfig(config);
+        if (ok) {
+          alert('AI Orchestrator configuration saved successfully to Firestore.');
+          loadData(true);
+        } else {
+          alert('Failed to save configuration.');
+        }
       }
     } catch (e) {
       console.error('Save config error:', e);
@@ -380,6 +409,38 @@ export const AIOrchestratorDashboard: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', color: 'var(--text-primary)' }}>
       
+      {/* Local Sandbox Overrides active banner */}
+      {isSandboxMode && (
+        <div style={{
+          backgroundColor: 'var(--color-warning-bg)',
+          border: '1px solid var(--color-warning-border)',
+          color: 'var(--color-warning-text)',
+          fontSize: '0.8rem',
+          padding: '0.75rem 1.25rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontFamily: 'var(--font-mono)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={16} />
+            <span><b>LOCAL SANDBOX ACTIVE:</b> Routing, failovers, and parameters are isolated to this browser session only.</span>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.setItem('local_sandbox_overrides', 'false');
+              setIsSandboxMode(false);
+              loadData(true);
+            }}
+            className="btn btn-secondary btn-sm"
+            style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#fff', border: '1px solid #C4B9A7', cursor: 'pointer' }}
+          >
+            Disable Sandbox
+          </button>
+        </div>
+      )}
+
       {/* Maintenance Mode Banner */}
       {config.maintenanceMode && (
         <div style={{
@@ -2417,6 +2478,24 @@ export const AIOrchestratorDashboard: React.FC = () => {
             <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', textTransform: 'uppercase', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>Operational Policies</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
+                <input
+                  type="checkbox"
+                  checked={isSandboxMode}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    localStorage.setItem('local_sandbox_overrides', String(checked));
+                    setIsSandboxMode(checked);
+                    if (checked) {
+                      localStorage.setItem('sandbox_config', JSON.stringify(config));
+                    }
+                    loadData(true);
+                  }}
+                  style={{ width: '14px', height: '14px' }}
+                />
+                <span style={{ fontWeight: 'bold', color: 'var(--color-accent)' }}>Enable Local Sandbox Mode (Overrides configurations locally in browser)</span>
+              </label>
+
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
                 <input
                   type="checkbox"

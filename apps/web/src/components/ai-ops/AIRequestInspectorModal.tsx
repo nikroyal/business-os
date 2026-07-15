@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, AlertCircle, Cpu, Layers, User, Terminal, ArrowRight } from 'lucide-react';
+import { X, AlertCircle, Cpu, Layers, User, Terminal, ArrowRight, Play } from 'lucide-react';
 import type { TelemetryRecord } from '../../services/aiOrchestratorService';
 import { SourceBadge } from './MetricTooltip';
 
@@ -288,6 +288,34 @@ export const AIRequestInspectorModal: React.FC<AIRequestInspectorModalProps> = (
           bottom: 0,
           zIndex: 10
         }}>
+          <button
+            onClick={() => {
+              localStorage.setItem('playground_replay_payload', JSON.stringify({
+                modelId: record.fallbackModel || record.selectedModel,
+                feature: record.feature
+              }));
+              onClose();
+              if (typeof window !== 'undefined' && window.dispatchEvent) {
+                window.dispatchEvent(new Event('playground_replay'));
+              }
+            }}
+            style={{
+              background: 'var(--color-accent)',
+              color: '#fff',
+              border: 'none',
+              padding: '0.5rem 1.25rem',
+              borderRadius: '6px',
+              fontWeight: 'bold',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              marginRight: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Play size={14} style={{ fill: 'currentColor' }} /> Load in Playground
+          </button>
           <button
             onClick={onClose}
             style={{

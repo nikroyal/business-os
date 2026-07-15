@@ -678,7 +678,7 @@ app.post('/api/ai/execute-commentary', async (c) => {
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
 
   try {
-    const { systemPrompt, userPrompt, model, taskType } = await c.req.json();
+    const { systemPrompt, userPrompt, model, taskType, sandboxConfig } = await c.req.json();
     if (!systemPrompt || !userPrompt) {
       return c.json({ error: 'Missing systemPrompt or userPrompt parameters' }, 400);
     }
@@ -694,7 +694,8 @@ app.post('/api/ai/execute-commentary', async (c) => {
       { google: geminiKey, openrouter: openRouterKey },
       userId,
       featureName as any,
-      token
+      token,
+      sandboxConfig
     );
 
     return c.json({
