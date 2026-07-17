@@ -227,6 +227,39 @@ export const AIRequestInspectorModal: React.FC<AIRequestInspectorModalProps> = (
             </div>
           </div>
 
+          {/* Agent Planning Trace */}
+          {record.planningTrace && record.planningTrace.length > 0 && (
+            <div style={{ background: '#221f1c', border: '1px solid #3d362e', borderRadius: '8px', padding: '1.25rem' }}>
+              <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.85rem', color: '#10b981', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Cpu size={15} /> Agent Intent Planning Trace
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {record.planningTrace.map((step: any, index: number) => (
+                  <div key={index} style={{ borderLeft: '2px solid ' + (step.status === 'success' ? '#10b981' : '#ef4444'), paddingLeft: '0.75rem', fontSize: '0.8rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 'bold', color: '#fff' }}>Step {index + 1}: {step.tool}</span>
+                      <span style={{ 
+                        fontSize: '0.65rem', 
+                        color: step.status === 'success' ? '#86efac' : '#fca5a5', 
+                        background: step.status === 'success' ? '#065f46' : '#7f1d1d', 
+                        padding: '1px 5px', 
+                        borderRadius: '3px',
+                        textTransform: 'uppercase',
+                        fontFamily: 'var(--font-mono)'
+                      }}>{step.status}</span>
+                    </div>
+                    <div style={{ color: '#c4b9a7', fontSize: '0.75rem' }}>{step.details}</div>
+                    {step.resultSummary && (
+                      <div style={{ color: '#86efac', fontSize: '0.7rem', marginTop: '2px', background: '#12100e', padding: '4px', borderRadius: '4px', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>
+                        {step.resultSummary}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 3. Caller Context & Provenance */}
           <div style={{ background: '#221f1c', border: '1px solid #3d362e', borderRadius: '8px', padding: '1.25rem' }}>
             <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.85rem', color: '#a855f7', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

@@ -480,6 +480,11 @@ export class OpenRouterAdapter implements AIProviderAdapter {
   }
 }
 
+export const OPENROUTER_MODEL_MAPPING = {
+  'Latest Flash': 'openai/gpt-4o-mini',
+  'Latest Pro': 'llama-3.3-70b-instruct'
+};
+
 export const GEMINI_MODEL_MAPPING = {
   'Latest Flash': 'gemini-3.5-flash',
   'Latest Pro': 'gemini-3.1-pro-preview'
@@ -571,7 +576,10 @@ function fromFirestoreValue(val: any): any {
 class ConcurrencyGate {
   private active = 0;
   private queue: Array<() => void> = [];
-  constructor(private maxConcurrent: number) {}
+  private maxConcurrent: number;
+  constructor(maxConcurrent: number) {
+    this.maxConcurrent = maxConcurrent;
+  }
   async run<T>(fn: () => Promise<T>): Promise<T> {
     if (this.active >= this.maxConcurrent) {
       await new Promise<void>(resolve => this.queue.push(resolve));
@@ -2221,7 +2229,7 @@ export class AIOrchestrator {
       intendedUse: 'Disabled by default owner-only unrestricted model',
     }
   ];
-  private static cacheConfig: { data: any; timestamp: number } | null = null;
+  public static cacheConfig: { data: any; timestamp: number } | null = null;
   private static readonly CONFIG_CACHE_TTL_MS = 5000;
 
   // --- TASK CLASSIFICATION MATRIX ---
@@ -2239,8 +2247,10 @@ export class AIOrchestrator {
     const candidateModels: RoutingDecisionCandidate[] = [];
     const rejectedModels: RoutingDecisionRejected[] = [];
 
-    const providerPref = config?.globalProviderPreference || featureReq?.preferredProvider || (task === 'daily_email' ? 'google' : 'openrouter');
-    const freeFirst = config?.freeFirstRouting !== false;
+    const policy = config?.routingPolicies?.featureRouting?.[subsystem || ''];
+    const preferredProvider = policy?.provider !== 'auto' ? policy?.provider : undefined;
+    const providerPref = config?.globalProviderPreference || config?.routingPolicies?.globalProviderPref || preferredProvider || featureReq?.preferredProvider || (task === 'daily_email' ? 'google' : 'openrouter');
+    const freeFirst = config?.freeFirstRouting !== false && config?.routingPolicies?.freeFirstRouting !== false;
 
     for (const model of models) {
       if (!model.enabled) {
@@ -2344,9 +2354,11 @@ export class AIOrchestrator {
     let winningProvider = candidateModels[0]?.provider || 'google';
 
     if (!winningModel) {
-      winningModel = models.find(m => m.enabled)?.id || 'gemini-3.5-flash';
-      winningModelDisplayName = 'Default Fallback';
-      winningProvider = 'google';
+      const isDaily = task === 'daily_email';
+      const fallbackModelObj = models.find(m => m.enabled && (isDaily ? m.provider === 'google' : m.provider === 'openrouter')) || models.find(m => m.enabled);
+      winningModel = fallbackModelObj?.id || (isDaily ? 'gemini-3.5-flash' : 'openai/gpt-4o-mini');
+      winningModelDisplayName = fallbackModelObj?.displayName || 'Default Fallback';
+      winningProvider = fallbackModelObj?.provider || (isDaily ? 'google' : 'openrouter');
     }
 
     const fallbacks = candidateModels.slice(1, 4).map(c => c.modelId);
@@ -2821,7 +2833,7 @@ export class AIOrchestrator {
 
     // 3. Task-Based model selection
     const taskType = this.mapSubsystemToTask(subsystem);
-    const taskModelDefault = this.selectBestModelForTask(taskType, registryList, config);
+    const taskModelDefault = this.selectBestModelForTask(taskType, registryList, config, subsystem);
 
     let targetModelId = '';
     const logicalChoice = preferredChoice || 'Automatic';
@@ -2833,7 +2845,7 @@ export class AIOrchestrator {
     } else if (logicalChoice.startsWith('gemini-') || logicalChoice.startsWith('openrouter/') || logicalChoice.includes('-')) {
       targetModelId = logicalChoice;
     } else {
-      targetModelId = LogicalModelResolve(logicalChoice, subsystem);
+      targetModelId = LogicalModelResolve(logicalChoice, subsystem, config);
     }
 
     const requestedModel = targetModelId;
@@ -2887,8 +2899,6 @@ export class AIOrchestrator {
         }]
       };
 
-      // Save diagnostics to Firestore
-      const dateStr = new Date().toISOString().split('T')[0];
       try {
         const diagDoc = {
           timestamp: new Date().toISOString(),
@@ -3229,7 +3239,9 @@ export class AIOrchestrator {
       retryCount: retriesCount,
       estimatedCost: cost,
       cachedResponse: false,
-      tokenCountSource
+      tokenCountSource,
+      triggeredFallback: fallbackUsed,
+      planningTrace: sandboxConfig?.planningTrace || null
     };
 
     let statsResult = { success: true, error: '' };
@@ -3523,7 +3535,7 @@ export class AIOrchestrator {
 
     const featuresAudit = statutoryFeatures.map(f => {
       const taskType = this.mapSubsystemToTask(f.subsystem);
-      const selectedModelId = this.selectBestModelForTask(taskType, this.DEFAULT_MODELS);
+      const selectedModelId = this.selectBestModelForTask(taskType, this.DEFAULT_MODELS, undefined, f.subsystem);
       const modelObj = this.DEFAULT_MODELS.find(m => m.id === selectedModelId) || this.DEFAULT_MODELS[0];
       const apiModelId = modelObj.apiModelId || modelObj.id;
       const modelRes = modelsResults.find(r => r.id === modelObj.id);
@@ -3872,8 +3884,9 @@ export class AIOrchestrator {
     token?: string,
     sandboxConfig?: any
   ): Promise<any> {
+    const targetSubsystem = sandboxConfig?.subsystem || 'Editorial Commentary';
     const { data, fallbackUsed, actualModel } = await this.execute(
-      'Editorial Commentary',
+      targetSubsystem,
       systemPrompt,
       userPrompt,
       preferredChoice,
@@ -3934,11 +3947,12 @@ export class AIOrchestrator {
     const timeout = 10000;
 
     if (type === 'provider') {
-      // Test Google Gemini provider status
-      const adapter = this.adapters.google;
+      const provider = targetId === 'openrouter' ? 'openrouter' : 'google';
+      const adapter = this.adapters[provider];
+      const testModel = provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gemini-3.5-flash';
       try {
-        await adapter.executePrompt('gemini-3.5-flash', systemPrompt, userPrompt, apiKey, timeout);
-        return { success: true, latency: Date.now() - startTime, message: 'Provider connection is fully active' };
+        await adapter.executePrompt(testModel, systemPrompt, userPrompt, apiKey, timeout);
+        return { success: true, latency: Date.now() - startTime, message: `Provider ${provider} connection is fully active` };
       } catch (e: any) {
         return { success: false, latency: Date.now() - startTime, message: `Provider test failed: ${e.message || e}` };
       }
@@ -4910,16 +4924,25 @@ export class AIOrchestrator {
   }
 }
 
-function LogicalModelResolve(choice: string, subsystem: Subsystem): string {
+function LogicalModelResolve(choice: string, subsystem: Subsystem, config?: any): string {
   const modelChoice = choice || 'Automatic';
+  const activeConfig = config || AIOrchestrator.cacheConfig?.data;
+
+  const getMapping = (sel: 'Latest Flash' | 'Latest Pro') => {
+    if (activeConfig?.modelMapping?.[sel]) {
+      return activeConfig.modelMapping[sel];
+    }
+    return subsystem === 'Daily Email' ? GEMINI_MODEL_MAPPING[sel] : OPENROUTER_MODEL_MAPPING[sel];
+  };
+
   if (modelChoice === 'Automatic') {
-    const automaticChoice = SUBSYSTEM_AUTOMATIC_MAPPING[subsystem];
-    return GEMINI_MODEL_MAPPING[automaticChoice];
+    const automaticChoice = SUBSYSTEM_AUTOMATIC_MAPPING[subsystem] || 'Latest Flash';
+    return getMapping(automaticChoice);
   }
   if (modelChoice === 'Latest Flash' || modelChoice === 'Latest Pro') {
-    return GEMINI_MODEL_MAPPING[modelChoice as 'Latest Flash' | 'Latest Pro'];
+    return getMapping(modelChoice as 'Latest Flash' | 'Latest Pro');
   }
-  return GEMINI_MODEL_MAPPING['Latest Flash'];
+  return getMapping('Latest Flash');
 }
 
 export class AIModelRegistry {
@@ -4927,27 +4950,35 @@ export class AIModelRegistry {
     return FEATURE_REQUIREMENTS[subsystem];
   }
 
-  public static resolveModel(choice: string | undefined, subsystem: Subsystem): string {
+  public static resolveModel(choice: string | undefined, subsystem: Subsystem, config?: any): string {
     const modelChoice = choice || 'Automatic';
+    const activeConfig = config || AIOrchestrator.cacheConfig?.data;
+
+    const getMapping = (sel: 'Latest Flash' | 'Latest Pro') => {
+      if (activeConfig?.modelMapping?.[sel]) {
+        return activeConfig.modelMapping[sel];
+      }
+      return subsystem === 'Daily Email' ? GEMINI_MODEL_MAPPING[sel] : OPENROUTER_MODEL_MAPPING[sel];
+    };
 
     if (modelChoice === 'Automatic') {
       const automaticChoice = SUBSYSTEM_AUTOMATIC_MAPPING[subsystem];
       if (automaticChoice) {
-        return GEMINI_MODEL_MAPPING[automaticChoice];
+        return getMapping(automaticChoice);
       }
       const featureReq = FEATURE_REQUIREMENTS[subsystem];
       const task = featureReq?.preferredTaskType || 'copilot_conversation';
-      return AIOrchestrator.selectBestModelForTask(task, AIOrchestrator.DEFAULT_MODELS, undefined, subsystem);
+      return AIOrchestrator.selectBestModelForTask(task, AIOrchestrator.DEFAULT_MODELS, activeConfig, subsystem);
     }
 
     if (modelChoice === 'Latest Flash' || modelChoice === 'Latest Pro') {
-      return GEMINI_MODEL_MAPPING[modelChoice as 'Latest Flash' | 'Latest Pro'];
+      return getMapping(modelChoice as 'Latest Flash' | 'Latest Pro');
     }
 
     if (typeof modelChoice === 'string' && (modelChoice.startsWith('gemini-') || modelChoice.includes('-') || modelChoice.includes('/'))) {
       return modelChoice;
     }
 
-    return GEMINI_MODEL_MAPPING['Latest Flash'];
+    return getMapping('Latest Flash');
   }
 }

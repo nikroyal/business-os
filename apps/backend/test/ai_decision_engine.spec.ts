@@ -111,4 +111,29 @@ describe("BusinessOS Enterprise AI Decision Engine & Routing Regression Preventi
       expect(chosen?.provider).toBe("google");
     });
   });
+
+  describe("PHASE 9 - OPENROUTER BY DEFAULT FOR NON-DAILY-EMAIL", () => {
+    it("resolves Automatic to OpenRouter for general subsystems and Gemini for Daily Email", () => {
+      const copilotModel = AIModelRegistry.resolveModel("Automatic", "Copilot");
+      expect(copilotModel).toBe("llama-3.3-70b-instruct");
+
+      const dailyEmailModel = AIModelRegistry.resolveModel("Automatic", "Daily Email");
+      expect(dailyEmailModel).toBe("gemini-3.5-flash");
+    });
+
+    it("supports customization of logical model mappings via config", () => {
+      const customConfig = {
+        modelMapping: {
+          'Latest Pro': 'custom-pro-model',
+          'Latest Flash': 'custom-flash-model'
+        }
+      };
+      
+      const resolvedPro = AIModelRegistry.resolveModel("Latest Pro", "Copilot", customConfig);
+      expect(resolvedPro).toBe("custom-pro-model");
+
+      const resolvedFlash = AIModelRegistry.resolveModel("Latest Flash", "Copilot", customConfig);
+      expect(resolvedFlash).toBe("custom-flash-model");
+    });
+  });
 });

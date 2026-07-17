@@ -40,6 +40,11 @@ export const FEATURE_REQUIREMENTS: Record<string, FeatureRequirement> = {
   }
 };
 
+export const OPENROUTER_MODEL_MAPPING = {
+  'Latest Flash': 'openai/gpt-4o-mini',
+  'Latest Pro': 'llama-3.3-70b-instruct'
+};
+
 export const GEMINI_MODEL_MAPPING = {
   'Latest Flash': 'gemini-3.5-flash',
   'Latest Pro': 'gemini-3.1-pro-preview'
@@ -63,20 +68,24 @@ export class AIModelRegistry {
   public static resolveModel(choice: string | undefined, subsystem: Subsystem): string {
     const modelChoice = choice || 'Automatic';
 
+    const getMappingLocal = (sel: 'Latest Flash' | 'Latest Pro') => {
+      return subsystem === 'Daily Email' ? GEMINI_MODEL_MAPPING[sel] : OPENROUTER_MODEL_MAPPING[sel];
+    };
+
     if (modelChoice === 'Automatic') {
       const automaticChoice = SUBSYSTEM_AUTOMATIC_MAPPING[subsystem];
-      if (automaticChoice) return GEMINI_MODEL_MAPPING[automaticChoice];
-      return 'openrouter/free';
+      if (automaticChoice) return getMappingLocal(automaticChoice);
+      return subsystem === 'Daily Email' ? 'gemini-3.5-flash' : 'openai/gpt-4o-mini';
     }
 
     if (modelChoice === 'Latest Flash' || modelChoice === 'Latest Pro') {
-      return GEMINI_MODEL_MAPPING[modelChoice as 'Latest Flash' | 'Latest Pro'];
+      return getMappingLocal(modelChoice as 'Latest Flash' | 'Latest Pro');
     }
 
     if (typeof modelChoice === 'string' && (modelChoice.startsWith('gemini-') || modelChoice.includes('-') || modelChoice.includes('/'))) {
       return modelChoice;
     }
 
-    return GEMINI_MODEL_MAPPING['Latest Flash'];
+    return getMappingLocal('Latest Flash');
   }
 }

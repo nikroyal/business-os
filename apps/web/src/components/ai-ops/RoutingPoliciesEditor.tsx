@@ -31,56 +31,56 @@ const FEATURE_LIST = [
     name: 'Copilot',
     description: 'Interactive conversation, code assistant, and real-time operator copilot.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/anthropic/claude-3.5-sonnet'
+    defaultModel: 'llama-3.3-70b-instruct'
   },
   {
     id: 'Reports',
     name: 'Reports',
     description: 'Long-form executive briefings, quarterly reports, and synthesis documents.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/anthropic/claude-3.5-sonnet'
+    defaultModel: 'llama-3.3-70b-instruct'
   },
   {
     id: 'Commentary',
     name: 'Commentary',
     description: 'Editorial commentary, market analysis, and high-frequency analytical insights.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/google/gemini-2.5-pro'
+    defaultModel: 'openai/gpt-4o-mini'
   },
   {
     id: 'Company Intelligence',
     name: 'Company Intelligence',
     description: 'Structured enterprise teardowns, competitor moats, and financial evaluations.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/google/gemini-2.5-pro'
+    defaultModel: 'openai/gpt-4o-mini'
   },
   {
     id: 'Research',
     name: 'Research',
     description: 'Deep multi-source financial and market research synthesis.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/google/gemini-2.5-pro'
+    defaultModel: 'llama-3.3-70b-instruct'
   },
   {
     id: 'Opportunities',
     name: 'Opportunities',
     description: 'Automated deal sourcing, financial screening, and opportunity spotting.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/google/gemini-2.5-pro'
+    defaultModel: 'openai/gpt-4o-mini'
   },
   {
     id: 'Summaries',
     name: 'Summaries',
     description: 'High-speed document summarization and quick executive rollups.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/meta-llama/llama-3.3-70b-instruct'
+    defaultModel: 'openai/gpt-4o-mini'
   },
   {
     id: 'Background AI Jobs',
     name: 'Background AI Jobs',
     description: 'Asynchronous batch processing, scheduled pipelines, and background workflows.',
     defaultProvider: 'openrouter' as const,
-    defaultModel: 'openrouter/openai/gpt-4o'
+    defaultModel: 'openai/gpt-4o-mini'
   }
 ];
 
