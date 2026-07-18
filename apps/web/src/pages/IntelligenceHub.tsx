@@ -13,8 +13,6 @@ import { ProvenanceBadge } from '../components/ProvenanceBadge';
 import { CompanyRegistry } from '../services/companyRegistry';
 import {
   Brain,
-  TrendingUp,
-  TrendingDown,
   Shield,
   Search,
   FileText,
@@ -334,7 +332,6 @@ export const IntelligenceHub: React.FC = () => {
     return h.ticker.toUpperCase().includes(search.toUpperCase()) || h.name.toLowerCase().includes(search);
   });
 
-
   const totalAssetsCount = activeHoldings.length;
   const highConvCount = convictions.filter(c => c.overallScore >= 75).length;
   
@@ -350,24 +347,82 @@ export const IntelligenceHub: React.FC = () => {
     : 0;
 
   return (
-    <div className="workspace-page" style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
-      
+    <div className="workspace-page" style={{ animation: 'fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards', textAlign: 'left', background: 'var(--bg-main)' }}>
+      {/* Keyframe Injection for Pulsing Elements, Spinners and Hover-lifts */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spinner-rot { to { transform: rotate(360deg); } }
+        .spin-custom { animation: spinner-rot 1s linear infinite; }
+        .premium-card {
+          background: #FFFFFF;
+          border: 1px solid #E2DACD;
+          box-shadow: 0 4px 15px rgba(140, 130, 120, 0.04);
+          transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .premium-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(140, 130, 120, 0.09) !important;
+          border-color: #CFC5B6;
+        }
+        .asset-list-item {
+          transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+        .asset-list-item:hover {
+          background-color: #FAF8F5;
+        }
+        .tab-btn {
+          position: relative;
+          padding: 0.8rem 1.2rem;
+          border: none;
+          background: transparent;
+          font-family: var(--font-sans);
+          font-size: 0.82rem;
+          cursor: pointer;
+          color: #555555;
+          font-weight: 500;
+          transition: color 0.15s ease;
+        }
+        .tab-btn:hover {
+          color: var(--color-accent);
+        }
+        .tab-btn.active {
+          color: var(--color-accent);
+          font-weight: bold;
+        }
+        .tab-btn.active::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background-color: var(--color-accent);
+        }
+        .chat-bubble {
+          max-width: 80%;
+          padding: 0.75rem 1.1rem;
+          font-size: 0.82rem;
+          line-height: 1.5;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          border: 1px solid #E2DACD;
+        }
+      `}} />
+
       {/* FT-Style Editorial Header */}
-      <header className="workspace-header border-b-2 border-stone-800 pb-5 mb-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <header className="workspace-header" style={{ borderBottom: '2px solid #222222', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'space-between', alignItems: 'flex-start' }} className="md:flex-row md:items-end">
           <div>
-            <div className="font-mono text-xs uppercase tracking-widest text-[#8c2a2a] mb-1 font-bold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#8c2a2a]"></span>
-              Institutional Sovereign Intelligence
+            <div style={{ fontStyle: 'normal', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', color: 'var(--color-accent)', marginBottom: '0.35rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="pulse-heartbeat" style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-accent)', display: 'inline-block' }}></span>
+              Institutional Sovereign Intelligence Hub
             </div>
-            <h1 className="font-serif text-4xl font-normal tracking-tight text-[#1A1A1A] mb-1" style={{ border: 'none', padding: 0 }}>
+            <h1 className="font-serif" style={{ border: 'none', padding: 0, margin: 0, fontSize: '2.6rem', color: '#1A1A1A', fontWeight: 'normal', fontStyle: 'italic' }}>
               Company Workspaces
             </h1>
-            <p className="text-sm text-stone-600 max-w-xl font-serif italic">
+            <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '550px', fontFamily: 'var(--font-serif)', fontStyle: 'italic', lineHeight: '1.5' }}>
               Algorithmic sovereign research workspaces mapping capital structures, smart money registries, and discount pullbacks.
             </p>
           </div>
-          <div className="font-mono text-xs text-stone-500 text-left md:text-right border-l-2 md:border-l-0 md:border-r-2 border-[#8c2a2a] pl-3 md:pr-3">
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-muted)', borderLeft: '2px solid var(--color-accent)', paddingLeft: '0.75rem' }}>
             <div>WORKSPACE STATUS: OPERATIONAL</div>
             <div>MONITORED SECURITIES: {totalAssetsCount}</div>
             <div>SYS DATE: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }).toUpperCase()}</div>
@@ -376,118 +431,121 @@ export const IntelligenceHub: React.FC = () => {
       </header>
 
       {loading ? (
-        <div className="py-20 text-center font-serif text-lg italic text-stone-500">
-          <RefreshCw size={24} className="spinner mx-auto mb-2 text-[#8c2a2a] animate-spin" />
+        <div style={{ paddingTop: '6rem', paddingBottom: '6rem', textAlign: 'center', fontFamily: 'var(--font-serif)', fontSize: '1.1rem', fontStyle: 'italic', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', justifyContent: 'center', minHeight: '40vh' }}>
+          <RefreshCw size={28} className="spin-custom" style={{ color: 'var(--color-accent)' }} />
           Syncing holdings database and resolving institutional metrics...
         </div>
       ) : (
-        <div className="flex flex-col gap-8">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
           {/* SECTION 1 — INTELLIGENCE COMMAND CENTER */}
-          <section aria-label="Intelligence Command Center" className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm">
-            <h2 className="font-mono text-[10px] uppercase tracking-widest text-[#8c2a2a] font-bold border-b border-stone-200 pb-2 mb-4">
+          <section aria-label="Intelligence Command Center" className="premium-card" style={{ padding: '1.5rem', borderRadius: '8px' }}>
+            <h2 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-accent)', fontWeight: 'bold', borderBottom: '1px solid #EAE5DB', paddingBottom: '0.5rem', marginBottom: '1rem', margin: 0 }}>
               [Portfolio Intelligence Metrics Center]
             </h2>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '1rem' }}>
               {/* Total Assets */}
-              <div className="p-3 border border-stone-200 bg-[#FCFAF6]">
-                <div className="font-mono text-[9px] text-stone-400 uppercase font-bold">Monitored Assets</div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="font-serif text-3xl font-bold">{totalAssetsCount}</span>
-                  <span className="text-xs font-semibold text-stone-500">
-                    {totalAssetsCount > 0 ? '→ Flat' : '—'}
-                  </span>
+              <div style={{ padding: '0.85rem 1rem', border: '1px solid #EAE5DB', background: '#FCFAF6' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Monitored Assets</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 'bold', color: '#1A1A1A' }}>{totalAssetsCount}</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Assets</span>
                 </div>
-                <p className="text-[10px] text-stone-500 mt-2 font-serif leading-tight">
-                  Total non-cash equity and crypto holdings tracked.
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', lineHeight: '1.2' }}>
+                  Active non-cash equity holdings.
                 </p>
               </div>
 
               {/* High Conviction */}
-              <div className="p-3 border border-stone-200 bg-[#FCFAF6]">
-                <div className="font-mono text-[9px] text-stone-400 uppercase font-bold">High Conviction</div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="font-serif text-3xl font-bold text-green-700">{highConvCount}</span>
-                  <span className="text-xs font-semibold text-green-700 flex items-center">
-                    <TrendingUp size={12} /> {highConvCount > 0 ? '+1' : '0'}
-                  </span>
+              <div style={{ padding: '0.85rem 1rem', border: '1px solid #EAE5DB', background: '#FCFAF6' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>High Conviction</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--color-accent)' }}>{highConvCount}</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--color-accent)' }}>Flags</span>
                 </div>
-                <p className="text-[10px] text-stone-500 mt-2 font-serif leading-tight">
-                  Positions holding algorithmic rating indexes of 75/100 or above.
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', lineHeight: '1.2' }}>
+                  Conviction index threshold &ge; 75.
                 </p>
               </div>
 
-              {/* Active Dips */}
-              <div className="p-3 border border-stone-200 bg-[#FCFAF6]">
-                <div className="font-mono text-[9px] text-stone-400 uppercase font-bold">Active Dip Signals</div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="font-serif text-3xl font-bold text-amber-700">{activeDipsCount}</span>
-                  <span className="text-xs font-semibold text-amber-700 flex items-center">
-                    <TrendingDown size={12} /> {activeDipsCount > 0 ? 'Active' : '0'}
-                  </span>
+              {/* Pullback Targets */}
+              <div style={{ padding: '0.85rem 1rem', border: '1px solid #EAE5DB', background: '#FCFAF6' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Active Pullback Targets</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 'bold', color: '#B45309' }}>{activeDipsCount}</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#B45309' }}>Spikes</span>
                 </div>
-                <p className="text-[10px] text-stone-500 mt-2 font-serif leading-tight">
-                  Wide-moat compounders trading at classified technical discounts.
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', lineHeight: '1.2' }}>
+                  Significant price z-score deviations.
                 </p>
               </div>
 
-              {/* Smart Money */}
-              <div className="p-3 border border-stone-200 bg-[#FCFAF6]">
-                <div className="font-mono text-[9px] text-stone-400 uppercase font-bold">Smart Money Accumulation</div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="font-serif text-3xl font-bold text-[#8c2a2a]">{strongSmartMoneyCount}</span>
-                  <span className="text-xs font-semibold text-[#8c2a2a] flex items-center">
-                    <TrendingUp size={12} /> Strong
-                  </span>
+              {/* Institutional Spikes */}
+              <div style={{ padding: '0.85rem 1rem', border: '1px solid #EAE5DB', background: '#FCFAF6' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Institutional Spikes</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--color-success-text)' }}>{strongSmartMoneyCount}</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--color-success-text)' }}>Holdings</span>
                 </div>
-                <p className="text-[10px] text-stone-500 mt-2 font-serif leading-tight">
-                  Assets displaying net-positive insider purchases or 13F inflows.
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', lineHeight: '1.2' }}>
+                  Strong corporate insider accumulation.
                 </p>
               </div>
 
-              {/* Avg Quality */}
-              <div className="p-3 border border-stone-200 bg-[#FCFAF6]">
-                <div className="font-mono text-[9px] text-stone-400 uppercase font-bold">Average Quality Index</div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="font-serif text-3xl font-bold">{averageQualityIndex}</span>
-                  <span className="text-xs font-semibold text-stone-500">/100</span>
+              {/* Quality Index */}
+              <div style={{ padding: '0.85rem 1rem', border: '1px solid #EAE5DB', background: '#FCFAF6' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Average Quality Index</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 'bold', color: '#1A1A1A' }}>{averageQualityIndex}</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>/100</span>
                 </div>
-                <p className="text-[10px] text-stone-500 mt-2 font-serif leading-tight">
-                  Weighted structural solvency and moat durability rating.
+                <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', lineHeight: '1.2' }}>
+                  Weighted moat durability rating.
                 </p>
               </div>
             </div>
           </section>
 
           {/* SPLIT PANE: DIRECTORY & WORKSPACE */}
-          <div className="workspace-body company-workspace-grid lg:gap-8">
+          <div className="workspace-body" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '2rem', height: '100%', overflow: 'hidden' }}>
             
             {/* LEFT COLUMN: ACTIVE MONITORED ASSETS DIRECTORY */}
-            <div className="lg:col-span-1 flex flex-col gap-6 scrollable-panel" style={{ paddingRight: '0.5rem' }}>
-              <section className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm">
-                <div className="border-b border-stone-200 pb-3 mb-4">
-                  <h2 className="font-serif text-xl font-normal text-[#1A1A1A]">
+            <div className="scrollable-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingRight: '0.5rem' }}>
+              <section className="premium-card" style={{ padding: '1.25rem', borderRadius: '8px' }}>
+                <div style={{ borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                  <h2 style={{ fontSize: '1.15rem', margin: 0, padding: 0, fontFamily: 'var(--font-serif)', color: '#1A1A1A', fontWeight: 'bold' }}>
                     Sovereign Directory
                   </h2>
-                  <span className="font-mono text-[9px] text-stone-400 uppercase">Search and mount context</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Search and mount context</span>
                 </div>
 
-                <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
-                  <Search size={14} className="text-stone-400" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <div style={{ position: 'relative', marginBottom: '1rem' }}>
+                  <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                   <input
                     type="text"
-                    placeholder="Search ticker or company..."
+                    placeholder="Search directory..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="font-mono text-xs pl-8 pr-3 py-2 bg-[#FAF8F5] border border-stone-300 w-full focus:outline-none focus:border-stone-800"
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.72rem',
+                      padding: '0.45rem 0.5rem 0.45rem 2rem',
+                      background: '#FCFAF6',
+                      border: '1px solid #E2DACD',
+                      width: '100%',
+                      outline: 'none',
+                      transition: 'border-color 0.15s ease'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#1A1A1A'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#E2DACD'}
                     aria-label="Search Monitored Directory"
                   />
                 </div>
 
-                <div className="flex flex-col gap-1">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {filteredHoldings.length === 0 ? (
-                    <div className="py-8 text-center font-serif text-xs italic text-stone-400">
+                    <div style={{ padding: '2rem 0', textAlign: 'center', fontFamily: 'var(--font-serif)', fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--text-muted)' }}>
                       No assets found.
                     </div>
                   ) : (
@@ -500,20 +558,27 @@ export const IntelligenceHub: React.FC = () => {
                         <div
                           key={h.id}
                           onClick={() => navigate(`/intelligence/${h.ticker.toLowerCase()}`)}
-                          style={{ borderLeft: isSelected ? '4px solid #8c2a2a' : '4px solid transparent' }}
-                          className={`p-3 border border-stone-200 hover:bg-[#FAF8F5] cursor-pointer flex justify-between items-center transition-colors ${
-                            isSelected ? 'bg-[#F9F8F4] border-stone-500' : 'bg-[#FCFAF6]'
-                          }`}
+                          className="asset-list-item"
+                          style={{ 
+                            borderLeft: isSelected ? '4px solid var(--color-accent)' : '4px solid transparent',
+                            padding: '0.65rem 0.75rem',
+                            border: '1px solid ' + (isSelected ? '#CFC5B6' : '#E2DACD'),
+                            background: isSelected ? '#FCFAF6' : '#FFFFFF',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
                         >
                           <div>
-                            <div className="font-serif text-sm font-bold text-stone-900">{h.ticker}</div>
-                            <div className="font-mono text-[9px] text-stone-500">{h.name}</div>
+                            <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', fontWeight: 'bold', color: isSelected ? 'var(--color-accent)' : '#1A1A1A' }}>{h.ticker}</div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px' }}>{h.name}</div>
                           </div>
-                          <div className="text-right">
-                            <span className="font-serif text-base font-bold text-stone-800">
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', fontWeight: 'bold', color: '#1A1A1A' }}>
                               {scoreRecord ? scoreRecord.overallScore : '—'}
                             </span>
-                            <span className="font-mono text-[8px] text-stone-400 block uppercase">Conviction</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.55rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>CONV</span>
                           </div>
                         </div>
                       );
@@ -524,59 +589,59 @@ export const IntelligenceHub: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN: FLAGSHIP COMPANY WORKSPACE */}
-            <div className="lg:col-span-3" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <section className="bg-white border border-[#E5E2D9] p-4 md:p-6 shadow-sm" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              <section className="premium-card" style={{ padding: '1.75rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
                 
                 {!selectedAsset ? (
-                  <div className="py-24 text-center flex flex-col items-center justify-center gap-4">
-                    <div className="p-4 bg-[#FAF8F5] border border-stone-300 text-[#8c2a2a]">
+                  <div style={{ padding: '6rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                    <div style={{ padding: '1rem', background: '#FCFAF6', border: '1px solid #E2DACD', color: 'var(--color-accent)' }}>
                       <Brain size={36} />
                     </div>
-                    <h3 className="font-serif text-xl font-normal italic">No Ticker Mounted</h3>
-                    <p className="text-xs text-stone-500 max-w-sm leading-relaxed font-serif">
-                      Select a company from the directory list on the left or search using Command Palette (Ctrl+K) to mount a context workspace.
+                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', fontStyle: 'italic', margin: 0 }}>No Ticker Mounted</h3>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '350px', lineHeight: '1.5', fontFamily: 'var(--font-serif)', margin: 0 }}>
+                      Select a company from the directory list on the left to mount its active context workspace.
                     </p>
                   </div>
                 ) : !selectedAsset.intel ? (
-                  <div className="py-24 text-center flex flex-col items-center justify-center gap-4">
-                    <RefreshCw size={28} className="animate-spin text-[#8c2a2a]" />
-                    <h3 className="font-serif text-lg italic">Compiling Research Registry</h3>
-                    <p className="text-xs text-stone-400 font-mono">Resolving options pricing indexes and cash efficiency coefficients...</p>
+                  <div style={{ padding: '6rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                    <RefreshCw size={32} className="spin-custom text-[#8c2a2a]" style={{ color: 'var(--color-accent)' }} />
+                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', fontStyle: 'italic', margin: 0 }}>Compiling Research Registry</h3>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', margin: 0 }}>Resolving options pricing indexes and cash efficiency coefficients...</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-6" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     
                     {/* Header Workspace Title and Action Ribbon */}
-                    <div className="border-b-2 border-stone-800 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div style={{ borderBottom: '2px solid #222222', paddingBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'space-between', alignItems: 'flex-end' }} className="md:flex-row">
                       <div>
-                        <div className="font-mono text-[9px] text-[#8c2a2a] uppercase tracking-widest font-bold flex items-center gap-1.5">
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-accent)', textTransform: 'uppercase', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <Activity size={10} /> Active Company Workspace Context
                         </div>
-                        <h2 className="font-serif text-4xl font-normal text-[#1A1A1A] mt-1" style={{ border: 'none', padding: 0 }}>
+                        <h2 style={{ border: 'none', padding: 0, margin: '0.2rem 0 0 0', fontSize: '2.2rem', fontFamily: 'var(--font-serif)', color: '#1A1A1A', fontWeight: 'normal' }}>
                           {selectedAsset.intel.name}
                         </h2>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-stone-500 mt-1.5">
-                          <strong className="text-stone-800">{selectedAsset.ticker}:{selectedAsset.exchange}</strong>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                          <strong style={{ color: '#1A1A1A' }}>{selectedAsset.ticker}:{selectedAsset.exchange}</strong>
                           <span>|</span>
                           <span>{selectedAsset.intel.sector}</span>
                           <span>|</span>
                           <span>{selectedAsset.intel.research.fundamentals?.industry || 'Data unavailable'}</span>
                           <span>|</span>
-                          <span className="bg-[#FAF8F5] border border-stone-200 px-1.5 py-0.5 text-[10px] text-[#8c2a2a] font-bold">
+                          <span style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1px 5px', fontSize: '0.65rem', color: 'var(--color-accent)', fontWeight: 'bold' }}>
                             CONFIDENCE: {researchReport?.confidenceScore || selectedAsset.intel.qualityScore}%
                           </span>
                           <span>|</span>
-                          <span className="text-stone-600 font-bold">
+                          <span style={{ fontWeight: 'bold' }}>
                             FRESHNESS: {formatFreshness(selectedAsset.intel.updatedAt)}
                           </span>
                         </div>
                       </div>
 
                       {/* Action Ribbon */}
-                      <div className="flex gap-2 flex-wrap">
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <button 
                           onClick={() => navigate(`/copilot?ticker=${selectedAsset.ticker.toLowerCase()}`)}
-                          className="text-stone-600 hover:text-[#8c2a2a] border border-stone-300 px-3 py-1.5 font-mono text-[10px] uppercase bg-[#FAF8F5] hover:bg-stone-50 transition-colors flex items-center gap-1"
+                          style={{ color: 'var(--text-secondary)', border: '1px solid #E2DACD', padding: '0.4rem 0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', textTransform: 'uppercase', background: '#FCFAF6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}
                           aria-label="Discuss with Copilot"
                         >
                           <MessageSquare size={10} /> Discuss
@@ -584,22 +649,22 @@ export const IntelligenceHub: React.FC = () => {
                         <button 
                           onClick={() => handleRecalculate(selectedAsset.ticker, selectedAsset.exchange)}
                           disabled={recalculating === `${selectedAsset.ticker}:${selectedAsset.exchange}`}
-                          className="text-stone-600 hover:text-[#8c2a2a] border border-stone-300 px-3 py-1.5 font-mono text-[10px] uppercase bg-[#FAF8F5] hover:bg-stone-50 transition-colors flex items-center gap-1 disabled:opacity-50"
+                          style={{ color: 'var(--text-secondary)', border: '1px solid #E2DACD', padding: '0.4rem 0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', textTransform: 'uppercase', background: '#FCFAF6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', opacity: recalculating === `${selectedAsset.ticker}:${selectedAsset.exchange}` ? 0.5 : 1, fontWeight: 'bold' }}
                           aria-label="Recalculate Conviction"
                         >
-                          <RefreshCw size={10} className={recalculating === `${selectedAsset.ticker}:${selectedAsset.exchange}` ? 'animate-spin' : ''} />
+                          <RefreshCw size={10} className={recalculating === `${selectedAsset.ticker}:${selectedAsset.exchange}` ? 'spin-custom' : ''} />
                           {recalculating === `${selectedAsset.ticker}:${selectedAsset.exchange}` ? 'Recalculating...' : 'Recalculate'}
                         </button>
                         <button 
                           onClick={() => ExportService.exportIntelligenceReportToMarkdown(selectedAsset.intel!, selectedAsset.conviction)}
-                          className="text-stone-600 hover:text-[#8c2a2a] border border-stone-300 px-3 py-1.5 font-mono text-[10px] uppercase bg-[#FAF8F5] hover:bg-stone-50 transition-colors flex items-center gap-1"
+                          style={{ color: 'var(--text-secondary)', border: '1px solid #E2DACD', padding: '0.4rem 0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', textTransform: 'uppercase', background: '#FCFAF6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}
                           aria-label="Export Markdown Brief"
                         >
                           <Download size={10} /> Markdown
                         </button>
                         <button 
                           onClick={() => ExportService.exportIntelligenceReportToPDF(selectedAsset.intel!, selectedAsset.conviction)}
-                          className="text-stone-600 hover:text-[#8c2a2a] border border-stone-300 px-3 py-1.5 font-mono text-[10px] uppercase bg-[#FAF8F5] hover:bg-stone-50 transition-colors flex items-center gap-1"
+                          style={{ color: 'var(--text-secondary)', border: '1px solid #E2DACD', padding: '0.4rem 0.75rem', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', textTransform: 'uppercase', background: '#FCFAF6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}
                           aria-label="Export PDF Brief"
                         >
                           <FileText size={10} /> PDF Export
@@ -611,9 +676,10 @@ export const IntelligenceHub: React.FC = () => {
                     <div style={{
                       display: 'flex',
                       borderBottom: '1px solid #E2DACD',
-                      marginBottom: '1rem',
+                      marginBottom: '0.5rem',
                       overflowX: 'auto',
-                      gap: '0.5rem'
+                      gap: '0.25rem',
+                      flexShrink: 0
                     }}>
                       {[
                         { id: 'overview', name: 'Overview' },
@@ -628,20 +694,7 @@ export const IntelligenceHub: React.FC = () => {
                           <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
-                            style={{
-                              padding: '0.65rem 1rem',
-                              border: '1px solid transparent',
-                              borderBottom: 'none',
-                              fontFamily: 'var(--font-sans)',
-                              fontWeight: isTabActive ? 'bold' : 500,
-                              fontSize: '0.8rem',
-                              background: isTabActive ? '#FAF8F5' : 'transparent',
-                              borderColor: isTabActive ? '#E2DACD' : 'transparent',
-                              color: isTabActive ? '#8c2a2a' : '#555',
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                              transition: 'all 0.15s ease-in-out'
-                            }}
+                            className={`tab-btn ${isTabActive ? 'active' : ''}`}
                           >
                             {tab.name}
                           </button>
@@ -650,31 +703,31 @@ export const IntelligenceHub: React.FC = () => {
                     </div>
 
                     {/* Active Workspace View Rendering */}
-                    <div className="scrollable-panel" style={{ flexGrow: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 355px)', paddingRight: '0.5rem' }}>
+                    <div className="scrollable-panel custom-scrollbar" style={{ flexGrow: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 355px)', paddingRight: '0.5rem' }}>
                       
                       {/* TAB 1: OVERVIEW */}
                       {activeTab === 'overview' && (
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }} className="lg:grid-cols-3">
                           {/* Left summary block */}
-                          <div className="xl:col-span-2 flex flex-col gap-6">
-                            <div className="border border-stone-300 p-6 bg-[#FCFAF6] shadow-sm">
-                              <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} className="lg:col-span-2">
+                            <div style={{ padding: '1.5rem', background: '#FCFAF6', border: '1px solid #E2DACD' }}>
+                              <h3 style={{ fontSize: '1.15rem', margin: '0 0 1rem 0', padding: 0, fontFamily: 'var(--font-serif)', fontWeight: 'bold', color: '#1A1A1A', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem' }}>
                                 Executive Investment Thesis
                               </h3>
-                              <div className="flex flex-col gap-4 font-serif text-sm leading-relaxed text-[#1A1A1A]">
-                                <p className="italic bg-white p-4 border-l-4 border-[#8c2a2a] text-stone-850 text-xs shadow-sm">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontFamily: 'var(--font-serif)', fontSize: '0.85rem', lineHeight: '1.6', color: '#1A1A1A' }}>
+                                <p style={{ fontStyle: 'italic', background: '#FFFFFF', padding: '1rem 1.25rem', borderLeft: '4px solid var(--color-accent)', border: '1px solid #E2DACD', borderLeftWidth: '4px', margin: 0, color: 'var(--text-secondary)' }}>
                                   "{getExecutiveThesis(selectedAsset.intel, selectedAsset.conviction)}"
                                 </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                                  <div className="bg-white p-4 border border-stone-200 rounded-none shadow-xs">
-                                    <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">Primary Opportunity</strong>
-                                    <p className="text-stone-700 font-serif text-[11px] leading-relaxed">
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }} className="sm:grid-cols-2">
+                                  <div style={{ background: '#FFFFFF', padding: '1rem', border: '1px solid #E2DACD' }}>
+                                    <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--color-accent)', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>Primary Opportunity</strong>
+                                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontFamily: 'var(--font-serif)', fontSize: '0.78rem', lineHeight: '1.5' }}>
                                       {getPrimaryOpportunity(selectedAsset.intel)}
                                     </p>
                                   </div>
-                                  <div className="bg-white p-4 border border-stone-200 rounded-none shadow-xs">
-                                    <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-400 block mb-1">Core Catalysts</strong>
-                                    <p className="text-stone-700 font-serif text-[11px] leading-relaxed">
+                                  <div style={{ background: '#FFFFFF', padding: '1rem', border: '1px solid #E2DACD' }}>
+                                    <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--color-accent)', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>Core Catalysts</strong>
+                                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontFamily: 'var(--font-serif)', fontSize: '0.78rem', lineHeight: '1.5' }}>
                                       {getPrimaryRisk(selectedAsset.intel)}
                                     </p>
                                   </div>
@@ -683,104 +736,103 @@ export const IntelligenceHub: React.FC = () => {
                             </div>
 
                             {/* Supporting Evidence block */}
-                            <div className="border border-[#E5E2D9] p-6 bg-white shadow-sm">
-                              <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                            <div style={{ padding: '1.5rem', background: '#FFFFFF', border: '1px solid #E2DACD' }}>
+                              <h3 style={{ fontSize: '1.15rem', margin: '0 0 0.5rem 0', padding: 0, fontFamily: 'var(--font-serif)', fontWeight: 'bold', color: '#1A1A1A', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem' }}>
                                 Supporting Evidence & Technical Deviation
                               </h3>
-                              <p className="font-serif text-[11px] text-stone-600 mb-4 leading-relaxed">
+                              <p style={{ fontFamily: 'var(--font-serif)', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: '1.5', margin: '0.5rem 0 1rem 0' }}>
                                 Analytical support indicates that statistical pullback margins-of-safety are preserved. Volatility indices and exponential moving averages verify that short-term price pullbacks exist inside structural long-term asset appreciation patterns.
                               </p>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs font-mono text-stone-600 bg-[#FCFAF6] border border-stone-200 p-4">
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem', padding: '1rem', background: '#FCFAF6', border: '1px solid #E2DACD' }}>
                                 <div>
-                                  <span className="text-[9px] text-stone-400 uppercase block">Current Live Price</span>
-                                  <strong className="text-stone-950 text-xs font-bold">${(selectedAsset.intel.dip.currentPrice || 0).toFixed(2)}</strong>
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Current Price</span>
+                                  <strong style={{ fontSize: '0.85rem', color: '#1A1A1A', fontFamily: 'var(--font-mono)' }}>${(selectedAsset.intel.dip.currentPrice || 0).toFixed(2)}</strong>
                                 </div>
                                 <div>
-                                  <span className="text-[9px] text-stone-400 uppercase block">Z-Score Price Deviation</span>
-                                  <strong className="text-stone-950 text-xs font-bold">{(selectedAsset.intel.dip.zScore || 0).toFixed(2)} σ</strong>
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Z-Score Deviation</span>
+                                  <strong style={{ fontSize: '0.85rem', color: '#1A1A1A', fontFamily: 'var(--font-mono)' }}>{(selectedAsset.intel.dip.zScore || 0).toFixed(2)} σ</strong>
                                 </div>
                                 <div>
-                                  <span className="text-[9px] text-stone-400 uppercase block">Historical Volatility</span>
-                                  <strong className="text-stone-950 text-xs font-bold">{(selectedAsset.intel.dip.volatility || 0).toFixed(2)}</strong>
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Hist Volatility</span>
+                                  <strong style={{ fontSize: '0.85rem', color: '#1A1A1A', fontFamily: 'var(--font-mono)' }}>{(selectedAsset.intel.dip.volatility || 0).toFixed(2)}</strong>
                                 </div>
                                 <div>
-                                  <span className="text-[9px] text-stone-400 uppercase block">52-Week Range</span>
-                                  <strong className="text-stone-950 text-xs font-bold">${(selectedAsset.intel.dip.fiftyTwoWeekLow || 0).toFixed(0)} - ${(selectedAsset.intel.dip.fiftyTwoWeekHigh || 0).toFixed(0)}</strong>
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>52-Week Range</span>
+                                  <strong style={{ fontSize: '0.85rem', color: '#1A1A1A', fontFamily: 'var(--font-mono)' }}>${(selectedAsset.intel.dip.fiftyTwoWeekLow || 0).toFixed(0)} - ${(selectedAsset.intel.dip.fiftyTwoWeekHigh || 0).toFixed(0)}</strong>
                                 </div>
                                 <div>
-                                  <span className="text-[9px] text-stone-400 uppercase block">50-Day Price EMA</span>
-                                  <strong className="text-stone-950 text-xs font-bold">${(selectedAsset.intel.dip.ema50 || 0).toFixed(2)}</strong>
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>50-Day EMA</span>
+                                  <strong style={{ fontSize: '0.85rem', color: '#1A1A1A', fontFamily: 'var(--font-mono)' }}>${(selectedAsset.intel.dip.ema50 || 0).toFixed(2)}</strong>
                                 </div>
                                 <div>
-                                  <span className="text-[9px] text-stone-400 uppercase block">Technical Pullback Status</span>
-                                  <strong className="text-stone-950 text-xs font-bold uppercase">{selectedAsset.intel.dip.dipDetected ? (selectedAsset.intel.dip.classification || 'Active Pullback') : 'Baseline bounds'}</strong>
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>Technical Status</span>
+                                  <strong style={{ fontSize: '0.85rem', color: 'var(--color-accent)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>{selectedAsset.intel.dip.dipDetected ? (selectedAsset.intel.dip.classification || 'Pullback') : 'Baseline'}</strong>
                                 </div>
                               </div>
                             </div>
                           </div>
 
                           {/* Right rating panel */}
-                          <div className="xl:col-span-1 flex flex-col gap-6">
-                            <div className="bg-[#FCFAF6] border-2 border-[#8c2a2a] p-6 text-center shadow-md relative overflow-hidden">
-                              <div className="absolute top-0 left-0 w-full h-1.5 bg-[#8c2a2a]" />
-                              <span className="font-mono text-[9px] text-stone-400 uppercase tracking-widest block mb-2 font-bold">Conviction Rating</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', borderTop: '4px solid var(--color-accent)', padding: '1.5rem', textAlign: 'center', position: 'relative' }}>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', fontWeight: 'bold' }}>Conviction Rating</span>
                               
-                              <div className="font-serif text-5xl font-bold text-[#8c2a2a] my-2 select-none">
+                              <div style={{ fontFamily: 'var(--font-serif)', fontSize: '3.6rem', fontWeight: 'bold', color: 'var(--color-accent)', margin: '0.5rem 0' }}>
                                 {selectedAsset.conviction?.overallScore || '—'}
                               </div>
                               
-                              <span style={{ fontSize: '0.55rem' }} className="font-mono font-bold text-stone-800 uppercase tracking-wider block bg-white border border-stone-200 py-1 px-2 inline-block rounded-none shadow-xs mt-1">
+                              <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: 'var(--color-accent)', background: '#FFFFFF', border: '1px solid #E2DACD', padding: '0.3rem 0.6rem', display: 'inline-block', textTransform: 'uppercase', marginTop: '0.2rem' }}>
                                 {(() => {
                                   const score = selectedAsset.conviction?.overallScore || 0;
                                   return score >= 75 ? '🔥 High Conviction Buy' : score >= 50 ? '🟡 Moderate Conviction Hold' : '❌ Low Conviction / Restrict';
                                 })()}
                               </span>
 
-                              <div className="flex flex-col gap-3 text-left text-xs border-t border-stone-200 pt-4 mt-4">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', textAlign: 'left', fontSize: '0.75rem', borderTop: '1px solid #E2DACD', paddingTop: '1rem', marginTop: '1.25rem' }}>
                                 <div>
-                                  <div className="flex justify-between font-mono font-bold mb-1 text-[10px]">
-                                    <span className="text-stone-700">Portfolio Exposure Sizing</span>
-                                    <span className="text-stone-900">{selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0} / 25</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.68rem' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Portfolio Exposure Sizing</span>
+                                    <span style={{ color: '#1A1A1A' }}>{selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0} / 25</span>
                                   </div>
-                                  <div className="w-full h-1 bg-stone-200 rounded-none overflow-hidden">
-                                    <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0) / 25) * 100}%` }} />
+                                  <div style={{ width: '100%', height: '5px', background: '#E2DACD', overflow: 'hidden' }}>
+                                    <div style={{ width: `${((selectedAsset.conviction?.breakdown.allocationFactor.contribution || 0) / 25) * 100}%`, height: '100%', background: 'var(--color-accent)' }} />
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="flex justify-between font-mono font-bold mb-1 text-[10px]">
-                                    <span className="text-stone-700">Fundamental Quality Index</span>
-                                    <span className="text-stone-900">{selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0} / 25</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.68rem' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Fundamental Quality Index</span>
+                                    <span style={{ color: '#1A1A1A' }}>{selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0} / 25</span>
                                   </div>
-                                  <div className="w-full h-1 bg-stone-200 rounded-none overflow-hidden">
-                                    <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0) / 25) * 100}%` }} />
+                                  <div style={{ width: '100%', height: '5px', background: '#E2DACD', overflow: 'hidden' }}>
+                                    <div style={{ width: `${((selectedAsset.conviction?.breakdown.fundamentalFactor.contribution || 0) / 25) * 100}%`, height: '100%', background: 'var(--color-accent)' }} />
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="flex justify-between font-mono font-bold mb-1 text-[10px]">
-                                    <span className="text-stone-700">Technical Dip Premium</span>
-                                    <span className="text-stone-900">{selectedAsset.conviction?.breakdown.dipFactor.contribution || 0} / 25</span>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.68rem' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Technical Dip Premium</span>
+                                    <span style={{ color: '#1A1A1A' }}>{selectedAsset.conviction?.breakdown.dipFactor.contribution || 0} / 25</span>
                                   </div>
-                                  <div className="w-full h-1 bg-stone-200 rounded-none overflow-hidden">
-                                    <div className="h-full bg-[#8c2a2a]" style={{ width: `${((selectedAsset.conviction?.breakdown.dipFactor.contribution || 0) / 25) * 100}%` }} />
+                                  <div style={{ width: '100%', height: '5px', background: '#E2DACD', overflow: 'hidden' }}>
+                                    <div style={{ width: `${((selectedAsset.conviction?.breakdown.dipFactor.contribution || 0) / 25) * 100}%`, height: '100%', background: 'var(--color-accent)' }} />
                                   </div>
                                 </div>
                               </div>
                             </div>
 
                             {/* Operational Risk warning */}
-                            <div className="bg-[#FDF2F2] border border-[#F8B4B4] p-5 shadow-xs">
-                              <h3 className="font-serif text-base font-bold text-[#9B1C1C] border-b border-[#F8B4B4] pb-2 mb-3 flex items-center gap-1">
-                                <AlertTriangle size={14} /> Risk Factors & warnings
+                            <div style={{ background: 'var(--color-danger-bg)', border: '1px solid var(--color-danger-border)', padding: '1.25rem' }}>
+                              <h3 style={{ fontSize: '0.92rem', margin: '0 0 0.75rem 0', fontFamily: 'var(--font-serif)', fontWeight: 'bold', color: 'var(--color-danger-text)', borderBottom: '1px solid var(--color-danger-border)', paddingBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <AlertTriangle size={14} /> Risk Factors & Warnings
                               </h3>
-                              <div className="flex flex-col gap-3 text-[11px] text-[#9B1C1C]">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--color-danger-text)' }}>
                                 {selectedAsset.intel.research.leverageRatio >= 0.4 && (
-                                  <div className="bg-white border border-[#F8B4B4] p-2 font-sans leading-normal">
-                                    <strong>⚠️ Leverage warning:</strong> Leverage ratio is {(selectedAsset.intel.research.leverageRatio || 0).toFixed(2)}, which exceeds the targeted 0.40 limit.
+                                  <div style={{ background: '#FFFFFF', border: '1px solid var(--color-danger-border)', padding: '0.5rem 0.75rem', lineHeight: '1.4' }}>
+                                    <strong>⚠️ Leverage Warning:</strong> Leverage ratio is {(selectedAsset.intel.research.leverageRatio || 0).toFixed(2)}, which exceeds the targeted 0.40 limit.
                                   </div>
                                 )}
-                                <div className="font-sans leading-normal text-stone-700">
-                                  <strong>Primary Catalyst Alert:</strong>
-                                  <p className="italic text-stone-700 mt-1 font-serif">
+                                <div style={{ lineHeight: '1.4', color: 'var(--text-secondary)' }}>
+                                  <strong style={{ color: '#1A1A1A', display: 'block', marginBottom: '0.2rem' }}>Primary Catalyst Alert:</strong>
+                                  <p style={{ fontStyle: 'italic', fontFamily: 'var(--font-serif)', margin: 0 }}>
                                     "{selectedAsset.intel.dip.catalyst || 'Baseline structural competition'}"
                                   </p>
                                 </div>
@@ -792,72 +844,72 @@ export const IntelligenceHub: React.FC = () => {
 
                       {/* TAB 2: RESEARCH ENGINE */}
                       {activeTab === 'research' && (
-                        <div className="flex flex-col gap-6">
-                          <div className="border border-stone-300 p-6 bg-white shadow-sm">
-                            <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4 flex items-center gap-1.5">
-                              <Briefcase size={16} /> Institutional Research Engine Brief
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                          <div style={{ padding: '1.5rem', background: '#FFFFFF', border: '1px solid #E2DACD' }}>
+                            <h3 style={{ fontSize: '1.15rem', margin: '0 0 1.25rem 0', padding: 0, fontFamily: 'var(--font-serif)', fontWeight: 'bold', color: '#1A1A1A', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <Briefcase size={16} style={{ color: 'var(--color-accent)' }} /> Institutional Research Engine Brief
                             </h3>
                             
                             {researchLoading ? (
-                              <div className="flex items-center gap-2 text-stone-500 font-mono text-xs py-8">
-                                <RefreshCw size={14} className="animate-spin" /> Compiling Data Moat Research Report...
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', padding: '2rem 0' }}>
+                                <RefreshCw size={14} className="spin-custom" /> Compiling Data Moat Research Report...
                               </div>
                             ) : researchReport ? (
-                              <div className="flex flex-col gap-5 text-xs text-[#1A1A1A] font-serif leading-relaxed">
-                                <div className="bg-[#FCFAF6] border border-stone-200 p-4">
-                                  <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-1">1. Business Overview & Context</strong>
-                                  <p className="text-stone-850 font-sans leading-relaxed text-sm">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.85rem', fontFamily: 'var(--font-serif)', lineHeight: '1.6', color: '#1A1A1A' }}>
+                                <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem 1.25rem' }}>
+                                  <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-accent)', display: 'block', marginBottom: '0.35rem' }}>1. Business Overview & Context</strong>
+                                  <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                                     {researchReport.executiveSummary}
                                   </p>
                                 </div>
 
-                                <div className="bg-[#FCFAF6] border border-stone-200 p-4">
-                                  <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-1">2. Financial Metrics Analysis</strong>
-                                  <p className="text-stone-850 font-sans leading-relaxed text-sm">
+                                <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem 1.25rem' }}>
+                                  <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-accent)', display: 'block', marginBottom: '0.35rem' }}>2. Financial Metrics Analysis</strong>
+                                  <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                                     {researchReport.financialMetricsAnalysis}
                                   </p>
                                 </div>
 
-                                <div className="bg-[#FCFAF6] border border-stone-200 p-4">
-                                  <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-1">3. Risks and Mitigations</strong>
-                                  <p className="text-stone-850 font-sans leading-relaxed text-sm">
+                                <div style={{ background: '#FCFAF6', border: '1px solid #E2DACD', padding: '1rem 1.25rem' }}>
+                                  <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-accent)', display: 'block', marginBottom: '0.35rem' }}>3. Risks and Mitigations</strong>
+                                  <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                                     {researchReport.risksAndMitigations}
                                   </p>
                                 </div>
 
                                 {/* Filing Change Alert log */}
-                                <div className="border border-stone-200 p-4 bg-white">
-                                  <strong className="font-mono text-[9px] uppercase tracking-wider text-stone-450 block mb-2">Filing Change Detector Alerts</strong>
+                                <div style={{ border: '1px solid #E2DACD', padding: '1rem 1.25rem', background: '#FFFFFF' }}>
+                                  <strong style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>Filing Change Detector Alerts</strong>
                                   {researchReport.changeDetectionAlerts.length > 0 ? (
-                                    <div className="flex flex-col gap-2">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                       {researchReport.changeDetectionAlerts.map((alert, i) => (
-                                        <div key={i} className="flex flex-col sm:flex-row sm:justify-between font-mono text-[10px] pb-1 border-b border-stone-100 last:border-b-0">
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', paddingBottom: '0.25rem', borderBottom: '1px solid #FCFAF6' }}>
                                           <div>
-                                            <span className={alert.direction === 'improved' ? 'text-green-700 font-bold' : alert.direction === 'deteriorated' ? 'text-red-700 font-bold' : 'text-stone-600'}>
+                                            <span style={{ color: alert.direction === 'improved' ? 'var(--color-success-text)' : alert.direction === 'deteriorated' ? 'var(--color-danger-text)' : '#555', fontWeight: 'bold' }}>
                                               {alert.direction.toUpperCase()}
                                             </span>
-                                            <span className="text-stone-800 ml-1.5">{alert.metric}:</span>
+                                            <span style={{ color: '#1A1A1A', marginLeft: '0.5rem' }}>{alert.metric}:</span>
                                           </div>
-                                          <div className="text-stone-600">
+                                          <div style={{ color: 'var(--text-secondary)' }}>
                                             {alert.previousValue} → <strong>{alert.currentValue}</strong> ({alert.changePercent > 0 ? '+' : ''}{alert.changePercent}%)
                                           </div>
                                         </div>
                                       ))}
                                     </div>
                                   ) : (
-                                    <span className="text-stone-400 italic text-[10px] font-mono">No material filing changes detected relative to recent history.</span>
+                                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.72rem', fontFamily: 'var(--font-mono)' }}>No material filing changes detected relative to recent history.</span>
                                   )}
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-stone-450 font-mono text-[10px] italic">Verify cache database connection.</div>
+                              <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontStyle: 'italic' }}>Verify cache database connection.</div>
                             )}
                           </div>
 
                           {/* Citations Full-Width Block */}
-                          <div className="border border-stone-300 p-6 bg-[#FCFAF6] shadow-sm">
-                            <div className="flex justify-between items-center mb-4 flex-wrap gap-2 border-b border-stone-200 pb-2">
-                              <h4 className="font-serif text-base font-bold text-stone-900">Sources and Citation Trail</h4>
+                          <div style={{ padding: '1.5rem', background: '#FCFAF6', border: '1px solid #E2DACD' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem' }}>
+                              <h4 style={{ fontSize: '0.98rem', margin: 0, fontFamily: 'var(--font-serif)', color: '#1A1A1A', fontWeight: 'bold' }}>Sources and Citation Trail</h4>
                               {researchReport && (
                                 <ProvenanceBadge 
                                   category={selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' ? 'News Intelligence' : 'Regulatory Filings'}
@@ -867,22 +919,22 @@ export const IntelligenceHub: React.FC = () => {
                                 />
                               )}
                             </div>
-                            <div className="flex flex-col gap-1 text-[10px] font-mono">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.72rem', fontFamily: 'var(--font-mono)' }}>
                               {researchReport && researchReport.sourcesUsed && researchReport.sourcesUsed.length > 0 ? (
                                 researchReport.sourcesUsed.map((src, i) => (
-                                  <div key={i} className="flex justify-between text-stone-600 items-center">
+                                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)', alignItems: 'center', borderBottom: '1px solid #EAE5DB', paddingBottom: '0.25rem' }}>
                                     {src.url ? (
-                                      <a href={src.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#8c2a2a] text-[#8c2a2a] underline flex items-center gap-0.5">
+                                      <a href={src.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 'bold' }}>
                                         {src.name} <ExternalLink size={8} />
                                       </a>
                                     ) : (
                                       <span>{src.name}</span>
                                     )}
-                                    <span className="text-stone-400">{src.timestamp}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{src.timestamp}</span>
                                   </div>
                                 ))
                               ) : (
-                                <span className="text-stone-400 italic">No formal external citations linked.</span>
+                                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No formal external citations linked.</span>
                               )}
                             </div>
                           </div>
@@ -891,11 +943,11 @@ export const IntelligenceHub: React.FC = () => {
 
                       {/* TAB 3: FINANCIAL STATEMENTS */}
                       {activeTab === 'financials' && (
-                        <div className="flex flex-col gap-6">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                           
                           {/* Quality score parameters */}
-                          <div className="border border-stone-300 p-6 bg-white shadow-sm">
-                            <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                          <div style={{ padding: '1.5rem', background: '#FFFFFF', border: '1px solid #E2DACD' }}>
+                            <h3 style={{ fontSize: '1.15rem', margin: '0 0 1.25rem 0', fontFamily: 'var(--font-serif)', fontWeight: 'bold', color: '#1A1A1A', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem' }}>
                               Balance Sheet Quality Framework ({selectedAsset.intel.qualityScore}/100)
                             </h3>
                             
@@ -907,25 +959,25 @@ export const IntelligenceHub: React.FC = () => {
                               };
                               
                               return (
-                                <div className="flex flex-col gap-4 text-xs">
-                                  <div className="border-b border-stone-100 pb-3">
-                                    <div className="flex justify-between font-mono font-bold text-stone-800 mb-1">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem' }}>
+                                  <div style={{ borderBottom: '1px solid #F3ECE0', paddingBottom: '0.75rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: '#1A1A1A', marginBottom: '0.2rem' }}>
                                       <span>Economic Moat Rating</span>
-                                      <span className="text-[#8c2a2a]">{qb.moat.score} / {qb.moat.max} Max</span>
+                                      <span style={{ color: 'var(--color-accent)' }}>{qb.moat.score} / {qb.moat.max} Max</span>
                                     </div>
-                                    <div className="font-mono text-[9px] uppercase text-[#8c2a2a] mb-1.5 font-bold">Class: {qb.moat.value}</div>
-                                    <p className="font-serif italic text-stone-600 text-[11px] leading-normal bg-[#FCFAF6] border-l-2 border-stone-300 p-2">
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-accent)', marginBottom: '0.35rem', fontWeight: 'bold' }}>Class: {qb.moat.value}</div>
+                                    <p style={{ fontStyle: 'italic', fontFamily: 'var(--font-serif)', color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: '1.4', background: '#FCFAF6', borderLeft: '3px solid #E2DACD', padding: '0.5rem 0.75rem', margin: 0 }}>
                                       "{qb.moat.rationale}"
                                     </p>
                                   </div>
 
-                                  <div className="border-b border-stone-100 pb-3">
-                                    <div className="flex justify-between font-mono font-bold text-stone-800 mb-1">
+                                  <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontWeight: 'bold', color: '#1A1A1A', marginBottom: '0.2rem' }}>
                                       <span>Solvency & Leverage</span>
-                                      <span className="text-[#8c2a2a]">{qb.leverage.score} / {qb.leverage.max} Max</span>
+                                      <span style={{ color: 'var(--color-accent)' }}>{qb.leverage.score} / {qb.leverage.max} Max</span>
                                     </div>
-                                    <div className="font-mono text-[9px] uppercase text-stone-400 mb-1.5">Target ratio: &lt; 0.40</div>
-                                    <p className="text-stone-600 text-[11px] leading-normal">
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Target ratio: &lt; 0.40</div>
+                                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: '1.4' }}>
                                       {qb.leverage.rationale}
                                     </p>
                                   </div>
@@ -935,35 +987,35 @@ export const IntelligenceHub: React.FC = () => {
                           </div>
 
                           {/* Historical margins table */}
-                          <div className="border border-stone-300 p-6 bg-white shadow-sm">
-                            <h3 className="font-mono text-[10px] text-[#8c2a2a] uppercase tracking-widest font-bold border-b border-stone-200 pb-2 mb-4">
+                          <div style={{ padding: '1.5rem', background: '#FFFFFF', border: '1px solid #E2DACD' }}>
+                            <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '1rem', margin: 0 }}>
                               Earnings & Margin Trend (Historical highlights)
                             </h3>
                             
                             {researchReport && researchReport.earningsTrend.length > 0 ? (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left font-mono text-[10px] border-collapse">
+                              <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', textAlign: 'left', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
                                   <thead>
-                                    <tr className="border-b border-stone-300 font-bold uppercase text-stone-500">
-                                      <th className="pb-1.5">Reporting Date</th>
-                                      <th className="pb-1.5 text-right">Quarterly Revenue</th>
-                                      <th className="pb-1.5 text-right">Operating Margin</th>
-                                      <th className="pb-1.5 text-right">Net Income</th>
+                                    <tr style={{ borderBottom: '1px solid #E2DACD', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                      <th style={{ paddingBottom: '0.5rem' }}>Reporting Period</th>
+                                      <th style={{ paddingBottom: '0.5rem', textAlign: 'right' }}>Quarterly Revenue</th>
+                                      <th style={{ paddingBottom: '0.5rem', textAlign: 'right' }}>Operating Margin</th>
+                                      <th style={{ paddingBottom: '0.5rem', textAlign: 'right' }}>Net Income</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {researchReport.earningsTrend.map((trend, i) => (
-                                      <tr key={i} className="border-b border-stone-100 last:border-b-0">
-                                        <td className="py-1.5">{trend.quarter}</td>
-                                        <td className="py-1.5 text-right font-bold">
+                                      <tr key={i} style={{ borderBottom: '1px solid #F3ECE0' }}>
+                                        <td style={{ padding: '0.5rem 0' }}>{trend.quarter}</td>
+                                        <td style={{ padding: '0.5rem 0', textAlign: 'right', fontWeight: 'bold', color: '#1A1A1A' }}>
                                           {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE' 
                                             ? `₹${(trend.revenue / 10000000).toFixed(0)} Cr`
                                             : `$${(trend.revenue / 1000000000).toFixed(2)}B`}
                                         </td>
-                                        <td className="py-1.5 text-right font-bold" style={{ color: trend.operatingMargin > 25 ? '#2C6B50' : trend.operatingMargin > 10 ? '#B45309' : '#9B1C1C' }}>
+                                        <td style={{ padding: '0.5rem 0', textAlign: 'right', fontWeight: 'bold', color: trend.operatingMargin > 25 ? 'var(--color-success-text)' : trend.operatingMargin > 10 ? 'var(--color-warning-text)' : 'var(--color-danger-text)' }}>
                                           {trend.operatingMargin.toFixed(1)}%
                                         </td>
-                                        <td className="py-1.5 text-right text-stone-600">
+                                        <td style={{ padding: '0.5rem 0', textAlign: 'right', color: 'var(--text-secondary)' }}>
                                           {selectedAsset.exchange === 'NSE' || selectedAsset.exchange === 'BSE'
                                             ? `₹${(trend.netIncome / 10000000).toFixed(0)} Cr`
                                             : `$${(trend.netIncome / 1000000000).toFixed(2)}B`}
@@ -974,43 +1026,43 @@ export const IntelligenceHub: React.FC = () => {
                                 </table>
                               </div>
                             ) : (
-                              <div className="text-stone-400 font-mono text-[10px] italic">No historical stats cached.</div>
+                              <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontStyle: 'italic' }}>No historical stats cached.</div>
                             )}
                           </div>
 
                           {/* Verification table */}
-                          <div className="border border-stone-300 p-6 bg-white shadow-sm">
-                            <h3 className="font-mono text-[9px] text-[#8c2a2a] uppercase tracking-widest font-bold border-b border-stone-200 pb-1.5 mb-3 flex items-center gap-1.5">
+                          <div style={{ padding: '1.5rem', background: '#FFFFFF', border: '1px solid #E2DACD' }}>
+                            <h3 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem', marginBottom: '0.85rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                               <Shield size={12} /> Live Intelligence Verification Audit Log
                             </h3>
-                            <div className="overflow-x-auto text-[10px] font-mono text-stone-600 bg-white border border-[#E5E2D9] p-3">
-                              <table className="w-full text-left">
+                            <div style={{ overflowX: 'auto', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', background: '#FCFAF6', border: '1px solid #E2DACD', padding: '0.75rem' }}>
+                              <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                                 <thead>
-                                  <tr className="border-b border-stone-300 font-bold uppercase text-stone-500">
-                                    <th className="pb-1.5">Model Metric</th>
-                                    <th className="pb-1.5">Value</th>
-                                    <th className="pb-1.5">Classification</th>
-                                    <th className="pb-1.5">Sourcing Registry</th>
+                                  <tr style={{ borderBottom: '1px solid #E2DACD', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    <th style={{ paddingBottom: '0.35rem' }}>Model Metric</th>
+                                    <th style={{ paddingBottom: '0.35rem' }}>Value</th>
+                                    <th style={{ paddingBottom: '0.35rem' }}>Classification</th>
+                                    <th style={{ paddingBottom: '0.35rem' }}>Sourcing Registry</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  <tr className="border-b border-stone-100">
-                                    <td className="py-1.5">Economic Moat</td>
-                                    <td className="py-1.5 font-bold">{selectedAsset.intel.research.moatRating.toUpperCase()}</td>
-                                    <td className="py-1.5 text-purple-700 font-bold">AI Interpretation</td>
-                                    <td className="py-1.5">Gemini 3.1 Pro</td>
+                                  <tr style={{ borderBottom: '1px solid #EAE5DB' }}>
+                                    <td style={{ padding: '0.35rem 0' }}>Economic Moat</td>
+                                    <td style={{ padding: '0.35rem 0', fontWeight: 'bold', color: '#1A1A1A' }}>{selectedAsset.intel.research.moatRating.toUpperCase()}</td>
+                                    <td style={{ padding: '0.35rem 0', color: 'purple', fontWeight: 'bold' }}>AI Interpretation</td>
+                                    <td style={{ padding: '0.35rem 0' }}>Gemini 3.1 Pro</td>
                                   </tr>
-                                  <tr className="border-b border-stone-100">
-                                    <td className="py-1.5">Debt to Equity</td>
-                                    <td className="py-1.5 font-bold">{(selectedAsset.intel.research.fundamentals?.debtToEquity || 0).toFixed(2)}</td>
-                                    <td className="py-1.5 text-[#8c2a2a] font-bold">Real Market Data</td>
-                                    <td className="py-1.5">Finnhub Core API</td>
+                                  <tr style={{ borderBottom: '1px solid #EAE5DB' }}>
+                                    <td style={{ padding: '0.35rem 0' }}>Debt to Equity</td>
+                                    <td style={{ padding: '0.35rem 0', fontWeight: 'bold', color: '#1A1A1A' }}>{(selectedAsset.intel.research.fundamentals?.debtToEquity || 0).toFixed(2)}</td>
+                                    <td style={{ padding: '0.35rem 0', color: 'var(--color-accent)', fontWeight: 'bold' }}>Real Market Data</td>
+                                    <td style={{ padding: '0.35rem 0' }}>Finnhub Core API</td>
                                   </tr>
                                   <tr>
-                                    <td className="pt-1.5">FCF Margin</td>
-                                    <td className="pt-1.5 font-bold">{(selectedAsset.intel.research.freeCashFlowMargin || 0).toFixed(1)}%</td>
-                                    <td className="pt-1.5 text-[#8c2a2a] font-bold">Real Market Data</td>
-                                    <td className="pt-1.5">Finnhub Core API</td>
+                                    <td style={{ paddingTop: '0.35rem' }}>FCF Margin</td>
+                                    <td style={{ paddingTop: '0.35rem', fontWeight: 'bold', color: '#1A1A1A' }}>{(selectedAsset.intel.research.freeCashFlowMargin || 0).toFixed(1)}%</td>
+                                    <td style={{ paddingTop: '0.35rem', color: 'var(--color-accent)', fontWeight: 'bold' }}>Real Market Data</td>
+                                    <td style={{ paddingTop: '0.35rem' }}>Finnhub Core API</td>
                                   </tr>
                                 </tbody>
                               </table>
@@ -1021,99 +1073,99 @@ export const IntelligenceHub: React.FC = () => {
 
                       {/* TAB 4: SMART MONEY FLOW */}
                       {activeTab === 'smart_money' && (
-                        <div className="border border-[#E5E2D9] p-6 bg-white shadow-sm">
-                          <h3 className="font-serif text-lg font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">
+                        <div style={{ padding: '1.5rem', background: '#FFFFFF', border: '1px solid #E2DACD' }}>
+                          <h3 style={{ fontSize: '1.15rem', margin: '0 0 1.25rem 0', padding: 0, fontFamily: 'var(--font-serif)', fontWeight: 'bold', color: '#1A1A1A', borderBottom: '1px solid #E2DACD', paddingBottom: '0.5rem' }}>
                             Smart Money Flow Dashboard
                           </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }} className="md:grid-cols-2">
                             {/* Insider Activity */}
-                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                            <div style={{ padding: '1rem', border: '1px solid #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                               <div>
-                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontWeight: 'bold', borderBottom: '1px solid #E2DACD', paddingBottom: '0.40rem', marginBottom: '0.75rem', color: '#1A1A1A', fontSize: '0.75rem' }}>
                                   <span>Insider Net Volume</span>
-                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
-                                    Conf: {selectedAsset.intel.smartMoney.insiderTransactions?.confidence || 'none'}
+                                  <span style={{ padding: '1px 5px', border: '1px solid #E2DACD', fontSize: '0.58rem', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 'bold', background: '#FFFFFF' }}>
+                                    CONF: {selectedAsset.intel.smartMoney.insiderTransactions?.confidence || 'none'}
                                   </span>
                                 </div>
                                 {selectedAsset.intel.smartMoney.insiderTransactions?.value ? (
-                                  <div className="font-mono text-[10px] text-stone-700 leading-normal flex flex-col gap-1">
+                                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div><strong>Net Volume:</strong> {selectedAsset.intel.smartMoney.insiderTransactions.value.netSharesBought.toLocaleString()} Shares</div>
                                     <div><strong>Transactions (90d):</strong> {selectedAsset.intel.smartMoney.insiderTransactions.value.totalTransactionsCount} ({selectedAsset.intel.smartMoney.insiderTransactions.value.buyCount} buys, {selectedAsset.intel.smartMoney.insiderTransactions.value.sellCount} sells)</div>
                                   </div>
                                 ) : (
-                                  <div className="text-stone-450 font-mono text-[9px] italic">Data unavailable</div>
+                                  <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', fontStyle: 'italic' }}>Data unavailable</div>
                                 )}
                               </div>
-                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
+                              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '1rem', borderTop: '1px dashed #E2DACD', paddingTop: '0.35rem' }}>
                                 SOURCE: SEC FORM 4 FILINGS
                               </div>
                             </div>
 
                             {/* Officer Sentiment */}
-                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                            <div style={{ padding: '1rem', border: '1px solid #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                               <div>
-                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontWeight: 'bold', borderBottom: '1px solid #E2DACD', paddingBottom: '0.40rem', marginBottom: '0.75rem', color: '#1A1A1A', fontSize: '0.75rem' }}>
                                   <span>Corporate Officer Sentiment</span>
-                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
-                                    Conf: {selectedAsset.intel.smartMoney.insiderSentiment?.confidence || 'none'}
+                                  <span style={{ padding: '1px 5px', border: '1px solid #E2DACD', fontSize: '0.58rem', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 'bold', background: '#FFFFFF' }}>
+                                    CONF: {selectedAsset.intel.smartMoney.insiderSentiment?.confidence || 'none'}
                                   </span>
                                 </div>
                                 {selectedAsset.intel.smartMoney.insiderSentiment?.value ? (
-                                  <div className="font-mono text-[10px] text-stone-700 leading-normal flex flex-col gap-1">
+                                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div><strong>Monthly Purchase Ratio:</strong> {selectedAsset.intel.smartMoney.insiderSentiment.value.mspr.toFixed(2)} Index</div>
                                     <div><strong>Officer Share Change:</strong> {selectedAsset.intel.smartMoney.insiderSentiment.value.change.toLocaleString()} Shares</div>
                                   </div>
                                 ) : (
-                                  <div className="text-stone-450 font-mono text-[9px] italic">Data unavailable</div>
+                                  <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', fontStyle: 'italic' }}>Data unavailable</div>
                                 )}
                               </div>
-                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
-                                SOURCE: FINNHUB INSIDER API
+                              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '1rem', borderTop: '1px dashed #E2DACD', paddingTop: '0.35rem' }}>
+                                SOURCE: FINNHUB INSIDER SENTIMENT FEED
                               </div>
                             </div>
 
                             {/* Options Ratio */}
-                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                            <div style={{ padding: '1rem', border: '1px solid #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                               <div>
-                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontWeight: 'bold', borderBottom: '1px solid #E2DACD', paddingBottom: '0.40rem', marginBottom: '0.75rem', color: '#1A1A1A', fontSize: '0.75rem' }}>
                                   <span>Options Volume Ratio</span>
-                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
-                                    Conf: {selectedAsset.intel.smartMoney.optionsVolume?.confidence || 'none'}
+                                  <span style={{ padding: '1px 5px', border: '1px solid #E2DACD', fontSize: '0.58rem', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 'bold', background: '#FFFFFF' }}>
+                                    CONF: {selectedAsset.intel.smartMoney.optionsVolume?.confidence || 'none'}
                                   </span>
                                 </div>
                                 {selectedAsset.intel.smartMoney.optionsVolume?.value ? (
-                                  <div className="font-mono text-[10px] text-stone-700 leading-normal flex flex-col gap-1">
+                                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div><strong>Put/Call Volume Ratio:</strong> {selectedAsset.intel.smartMoney.optionsVolume.value.putCallRatio.toFixed(2)}</div>
                                     <div><strong>Sentiment Classification:</strong> {selectedAsset.intel.smartMoney.optionsVolume.value.sentiment.toUpperCase()}</div>
                                   </div>
                                 ) : (
-                                  <div className="text-stone-450 font-mono text-[9px] italic">Data unavailable</div>
+                                  <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', fontStyle: 'italic' }}>Data unavailable</div>
                                 )}
                               </div>
-                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
-                                SOURCE: HISTORICAL OPTIONS DATA
+                              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '1rem', borderTop: '1px dashed #E2DACD', paddingTop: '0.35rem' }}>
+                                SOURCE: HISTORICAL OPTIONS REGISTRY
                               </div>
                             </div>
 
                             {/* 13F Ownership */}
-                            <div className="p-4 border border-stone-200 bg-[#FCFAF6] flex flex-col justify-between shadow-xs">
+                            <div style={{ padding: '1rem', border: '1px solid #E2DACD', background: '#FCFAF6', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                               <div>
-                                <div className="flex justify-between items-center font-mono font-bold border-b border-stone-200 pb-1.5 mb-2.5 text-stone-850">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-mono)', fontWeight: 'bold', borderBottom: '1px solid #E2DACD', paddingBottom: '0.40rem', marginBottom: '0.75rem', color: '#1A1A1A', fontSize: '0.75rem' }}>
                                   <span>Institutional 13F Ownership</span>
-                                  <span className="px-1.5 py-0.5 bg-white border border-stone-200 text-[8px] uppercase tracking-wider text-[#8c2a2a] font-bold">
-                                    Conf: {selectedAsset.intel.smartMoney.institutionalOwnership?.confidence || 'none'}
+                                  <span style={{ padding: '1px 5px', border: '1px solid #E2DACD', fontSize: '0.58rem', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 'bold', background: '#FFFFFF' }}>
+                                    CONF: {selectedAsset.intel.smartMoney.institutionalOwnership?.confidence || 'none'}
                                   </span>
                                 </div>
                                 {selectedAsset.intel.smartMoney.institutionalOwnership?.value ? (
-                                  <div className="font-mono text-[10px] text-stone-700 leading-normal flex flex-col gap-1">
+                                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div><strong>Institutional Ownership:</strong> {selectedAsset.intel.smartMoney.institutionalOwnership.value.ownershipPercent.toFixed(1)}%</div>
                                     <div><strong>Fund Net Flows:</strong> {selectedAsset.intel.smartMoney.institutionalOwnership.value.netFlow.toUpperCase()}</div>
                                   </div>
                                 ) : (
-                                  <div className="text-stone-450 font-mono text-[9px] italic">Data unavailable</div>
+                                  <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', fontStyle: 'italic' }}>Data unavailable</div>
                                 )}
                               </div>
-                              <div className="text-[8px] text-stone-400 font-mono mt-3 border-t border-stone-200 pt-1">
+                              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '1rem', borderTop: '1px dashed #E2DACD', paddingTop: '0.35rem' }}>
                                 SOURCE: SEC FORM 13F FILINGS
                               </div>
                             </div>
@@ -1123,44 +1175,48 @@ export const IntelligenceHub: React.FC = () => {
 
                       {/* TAB 5: BUSINESS SCHOOL */}
                       {activeTab === 'business_school' && (
-                        <div className="border border-[#E5E2D9] p-6 bg-[#FCFAF6] flex flex-col gap-6">
+                        <div style={{ padding: '1.5rem', background: '#FCFAF6', border: '1px solid #E2DACD', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                           
                           {/* Concept Selectors */}
-                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', borderBottom: '1px solid #E2DACD', paddingBottom: '0.75rem', marginBottom: '0.5rem' }}>
                             {[
                               { id: 'operating_leverage', name: 'Operating Leverage' },
                               { id: 'economic_moats', name: 'Economic Moats' },
                               { id: 'free_cash_flow_margin', name: 'FCF Margin' },
                               { id: 'financial_solvency', name: 'Financial Solvency' }
-                            ].map(c => (
-                              <button
-                                key={c.id}
-                                onClick={() => setBsConcept(c.id)}
-                                style={{
-                                  background: bsConcept === c.id ? '#8c2a2a' : '#FFFFFF',
-                                  color: bsConcept === c.id ? '#FFFFFF' : '#222222',
-                                  border: '1px solid #E2DACD',
-                                  padding: '0.4rem 0.75rem',
-                                  fontSize: '0.75rem',
-                                  fontFamily: 'var(--font-sans)',
-                                  fontWeight: bsConcept === c.id ? 'bold' : 500,
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                {c.name}
-                              </button>
-                            ))}
+                            ].map(c => {
+                              const isConceptActive = bsConcept === c.id;
+                              return (
+                                <button
+                                  key={c.id}
+                                  onClick={() => setBsConcept(c.id)}
+                                  style={{
+                                    background: isConceptActive ? 'var(--color-accent)' : '#FFFFFF',
+                                    color: isConceptActive ? '#FFFFFF' : '#222222',
+                                    border: isConceptActive ? '1px solid var(--color-accent)' : '1px solid #E2DACD',
+                                    padding: '0.45rem 0.8rem',
+                                    fontSize: '0.72rem',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  {c.name.toUpperCase()}
+                                </button>
+                              );
+                            })}
                           </div>
 
                           {bsLoading ? (
-                            <div className="py-12 text-center font-serif italic text-stone-500">
-                              <RefreshCw size={20} className="animate-spin inline mr-1 text-[#8c2a2a]" /> Resolving textbook models...
+                            <div style={{ paddingTop: '3rem', paddingBottom: '3rem', textAlign: 'center', fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                              <RefreshCw size={20} className="spin-custom inline mr-1" style={{ color: 'var(--color-accent)' }} /> Resolving textbook models...
                             </div>
                           ) : bsCaseData ? (
-                            <div className="flex flex-col gap-4 text-xs font-sans text-stone-800 leading-relaxed">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                               <div>
-                                <h4 className="font-mono text-[9px] text-stone-400 uppercase tracking-wider mb-1 font-bold">Concept Definition</h4>
-                                <p className="bg-white border border-stone-200 p-3 font-serif italic">
+                                <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontWeight: 'bold' }}>Concept Definition</h4>
+                                <p style={{ background: '#FFFFFF', border: '1px solid #E2DACD', padding: '0.75rem 1rem', fontFamily: 'var(--font-serif)', fontStyle: 'italic', margin: 0 }}>
                                   {bsConcept === 'operating_leverage' 
                                     ? 'Measures the proportion of fixed costs to variable costs in a company\'s expense structure. High operating leverage means that a small percentage change in sales volume results in a large percentage change in operating income.' 
                                     : bsConcept === 'economic_moats' 
@@ -1172,7 +1228,7 @@ export const IntelligenceHub: React.FC = () => {
                                 </p>
                               </div>
 
-                              <div className="bg-white border border-stone-200 p-3 font-mono text-[11px]">
+                              <div style={{ background: '#FFFFFF', border: '1px solid #E2DACD', padding: '0.75rem 1rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: '#1A1A1A' }}>
                                 <strong>Math Model: </strong>
                                 <span>
                                   {bsConcept === 'operating_leverage' 
@@ -1187,8 +1243,8 @@ export const IntelligenceHub: React.FC = () => {
                               </div>
 
                               <div>
-                                <h4 className="font-mono text-[9px] text-stone-400 uppercase tracking-wider mb-1 font-bold">Academic Harvard Case Study</h4>
-                                <p className="bg-white border border-stone-200 p-3">
+                                <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontWeight: 'bold' }}>Academic case Study Overview</h4>
+                                <p style={{ background: '#FFFFFF', border: '1px solid #E2DACD', padding: '0.75rem 1rem', margin: 0 }}>
                                   {bsConcept === 'operating_leverage' 
                                     ? 'Apple protects profits by scaling iOS platform and services. Once initially coded (fixed cost), each additional iCloud or App Store subscription carries near-zero variable cost, expanding margins exponentially during growth phases.' 
                                     : bsConcept === 'economic_moats' 
@@ -1201,14 +1257,14 @@ export const IntelligenceHub: React.FC = () => {
                               </div>
 
                               <div>
-                                <h4 className="font-mono text-[9px] text-stone-400 uppercase tracking-wider mb-1 font-bold">Active Case study application ({bsCaseData.companyName})</h4>
-                                <div className="italic font-serif leading-relaxed text-stone-800 bg-white border-l-4 border-[#8c2a2a] p-4 shadow-sm">
-                                  <p>{bsCaseData.caseStudyNarrative}</p>
+                                <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem', fontWeight: 'bold' }}>Active Case study application ({bsCaseData.companyName})</h4>
+                                <div style={{ fontStyle: 'italic', fontFamily: 'var(--font-serif)', lineHeight: '1.6', color: '#1A1A1A', background: '#FFFFFF', borderLeft: '4px solid var(--color-accent)', border: '1px solid #E2DACD', borderLeftWidth: '4px', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                                  <p style={{ margin: 0 }}>{bsCaseData.caseStudyNarrative}</p>
                                 </div>
                               </div>
                             </div>
                           ) : (
-                            <div className="text-stone-450 italic font-serif text-xs">Verify study registry connection.</div>
+                            <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontFamily: 'var(--font-serif)', fontSize: '0.78rem' }}>Verify study registry connection.</div>
                           )}
                         </div>
                       )}
@@ -1220,7 +1276,7 @@ export const IntelligenceHub: React.FC = () => {
                           flexDirection: 'column',
                           height: '420px',
                           border: '1px solid #E2DACD',
-                          background: '#FAF8F5'
+                          background: '#FCFAF6'
                         }}>
                           {/* Messages Feed */}
                           <div style={{
@@ -1230,20 +1286,19 @@ export const IntelligenceHub: React.FC = () => {
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '0.75rem'
-                          }}>
+                          }} className="custom-scrollbar">
                             {copilotMessages.map(msg => (
                               <div
                                 key={msg.id}
+                                className="chat-bubble"
                                 style={{
                                   alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                                  maxWidth: '80%',
-                                  background: msg.sender === 'user' ? '#8c2a2a' : '#FFFFFF',
+                                  background: msg.sender === 'user' ? 'var(--color-accent)' : '#FFFFFF',
                                   color: msg.sender === 'user' ? '#FFFFFF' : '#222222',
-                                  padding: '0.65rem 1rem',
-                                  border: '1px solid #E2DACD',
-                                  fontSize: '0.8rem',
-                                  lineHeight: 1.4,
-                                  fontFamily: msg.sender === 'user' ? 'var(--font-sans)' : 'var(--font-serif)'
+                                  borderColor: msg.sender === 'user' ? 'var(--color-accent)' : '#E2DACD',
+                                  borderRadius: msg.sender === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                                  fontFamily: msg.sender === 'user' ? 'var(--font-sans)' : 'var(--font-serif)',
+                                  fontWeight: msg.sender === 'user' ? '500' : 'normal'
                                 }}
                               >
                                 {msg.content}
@@ -1255,11 +1310,12 @@ export const IntelligenceHub: React.FC = () => {
                                 background: '#FFFFFF',
                                 border: '1px solid #E2DACD',
                                 padding: '0.5rem 1rem',
-                                fontSize: '0.75rem',
-                                color: '#666',
-                                fontFamily: 'var(--font-mono)'
+                                fontSize: '0.72rem',
+                                color: 'var(--text-secondary)',
+                                fontFamily: 'var(--font-mono)',
+                                borderRadius: '12px 12px 12px 0'
                               }}>
-                                <RefreshCw size={10} className="animate-spin inline mr-1" /> Synthesizing data registry metrics...
+                                <RefreshCw size={10} className="spin-custom inline mr-1" /> Synthesizing data registry metrics...
                               </div>
                             )}
                             <div ref={copilotEndRef} />
@@ -1271,8 +1327,9 @@ export const IntelligenceHub: React.FC = () => {
                             gap: '0.5rem',
                             padding: '0.5rem 1rem',
                             borderTop: '1px dashed #E2DACD',
-                            overflowX: 'auto'
-                          }}>
+                            overflowX: 'auto',
+                            background: '#FFFFFF'
+                          }} className="custom-scrollbar">
                             {[
                               { label: 'Analyze Solvency Ratios', prompt: `What is the solvency risk and interest coverage ratio for ${selectedAsset.ticker}?` },
                               { label: 'Check Smart Money net flows', prompt: `Summarize the institutional 13F and insider transactions flow for ${selectedAsset.ticker}.` },
@@ -1282,17 +1339,27 @@ export const IntelligenceHub: React.FC = () => {
                                 key={idx}
                                 onClick={() => setCopilotInput(q.prompt)}
                                 style={{
-                                  background: '#FFFFFF',
+                                  background: '#FCFAF6',
                                   border: '1px solid #E2DACD',
-                                  padding: '0.25rem 0.6rem',
+                                  padding: '0.25rem 0.5rem',
                                   fontSize: '0.65rem',
-                                  fontFamily: 'var(--font-sans)',
+                                  fontFamily: 'var(--font-mono)',
                                   cursor: 'pointer',
                                   whiteSpace: 'nowrap',
-                                  color: '#555'
+                                  color: 'var(--text-secondary)',
+                                  fontWeight: 'bold',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.borderColor = '#CFC5B6';
+                                  e.currentTarget.style.backgroundColor = '#FAF8F5';
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.borderColor = '#E2DACD';
+                                  e.currentTarget.style.backgroundColor = '#FCFAF6';
                                 }}
                               >
-                                {q.label}
+                                {q.label.toUpperCase()}
                               </button>
                             ))}
                           </div>
@@ -1324,12 +1391,15 @@ export const IntelligenceHub: React.FC = () => {
                               style={{
                                 background: 'transparent',
                                 border: 'none',
-                                padding: '0 1rem',
-                                color: copilotInput.trim() ? '#8c2a2a' : '#CCC',
-                                cursor: copilotInput.trim() ? 'pointer' : 'default'
+                                padding: '0 1.25rem',
+                                color: copilotInput.trim() ? 'var(--color-accent)' : '#CCC',
+                                cursor: copilotInput.trim() ? 'pointer' : 'default',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
                               }}
                             >
-                              <Send size={16} />
+                              <Send size={15} />
                             </button>
                           </form>
                         </div>
