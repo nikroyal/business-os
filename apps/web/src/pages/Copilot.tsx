@@ -794,99 +794,136 @@ export const Copilot: React.FC = () => {
             </div>
           ) : messages.length > 0 ? (
             <>
-              {messages.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  style={{ 
-                    alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '85%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                    gap: '0.35rem'
-                  }}
-                >
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
-                    {msg.sender === 'user' ? 'USER REQUEST' : 'COPILOT ASSISTANCE'} — {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+              {messages.map((msg) => {
+                const isUser = msg.sender === 'user';
+                
+                // Parse follow-up suggestions from copilot content
+                const followUps: string[] = [];
+                let cleanedContent = msg.content;
+                
+                if (!isUser) {
+                  const followUpRegex = /^\s*[\*\-]\s*\[Follow-up:\s*(.*?)\]\s*$/gm;
+                  let match;
+                  while ((match = followUpRegex.exec(msg.content)) !== null) {
+                    followUps.push(match[1]);
+                  }
+                  cleanedContent = msg.content.replace(/^\s*[\*\-]\s*\[Follow-up:\s*.*?\]\s*$/gm, '').trim();
+                }
 
-                  <div style={{ 
-                    background: msg.sender === 'user' ? '#FAF1F1' : 'var(--bg-card)', 
-                    border: `1px solid ${msg.sender === 'user' ? '#E5D0D1' : '#E2DACD'}`,
-                    padding: '1.25rem',
-                    color: 'var(--text-primary)',
-                    borderRadius: '4px',
-                    fontSize: '0.9rem',
-                    lineHeight: 1.6,
-                    fontFamily: 'var(--font-sans)',
-                    textAlign: 'left',
-                    boxShadow: 'var(--shadow-subtle)'
-                  }}>
-                    {/* Render custom markdown details */}
-                    {msg.sender === 'user' ? (
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                    ) : (
-                      <div>{renderMarkdown(msg.content)}</div>
-                    )}
+                return (
+                  <div 
+                    key={msg.id} 
+                    style={{ 
+                      alignSelf: isUser ? 'flex-end' : 'flex-start',
+                      maxWidth: '85%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: isUser ? 'flex-end' : 'flex-start',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
+                      {isUser ? 'USER REQUEST' : 'COPILOT ASSISTANCE'} — {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
 
-                    {/* Copilot Metadata, Citations, Freshness indicators */}
-                    {msg.metadata && (
-                      <div style={{ borderTop: '1px solid #E2DACD', marginTop: '0.75rem', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        
-                        {msg.metadata.fallbackModelUsed && (
-                          <div style={{
-                            fontSize: '0.75rem',
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            border: '1px solid rgba(245, 158, 11, 0.3)',
-                            color: '#b45309',
-                            padding: '0.4rem 0.6rem',
-                            borderRadius: '3px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            fontFamily: 'var(--font-mono)',
-                            marginBottom: '0.25rem'
-                          }}>
-                            <span style={{ fontWeight: 'bold' }}>⚠️ FAILOVER NOTICE:</span>
-                            <span>{msg.metadata.infoMessage || 'Fallback model used due to high demand.'}</span>
+                    <div style={{ 
+                      background: isUser ? '#FAF1F1' : '#FFFFFF', 
+                      border: `1px solid ${isUser ? '#E5D0D1' : '#E2DACD'}`,
+                      padding: '1.25rem',
+                      color: 'var(--text-primary)',
+                      borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                      fontSize: '0.92rem',
+                      lineHeight: 1.6,
+                      fontFamily: 'var(--font-sans)',
+                      textAlign: 'left',
+                      boxShadow: 'var(--shadow-subtle)'
+                    }}>
+                      {isUser ? (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{cleanedContent}</div>
+                      ) : (
+                        <div>{renderMarkdown(cleanedContent)}</div>
+                      )}
+
+                      {/* Collapsible Response Details (Hiding metadata by default) */}
+                      {!isUser && msg.metadata && (
+                        <details style={{ marginTop: '0.75rem', borderTop: '1px solid #E2DACD', paddingTop: '0.5rem' }}>
+                          <summary style={{ cursor: 'pointer', fontSize: '0.72rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', outline: 'none', fontWeight: 'bold' }}>
+                            ▼ Response Details
+                          </summary>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem', fontSize: '0.72rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                            <div>Actual Model: <strong>{msg.metadata.actualModel || 'Gemini 1.5 Pro'}</strong></div>
+                            <div>Requested Model: <strong>{msg.metadata.requestedModel || 'Copilot Router'}</strong></div>
+                            <div>Confidence Score: <strong>{msg.metadata.confidenceScore}%</strong></div>
+                            <div>Data Freshness: <strong>{msg.metadata.dataFreshness}</strong></div>
+                            <div>Execution Cost: <strong>${msg.metadata.executionCost} ({msg.metadata.costLevel} Tier)</strong></div>
+                            {msg.metadata.fallbackModelUsed && (
+                              <div style={{ color: '#b45309' }}>Failover Engaged: <strong>Yes (Fallback model active)</strong></div>
+                            )}
+                            {msg.metadata.subsystemsUsed && msg.metadata.subsystemsUsed.length > 0 && (
+                              <div>Subsystems Triggered: <strong>{msg.metadata.subsystemsUsed.join(', ')}</strong></div>
+                            )}
+
+                            {msg.metadata.usedSources && msg.metadata.usedSources.length > 0 && (
+                              <div style={{ marginTop: '0.25rem' }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '0.15rem' }}>Grounded Sources Used:</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingLeft: '0.5rem', borderLeft: '2px solid var(--color-accent)' }}>
+                                  {msg.metadata.usedSources.map((s, idx) => (
+                                    <span key={idx}>
+                                      [{idx + 1}] {s.name} {s.url && (
+                                        <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', textDecoration: 'underline', marginLeft: '0.25rem' }}>
+                                          Open Link <ExternalLink size={8} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                                        </a>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        
-                        {/* Cost & Freshness bar */}
-                        <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                          <span>
-                            Cost Level: <b style={{ color: msg.metadata.costLevel === 'High' ? 'var(--color-danger-text)' : msg.metadata.costLevel === 'Medium' ? 'var(--color-warning-text)' : 'var(--color-success-text)' }}>
-                              {msg.metadata.costLevel === 'High' ? '🔴 High' : msg.metadata.costLevel === 'Medium' ? '🟡 Medium' : '🟢 Very Low'}
-                            </b>
-                          </span>
-                          <span>Confidence: <b style={{ color: 'var(--text-primary)' }}>{msg.metadata.confidenceScore}%</b></span>
-                          <span>Data Freshness: <b style={{ color: 'var(--color-success-text)' }}>{msg.metadata.dataFreshness}</b></span>
-                        </div>
+                        </details>
+                      )}
+                    </div>
 
-                        {/* Collapsible Source indexing */}
-                        {msg.metadata.usedSources && msg.metadata.usedSources.length > 0 && (
-                          <details style={{ marginTop: '0.25rem' }}>
-                            <summary style={{ cursor: 'pointer', fontSize: '0.7rem', color: 'var(--color-accent)', fontFamily: 'var(--font-mono)', outline: 'none', fontWeight: 'bold' }}>
-                              View Grounded Sources Used ({msg.metadata.usedSources.length})
-                            </summary>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', padding: '0.5rem 0', paddingLeft: '0.75rem', borderLeft: '2px solid var(--color-accent)', marginTop: '0.35rem' }}>
-                              {msg.metadata.usedSources.map((s, idx) => (
-                                <span key={idx} style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                                  [{idx + 1}] {s.name} {s.url && (
-                                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)', textDecoration: 'underline', marginLeft: '0.25rem', fontWeight: 500 }}>
-                                      Open Source <ExternalLink size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                                    </a>
-                                  )}
-                                </span>
-                              ))}
-                            </div>
-                          </details>
-                        )}
+                    {/* Rendering follow-up suggestions as beautiful chip buttons below bubble */}
+                    {!isUser && followUps.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.4rem', alignSelf: 'flex-start', maxWidth: '100%' }}>
+                        {followUps.map((q, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSuggestionClick(q)}
+                            disabled={sending}
+                            style={{
+                              background: '#FFFFFF',
+                              border: '1px solid var(--color-accent)',
+                              color: 'var(--color-accent)',
+                              padding: '0.3rem 0.75rem',
+                              borderRadius: '16px',
+                              fontSize: '0.72rem',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                              fontFamily: 'var(--font-sans)',
+                              fontWeight: '500',
+                              outline: 'none',
+                              boxShadow: 'var(--shadow-subtle)'
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = 'var(--color-accent)';
+                              e.currentTarget.style.color = '#fff';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = '#FFFFFF';
+                              e.currentTarget.style.color = 'var(--color-accent)';
+                            }}
+                          >
+                            {q}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {errorState && (
                 <div style={{
                   alignSelf: 'flex-start',

@@ -2924,35 +2924,59 @@ app.post('/api/copilot/chat', async (c) => {
       }
     }
 
-    // 5. Query sliding window memory summary
+    // 5. Query sliding window memory summary and build structured session memory
+    const sessionMemory = session.memory || { tickers: [], macroTopics: [], companies: [], preferences: [] };
+    
+    // Extract tickers
+    sessionMemory.tickers = Array.from(new Set([...(sessionMemory.tickers || []), ...tickers]));
+    
+    // Extract macro topics
+    const macroRegex = /\b(inflation|cpi|gdp|interest|yield|treasury|unemployment|recession|rate cut|rate hike)\b/gi;
+    const foundMacros = prompt.match(macroRegex) || [];
+    sessionMemory.macroTopics = Array.from(new Set([...(sessionMemory.macroTopics || []), ...foundMacros.map((m: string) => m.toLowerCase())]));
+    
+    // Extract company names
+    const companyRegex = /\b(apple|microsoft|nvidia|google|alphabet|tesla|amazon|meta)\b/gi;
+    const foundCompanies = prompt.match(companyRegex) || [];
+    sessionMemory.companies = Array.from(new Set([...(sessionMemory.companies || []), ...foundCompanies.map((c: string) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase())]));
+
     let memorySummary = '';
     if (session.contextSummary) {
       memorySummary = `SUMMARY OF PREVIOUS CONVERSATION CONTEXT (REUSED FOR EFFICIENCY): ${session.contextSummary}\n`;
     }
 
-    // Get the last 6 messages from chunk history to preserve fresh context
+    let structuredMemoryContext = '';
+    if (sessionMemory.tickers.length > 0 || sessionMemory.macroTopics.length > 0 || sessionMemory.companies.length > 0) {
+      structuredMemoryContext = `STRUCTURED LONG-TERM SESSION MEMORY (Entities discussed so far in this session):
+      - Companies: ${sessionMemory.companies.join(', ') || 'None'}
+      - Tickers: ${sessionMemory.tickers.join(', ') || 'None'}
+      - Macro Topics: ${sessionMemory.macroTopics.join(', ') || 'None'}
+      `;
+    }
+
+    // Get the last 16 messages from chunk history to preserve rich context
     const currentChunkId = `chunk_${session.latestChunkIndex}`;
     const activeChunkDoc = await getFirestoreDoc(projectId, `users/${userId}/copilotSessions/${sessionId}/chunks/${currentChunkId}`, token);
-    const priorMessages = activeChunkDoc?.messages?.slice(-6) || [];
+    const priorMessages = activeChunkDoc?.messages?.slice(-16) || [];
     const conversationContext = priorMessages.map((m: any) => `${m.sender === 'user' ? 'User' : 'Copilot'}: ${m.content}`).join('\n');
 
-    // 7. System Prompt Guardrails & Safety Formatter
+    // 7. System Prompt Guardrails & Safety Formatter (Conversational Analyst Redesign)
     const systemPrompt = `You are BusinessOS Copilot, an elite financial analytics assistant.
 You serve as the primary interface to the BusinessOS portfolio platform.
 
-CRITICAL INSTRUCTIONS:
-1. Ground your answers strictly in the provided Context, Portfolio metrics, and Macro stats.
-2. NEVER mention or expose internal database/context implementation details. Never say "the provided context contains no...", "in the context supplied here...", "based on the context documents", or "I do not have access to real-time quotes in this context". Simply present the facts directly.
-3. If any required data is missing or marked as a [Live Retrieval Failure], explain clearly that the live retrieval failed and detail the reasons why (e.g. API key not configured, network timeout, database unavailable), rather than saying "data unavailable".
-4. Separate factual data from qualitative reasoning using clear markdown headers. Present numerical tables using Markdown tables.
-5. NEVER RECOMMEND BUYING, SELLING, OR HOLDING SECURITIES. You must not present opinions as facts. For any company, analyze:
-   - Supporting Evidence (e.g. cash growth, high ROIC).
-   - Identified Risks (e.g. debt margins, macro pressures).
-   - Contradictory Evidence (e.g. multiple expansions).
-   - Source citations.
-6. Format all citations strictly as [[idx]](url) pointing to the corresponding index in the used sources.
-7. If the request does not relate to portfolio risk, finance, macroeconomics, or companies, reject it politely.
-8. Return your response strictly as a JSON object matching this schema, without any markdown code wrapping:
+CONVERSATIONAL ANALYST BEHAVIOR:
+1. Talk like an experienced, highly intelligent conversational financial analyst (similar to Claude or ChatGPT). Answer the user's question directly, clearly, and naturally at the very beginning of your response. Avoid starting with generic report headers.
+2. Ground your answers strictly in the provided Context, Portfolio metrics, and Macro stats. If information is missing or a tool fails, state that clearly.
+3. Dynamically adjust your presentation format:
+   - Use natural paragraphs for discussions.
+   - Use Markdown tables only when comparing multiple data points.
+   - Use bullet points for lists and summaries.
+   - Keep formatting natural and readable.
+4. NEVER RECOMMEND BUYING, SELLING, OR HOLDING SECURITIES. Remain objective and analyze supporting evidence alongside risks/caveats.
+5. Format sources naturally inline, e.g., "Apple holds over $160B in cash [[1]](https://sec.gov/edgar)." Never output separate technical blocks for sources or details.
+6. Propose exactly 2-3 highly relevant follow-up questions at the very end. Format each follow-up on its own line exactly as:
+   * [Follow-up: Your suggested question here]
+7. Return your response strictly as a JSON object matching this schema, without any markdown code wrapping:
 {
   "response": "Your complete markdown formatted reply content here.",
   "metadata": {
@@ -2963,6 +2987,7 @@ CRITICAL INSTRUCTIONS:
 
     const userPrompt = `
     ${memorySummary}
+    ${structuredMemoryContext}
     
     RECENT CHAT HISTORY FOR CONTINUITY:
     ${conversationContext}
@@ -3064,7 +3089,7 @@ CRITICAL INSTRUCTIONS:
     if (totalCharCount > 25000 && (!contextSummary || charsSinceLastSummary > 15000)) {
       try {
         console.log(`[Copilot Memory] Running sliding-window summarizer loop for session ${sessionId}...`);
-        const messagesToSummarize = activeChunk.messages.slice(0, -6);
+        const messagesToSummarize = activeChunk.messages.slice(0, -16);
         if (messagesToSummarize.length > 0) {
           const summarySystem = `You are a financial records archivist. Summarize the core topics, questions, portfolios, and decisions resolved during this chat history into a single compact context paragraph. Do not include details or code. Output raw JSON object: { "summary": "Your paragraph here." }`;
           const summaryUser = `History to summarize: ${JSON.stringify(messagesToSummarize.map((m: any) => m.content))}`;
@@ -3096,6 +3121,7 @@ CRITICAL INSTRUCTIONS:
       contextSummary,
       totalCharCount,
       charCountAtLastSummary,
+      memory: sessionMemory,
       updatedAt: new Date().toISOString()
     }, token);
 
