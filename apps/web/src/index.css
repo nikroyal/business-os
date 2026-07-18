@@ -1575,7 +1575,31 @@ input:focus-visible {
   }
 }
 
+/* Copilot typing indicator dot bounce animation */
+@keyframes dot-bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 
+/* Spinner for loading states */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
 
+/* Copilot chat bubble hover */
+.suggestion-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent) !important;
+}
 

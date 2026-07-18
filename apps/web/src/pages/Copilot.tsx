@@ -13,19 +13,18 @@ import {
   Star, 
   Search, 
   FileText, 
-  Activity, 
+  Activity,
   Compass, 
-  Info,
   Download,
   CheckCircle,
   ExternalLink
 } from 'lucide-react';
 
 const promptSuggestions = [
-  { title: "Analyze Solvency Risk", prompt: "Analyze the moat status, solvency risks, and smart money flow indicators for AAPL based on recent disclosures.", icon: "📊" },
-  { title: "FRED Yield Inversions", prompt: "Summarize the latest FRED economic indicators. Is there an active yield curve inversion in the cache?", icon: "📈" },
-  { title: "Holdings & Rate Limits", prompt: "Explain the active Finnhub rate limit metrics and verify the status of our current model configuration routing policy.", icon: "🛡️" },
-  { title: "Filing Facts Compiles", prompt: "Generate a list of cached SEC EDGAR company filings and identify which tickers require a fresh synchronization.", icon: "📂" },
+  { title: "Should I invest in Apple?", prompt: "Should I invest in Apple right now? Walk me through the bull and bear cases, valuation, and what to watch.", icon: "🍎" },
+  { title: "How is the economy doing?", prompt: "How is the US economy doing right now? What do the latest inflation, GDP and interest rate trends tell us?", icon: "📈" },
+  { title: "Compare NVDA vs AMD", prompt: "Compare Nvidia and AMD. Which looks stronger right now from a business and valuation perspective?", icon: "⚡" },
+  { title: "What's happening in markets?", prompt: "Give me a summary of what's happening in global markets and what macro themes I should be paying attention to.", icon: "🌐" },
 ];
 
 // Inline Markdown Parser: Bold, Italic, Code, Links
@@ -984,9 +983,38 @@ export const Copilot: React.FC = () => {
                 </div>
               )}
               {sending && (
-                <div style={{ alignSelf: 'flex-start', display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid #E2DACD', padding: '0.5rem 1rem', borderRadius: '4px', boxShadow: 'var(--shadow-subtle)' }}>
-                  <Activity className="animate-spin" size={14} style={{ color: 'var(--color-accent)' }} />
-                  <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>Copilot is reasoning...</span>
+                <div style={{
+                  alignSelf: 'flex-start',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.25rem',
+                  maxWidth: '85%'
+                }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>COPILOT ASSISTANCE</span>
+                  <div style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E2DACD',
+                    padding: '1rem 1.25rem',
+                    borderRadius: '12px 12px 12px 2px',
+                    boxShadow: 'var(--shadow-subtle)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontStyle: 'italic' }}>Thinking</span>
+                    <span style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {[0, 1, 2].map(i => (
+                        <span key={i} style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: 'var(--color-accent)',
+                          display: 'inline-block',
+                          animation: `dot-bounce 1.2s ease-in-out ${i * 0.2}s infinite`
+                        }} />
+                      ))}
+                    </span>
+                  </div>
                 </div>
               )}
             </>
@@ -1109,13 +1137,13 @@ export const Copilot: React.FC = () => {
         )}
 
         {/* Input box */}
-        <div style={{ padding: '1.25rem 2rem 1.5rem', borderTop: '1px solid #E2DACD', background: 'var(--bg-card)' }}>
+        <div style={{ padding: '1rem 2rem 1.25rem', borderTop: '1px solid #E2DACD', background: 'var(--bg-card)' }}>
           
-          <form onSubmit={activeSession ? handleSendMessage : handleNewSession} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <form onSubmit={activeSession ? handleSendMessage : handleNewSession} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>RESEARCH MODE:</span>
-              <div style={{ display: 'flex', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>MODE:</span>
+              <div style={{ display: 'flex', gap: '0.3rem' }}>
                 {(['quick', 'businessos', 'live', 'deep'] as const).map((m) => {
                   const isActive = (!activeSession && researchMode === m) || (activeSession?.researchMode === m);
                   return (
@@ -1123,22 +1151,19 @@ export const Copilot: React.FC = () => {
                       key={m}
                       type="button"
                       onClick={() => {
-                        if (!activeSession) {
-                          setResearchMode(m);
-                        } else {
-                          alert('To switch modes, please start a New Chat.');
-                        }
+                        if (!activeSession) setResearchMode(m);
                       }}
                       style={{ 
-                        fontSize: '0.65rem', 
+                        fontSize: '0.62rem', 
                         textTransform: 'uppercase', 
-                        padding: '0.25rem 0.5rem',
-                        background: isActive ? 'var(--color-accent)' : 'var(--bg-input)',
+                        padding: '0.2rem 0.5rem',
+                        background: isActive ? 'var(--color-accent)' : 'transparent',
                         color: isActive ? '#fff' : 'var(--text-secondary)',
                         border: isActive ? '1px solid var(--color-accent)' : '1px solid #E2DACD',
                         cursor: 'pointer',
                         fontFamily: 'var(--font-mono)',
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        borderRadius: '2px'
                       }}
                     >
                       {m}
@@ -1146,26 +1171,65 @@ export const Copilot: React.FC = () => {
                   );
                 })}
               </div>
-
-              {!activeSession && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                  <Info size={12} style={{ color: 'var(--color-accent)' }} />
-                  <span>Quick/BusinessOS use cached logs. Live/Deep crawl fresh web news.</span>
-                </div>
-              )}
+              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Enter to send · Shift+Enter for new line</span>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <input 
-                type="text" 
-                placeholder={activeSession ? "Ask Copilot a question..." : "Enter your initial prompt to start a conversation..."}
+            <div style={{ position: 'relative', display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
+              <textarea
+                placeholder={activeSession ? "Ask anything about your portfolio, markets, companies or macro..." : "What would you like to explore today?"}
                 value={promptInput}
                 onChange={e => setPromptInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (promptInput.trim() && !sending) {
+                      const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+                      if (activeSession) handleSendMessage(syntheticEvent);
+                      else handleNewSession(syntheticEvent);
+                    }
+                  }
+                }}
                 disabled={sending}
-                style={{ flex: 1, padding: '0.75rem 1rem', fontSize: '0.85rem', background: 'var(--bg-input)', border: '1px solid #E2DACD', color: 'var(--text-primary)', outline: 'none', borderRadius: '2px' }}
+                rows={2}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  fontSize: '0.88rem',
+                  background: 'var(--bg-input)',
+                  border: '1px solid #E2DACD',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  borderRadius: '8px',
+                  resize: 'none',
+                  lineHeight: '1.5',
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'border-color 0.15s'
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'var(--color-accent)'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#E2DACD'; }}
               />
-              <button type="submit" disabled={sending || !promptInput.trim()} className="btn" style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--color-accent)', border: '1px solid var(--color-accent)', color: '#fff', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
-                <Send size={16} /> <span>{activeSession ? 'Send' : 'Start'}</span>
+              <button
+                type="submit"
+                disabled={sending || !promptInput.trim()}
+                style={{
+                  padding: '0.65rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  background: sending || !promptInput.trim() ? '#E2DACD' : 'var(--color-accent)',
+                  border: 'none',
+                  color: sending || !promptInput.trim() ? 'var(--text-muted)' : '#fff',
+                  cursor: sending || !promptInput.trim() ? 'not-allowed' : 'pointer',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 'bold',
+                  fontSize: '0.8rem',
+                  borderRadius: '8px',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                  alignSelf: 'flex-end'
+                }}
+              >
+                <Send size={15} /> {activeSession ? 'Send' : 'Start'}
               </button>
             </div>
 
