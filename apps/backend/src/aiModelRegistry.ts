@@ -2862,6 +2862,9 @@ export class AIOrchestrator {
       
       const selectedProvider = matched?.provider || 'google';
 
+      const isJsonTask = ['report_generation', 'company_analysis', 'market_summary', 'benchmarking', 'daily_email'].includes(taskType);
+      const rawText = cacheHit.response || '';
+
       const telemetry = {
         timestamp: new Date().toISOString(),
         user: userId,
@@ -2880,7 +2883,17 @@ export class AIOrchestrator {
         retryCount: 0,
         estimatedCost: cost,
         cachedResponse: true,
-        tokenCountSource: 'estimated' as const
+        tokenCountSource: 'estimated' as const,
+        
+        // Observability diagnostic details for cache hit
+        rawResponseFormat: AIModelRegistry.detectFormat(rawText),
+        expectedResponseFormat: isJsonTask ? 'json' : 'text',
+        normalizationMethod: 'none',
+        parseSuccess: true,
+        structuredOutputValidation: isJsonTask ? 'success' : 'n/a',
+        recoveryAttempted: false,
+        recoverySuccess: false,
+        actualUnderlyingModel: targetModelId
       };
 
       const telemetryResult = await this.recordTelemetry(projectId, telemetry, token);
@@ -2888,13 +2901,18 @@ export class AIOrchestrator {
       // Update statistics
       await this.updatePersistentStats(projectId, targetModelId, selectedProvider, totalLatency, true, undefined, token).catch(() => {});
 
-      // Build payload matching standard structure
+      // Build payload matching standard dual-compatible structure
       const finalPayload: any = {
         candidates: [{
           content: {
             parts: [{
-              text: cacheHit.response
+              text: rawText
             }]
+          }
+        }],
+        choices: [{
+          message: {
+            content: rawText
           }
         }]
       };
@@ -3034,13 +3052,62 @@ export class AIOrchestrator {
 
             lastResultText = result.text;
 
+            let formatDetails = {
+              rawResponseFormat: AIModelRegistry.detectFormat(result.text),
+              expectedResponseFormat: isJsonTask ? 'json' : 'text',
+              normalizationMethod: 'none',
+              parseSuccess: true,
+              structuredOutputValidation: 'n/a',
+              recoveryAttempted: false,
+              recoverySuccess: false,
+              actualUnderlyingModel: result.rawResponse?.model || model.id
+            };
+
             if (isJsonTask) {
+              formatDetails.structuredOutputValidation = 'success';
               try {
                 JSON.parse(result.text.trim());
+                formatDetails.normalizationMethod = 'direct_json';
+                formatDetails.parseSuccess = true;
               } catch (jsonErr) {
-                const errJson: any = new Error(`JSON_PARSE_ERROR: Response is not valid JSON.`);
-                errJson.status = 422;
-                throw errJson;
+                formatDetails.recoveryAttempted = true;
+                try {
+                  AIModelRegistry.extractAndParseJson(result.text);
+                  formatDetails.parseSuccess = true;
+                  formatDetails.recoverySuccess = true;
+                  const trimmed = result.text.trim();
+                  if (trimmed.includes('```')) {
+                    formatDetails.normalizationMethod = 'code_fence_extraction';
+                  } else {
+                    formatDetails.normalizationMethod = 'bracket_extraction_with_repair';
+                  }
+                } catch (recoveryErr) {
+                  formatDetails.parseSuccess = false;
+                  formatDetails.recoverySuccess = false;
+                  formatDetails.structuredOutputValidation = 'failed';
+                  formatDetails.normalizationMethod = 'fallback_default';
+                  const errJson: any = new Error(`JSON_PARSE_ERROR: Response is not valid JSON.`);
+                  errJson.status = 422;
+                  throw errJson;
+                }
+              }
+            } else {
+              const hasJsonStructure = result.text.trim().startsWith('{') || result.text.trim().includes('```json') || result.text.trim().includes('{');
+              if (hasJsonStructure) {
+                try {
+                  JSON.parse(result.text.trim());
+                  formatDetails.normalizationMethod = 'direct_json';
+                } catch (e) {
+                  formatDetails.recoveryAttempted = true;
+                  try {
+                    AIModelRegistry.extractAndParseJson(result.text);
+                    formatDetails.recoverySuccess = true;
+                    formatDetails.normalizationMethod = 'bracket_extraction';
+                  } catch (e2) {
+                    formatDetails.recoverySuccess = false;
+                    formatDetails.normalizationMethod = 'fallback_default';
+                  }
+                }
               }
             }
 
@@ -3068,7 +3135,8 @@ export class AIOrchestrator {
               tokenCountSource: tcSource,
               latency,
               modelId: model.id,
-              text: result.text
+              text: result.text,
+              formatDetails
             };
           } catch (e: any) {
             lastErr = e;
@@ -3104,7 +3172,7 @@ export class AIOrchestrator {
     };
 
     // Speculative cascade execution runner with cascading soft timeouts
-    const runCascade = async (): Promise<{ payload: any; promptTokens: number; completionTokens: number; tokenCountSource: 'provider' | 'estimated'; latency: number; modelId: string; text: string }> => {
+    const runCascade = async (): Promise<{ payload: any; promptTokens: number; completionTokens: number; tokenCountSource: 'provider' | 'estimated'; latency: number; modelId: string; text: string; formatDetails?: any }> => {
       const activePromises: Array<{ promise: Promise<any>; model: typeof chain[number]; timerId: any }> = [];
       const errors: Array<{ modelId: string; error: any }> = [];
       let nextModelIndex = 0;
@@ -3179,6 +3247,7 @@ export class AIOrchestrator {
     let tokenCountSource: 'provider' | 'estimated' = 'estimated';
     let modelLatency = 0;
     let attemptSuccess = false;
+    let finalPayloadFormatDetails: any = null;
 
     try {
       const result = await runCascade();
@@ -3190,6 +3259,23 @@ export class AIOrchestrator {
       tokenCountSource = result.tokenCountSource;
       modelLatency = result.latency;
       attemptSuccess = true;
+      finalPayloadFormatDetails = result.formatDetails;
+
+      if (finalPayload) {
+        const rawText = finalPayload.candidates?.[0]?.content?.parts?.[0]?.text || finalPayload.choices?.[0]?.message?.content || result.text || '';
+        finalPayload.candidates = finalPayload.candidates || [{
+          content: {
+            parts: [{
+              text: rawText
+            }]
+          }
+        }];
+        finalPayload.choices = finalPayload.choices || [{
+          message: {
+            content: rawText
+          }
+        }];
+      }
 
       // Cache the successful response
       if (result.text) {
@@ -3241,7 +3327,17 @@ export class AIOrchestrator {
       cachedResponse: false,
       tokenCountSource,
       triggeredFallback: fallbackUsed,
-      planningTrace: sandboxConfig?.planningTrace || null
+      planningTrace: sandboxConfig?.planningTrace || null,
+      
+      // Observability diagnostic details
+      rawResponseFormat: finalPayloadFormatDetails?.rawResponseFormat || '',
+      expectedResponseFormat: finalPayloadFormatDetails?.expectedResponseFormat || '',
+      normalizationMethod: finalPayloadFormatDetails?.normalizationMethod || '',
+      parseSuccess: finalPayloadFormatDetails?.parseSuccess ?? true,
+      structuredOutputValidation: finalPayloadFormatDetails?.structuredOutputValidation || 'n/a',
+      recoveryAttempted: finalPayloadFormatDetails?.recoveryAttempted ?? false,
+      recoverySuccess: finalPayloadFormatDetails?.recoverySuccess ?? false,
+      actualUnderlyingModel: finalPayloadFormatDetails?.actualUnderlyingModel || finalModelId
     };
 
     let statsResult = { success: true, error: '' };
@@ -3900,16 +3996,19 @@ export class AIOrchestrator {
 
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || data.choices?.[0]?.message?.content;
     if (!rawText) throw new Error('Empty response content from AI model.');
-    const parsed = JSON.parse(rawText.trim());
+    
+    // Centralized Response Normalization Layer call
+    const parsed = AIModelRegistry.normalizeAIResponse(rawText, targetSubsystem);
 
+    // Ensure _metadata is injected securely
+    parsed._metadata = parsed._metadata || {};
+    parsed._metadata.fallbackModelUsed = fallbackUsed;
+    parsed._metadata.requestedModel = preferredChoice || 'gemini-3.5-flash';
+    parsed._metadata.actualModel = actualModel;
     if (fallbackUsed) {
-      parsed._metadata = {
-        fallbackModelUsed: true,
-        requestedModel: preferredChoice || 'gemini-3.5-flash',
-        actualModel,
-        infoMessage: `Temporarily switched to ${actualModel} due to high demand on ${preferredChoice || 'gemini-3.5-flash'}.`
-      };
+      parsed._metadata.infoMessage = `Temporarily switched to ${actualModel} due to high demand on ${preferredChoice || 'gemini-3.5-flash'}.`;
     }
+    
     return parsed;
   }
 
@@ -4980,5 +5079,276 @@ export class AIModelRegistry {
     }
 
     return getMapping('Latest Flash');
+  }
+
+  public static tryRepairTruncatedJson(str: string): string {
+    let openBrackets: string[] = [];
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) {
+        continue;
+      }
+      if (char === '{' || char === '[') {
+        openBrackets.push(char);
+      } else if (char === '}') {
+        if (openBrackets[openBrackets.length - 1] === '{') {
+          openBrackets.pop();
+        }
+      } else if (char === ']') {
+        if (openBrackets[openBrackets.length - 1] === '[') {
+          openBrackets.pop();
+        }
+      }
+    }
+
+    let repaired = str;
+    if (inString) {
+      repaired += '"';
+    }
+    
+    repaired = repaired.trim().replace(/,\s*$/, '');
+
+    while (openBrackets.length > 0) {
+      const last = openBrackets.pop();
+      if (last === '{') {
+        repaired += '}';
+      } else if (last === '[') {
+        repaired += ']';
+      }
+    }
+
+    return repaired;
+  }
+
+  public static extractAndParseJson(text: string): any {
+    const trimmed = text.trim();
+    
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      // Ignore and proceed
+    }
+
+    const fenceRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+    let match;
+    while ((match = fenceRegex.exec(trimmed)) !== null) {
+      const content = match[1].trim();
+      try {
+        return JSON.parse(content);
+      } catch (e) {
+        try {
+          return JSON.parse(this.tryRepairTruncatedJson(content));
+        } catch (e2) {
+          // Proceed
+        }
+      }
+    }
+
+    const startIdx = trimmed.indexOf('{');
+    const endIdx = trimmed.lastIndexOf('}');
+    if (startIdx !== -1) {
+      const candidate = endIdx > startIdx ? trimmed.substring(startIdx, endIdx + 1) : trimmed.substring(startIdx);
+      try {
+        return JSON.parse(candidate);
+      } catch (e) {
+        try {
+          return JSON.parse(this.tryRepairTruncatedJson(candidate));
+        } catch (e2) {
+          try {
+            const repaired = candidate
+              .replace(/'/g, '"')
+              .replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(repaired);
+          } catch (e3) {
+            try {
+              const repaired = this.tryRepairTruncatedJson(candidate)
+                .replace(/'/g, '"')
+                .replace(/,\s*([}\]])/g, '$1');
+              return JSON.parse(repaired);
+            } catch (e4) {
+              // Ignore
+            }
+          }
+        }
+      }
+    }
+
+    throw new Error("Failed to extract valid JSON from LLM response.");
+  }
+
+  public static detectFormat(text: string): string {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) return 'json';
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) return 'json';
+    if (trimmed.includes('```')) return 'markdown_fenced';
+    if (trimmed.startsWith('#') || trimmed.includes('\n#') || trimmed.includes('**')) return 'markdown';
+    return 'text';
+  }
+
+  public static normalizeAIResponse(rawText: string, subsystem: string): any {
+    const isCopilot = subsystem === 'Copilot';
+    
+    try {
+      const parsed = this.extractAndParseJson(rawText);
+      
+      if (isCopilot) {
+        return {
+          response: parsed.response || rawText,
+          metadata: parsed.metadata || { confidenceScore: 90, dataFreshness: 'Live' },
+          rawResponse: parsed
+        };
+      }
+      
+      if (subsystem === 'Company Intelligence') {
+        if ('moatRating' in parsed || 'moatRationale' in parsed || 'majorRisks' in parsed) {
+          return {
+            moatRating: parsed.moatRating || 'none',
+            moatRationale: parsed.moatRationale || rawText,
+            majorRisks: Array.isArray(parsed.majorRisks) ? parsed.majorRisks : [parsed.majorRisks || 'N/A'],
+            rawResponse: parsed
+          };
+        }
+        if ('catalyst' in parsed || 'isStructural' in parsed) {
+          return {
+            catalyst: parsed.catalyst || rawText,
+            isStructural: typeof parsed.isStructural === 'boolean' ? parsed.isStructural : false,
+            rawResponse: parsed
+          };
+        }
+        return {
+          ...parsed,
+          moatRating: parsed.moatRating || 'none',
+          moatRationale: parsed.moatRationale || rawText,
+          majorRisks: Array.isArray(parsed.majorRisks) ? parsed.majorRisks : [],
+          catalyst: parsed.catalyst || rawText,
+          isStructural: typeof parsed.isStructural === 'boolean' ? parsed.isStructural : false,
+          rawResponse: parsed
+        };
+      }
+
+      if (subsystem === 'Daily Email') {
+        return {
+          executiveSummary: parsed.executiveSummary || rawText,
+          portfolioCommentary: parsed.portfolioCommentary || 'N/A',
+          riskCommentary: parsed.riskCommentary || 'N/A',
+          opportunityCommentary: parsed.opportunityCommentary || 'N/A',
+          marketContext: parsed.marketContext || 'N/A',
+          rawResponse: parsed
+        };
+      }
+
+      if (subsystem === 'Editorial Commentary') {
+        return {
+          executiveSummary: parsed.executiveSummary || rawText,
+          portfolioCommentary: parsed.portfolioCommentary || 'No portfolio analysis available.',
+          riskCommentary: parsed.riskCommentary || 'No risk assessment generated.',
+          opportunityCommentary: parsed.opportunityCommentary || 'No opportunities scan analysis.',
+          marketContext: parsed.marketContext || 'No global market contextualization.',
+          rawResponse: parsed
+        };
+      }
+
+      if (subsystem === 'Opportunities') {
+        return {
+          macroSummary: parsed.macroSummary || rawText,
+          rawResponse: parsed
+        };
+      }
+
+      if (subsystem === 'Reports') {
+        return {
+          executiveSummary: parsed.executiveSummary || rawText,
+          financialMetricsAnalysis: parsed.financialMetricsAnalysis || 'N/A',
+          risksAndMitigations: parsed.risksAndMitigations || 'N/A',
+          rawResponse: parsed
+        };
+      }
+
+      if (subsystem === 'Summaries') {
+        return {
+          summary: parsed.summary || rawText,
+          rawResponse: parsed
+        };
+      }
+
+      return parsed;
+    } catch (err) {
+      if (isCopilot) {
+        return {
+          response: rawText,
+          metadata: { confidenceScore: 90, dataFreshness: 'Live' }
+        };
+      }
+
+      if (subsystem === 'Company Intelligence') {
+        return {
+          moatRating: 'none',
+          moatRationale: rawText,
+          majorRisks: [],
+          catalyst: rawText,
+          isStructural: false
+        };
+      }
+
+      if (subsystem === 'Daily Email') {
+        return {
+          executiveSummary: rawText,
+          portfolioCommentary: 'N/A',
+          riskCommentary: 'N/A',
+          opportunityCommentary: 'N/A',
+          marketContext: 'N/A'
+        };
+      }
+
+      if (subsystem === 'Editorial Commentary') {
+        return {
+          executiveSummary: rawText,
+          portfolioCommentary: 'No portfolio analysis available.',
+          riskCommentary: 'No risk assessment generated.',
+          opportunityCommentary: 'No opportunities scan analysis.',
+          marketContext: 'No global market contextualization.'
+        };
+      }
+
+      if (subsystem === 'Opportunities') {
+        return {
+          macroSummary: rawText
+        };
+      }
+
+      if (subsystem === 'Reports') {
+        return {
+          executiveSummary: rawText,
+          financialMetricsAnalysis: 'N/A',
+          risksAndMitigations: 'N/A'
+        };
+      }
+
+      if (subsystem === 'Summaries') {
+        return {
+          summary: rawText
+        };
+      }
+
+      return {
+        text: rawText,
+        response: rawText
+      };
+    }
   }
 }

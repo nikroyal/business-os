@@ -2602,9 +2602,9 @@ export class GeminiClient {
 
   async generateCommentary(systemPrompt: string, userPrompt: string, model = 'gemini-3.5-flash'): Promise<any> {
     const { data } = await this.generateContentWithFailover(systemPrompt, userPrompt, model);
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || data.choices?.[0]?.message?.content || '';
     try {
-      return JSON.parse(rawText.trim());
+      return AIModelRegistry.extractAndParseJson(rawText);
     } catch (e) {
       return { commentary: rawText.trim() };
     }

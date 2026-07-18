@@ -227,6 +227,59 @@ export const AIRequestInspectorModal: React.FC<AIRequestInspectorModalProps> = (
             </div>
           </div>
 
+          {/* Normalization & Formatting Diagnostics */}
+          <div style={{ background: '#221f1c', border: '1px solid #3d362e', borderRadius: '8px', padding: '1.25rem' }}>
+            <h4 style={{ margin: '0 0 0.85rem 0', fontSize: '0.85rem', color: '#a855f7', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Layers size={15} /> Normalization & Formatting Diagnostics
+            </h4>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Raw Format:</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#fff' }}>{record.rawResponseFormat || 'UNKNOWN'}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Expected Format:</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#fff' }}>{record.expectedResponseFormat || 'UNKNOWN'}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Normalization Method:</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>{record.normalizationMethod || 'NONE'}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Parse Success:</span>
+                <strong style={{ color: record.parseSuccess ? '#10b981' : '#ef4444' }}>{record.parseSuccess ? 'YES' : 'NO'}</strong>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Structured Schema Validation:</span>
+                <strong style={{ color: record.structuredOutputValidation === 'success' ? '#10b981' : record.structuredOutputValidation === 'failed' ? '#ef4444' : '#8e8274' }}>
+                  {record.structuredOutputValidation ? record.structuredOutputValidation.toUpperCase() : 'N/A'}
+                </strong>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Recovery Attempted:</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#fff' }}>{record.recoveryAttempted ? 'YES' : 'NO'}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #2d2822', paddingBottom: '0.5rem' }}>
+                <span style={{ color: '#c4b9a7' }}>Recovery Success:</span>
+                <strong style={{ color: record.recoverySuccess ? '#10b981' : record.recoveryAttempted ? '#ef4444' : '#8e8274' }}>
+                  {record.recoveryAttempted ? (record.recoverySuccess ? 'YES' : 'NO') : 'N/A'}
+                </strong>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#c4b9a7' }}>Actual Underlying Model:</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#10b981' }}>{record.actualUnderlyingModel || record.fallbackModel || record.selectedModel}</span>
+              </div>
+            </div>
+          </div>
+
           {/* Agent Planning Trace */}
           {record.planningTrace && record.planningTrace.length > 0 && (
             <div style={{ background: '#221f1c', border: '1px solid #3d362e', borderRadius: '8px', padding: '1.25rem' }}>

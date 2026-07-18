@@ -40,6 +40,8 @@ export const Copilot: React.FC = () => {
   const [exportTicker, setExportTicker] = useState('');
   const [exportExchange, setExportExchange] = useState('NASDAQ');
   const [exportReport, setExportReport] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<{ message: string; prompt: string; sessionId: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +59,7 @@ export const Copilot: React.FC = () => {
   };
 
   const handleSelectSession = async (session: CopilotSession) => {
+    setErrorState(null);
     setActiveSession(session);
     setLoadingHistory(true);
     try {
@@ -131,10 +134,15 @@ export const Copilot: React.FC = () => {
     e.preventDefault();
     if (!promptInput.trim()) return;
 
+    setErrorState(null);
+    const activePrompt = promptInput;
+    setPromptInput('');
     setSending(true);
+    let createdSessionId = '';
     try {
       // 1. Create session doc
-      const session = await CopilotService.createSession(promptInput, researchMode, isMockMode);
+      const session = await CopilotService.createSession(activePrompt, researchMode, isMockMode);
+      createdSessionId = session.id;
       setSessions(prev => [session, ...prev]);
       setActiveSession(session);
       
@@ -142,12 +150,10 @@ export const Copilot: React.FC = () => {
       const localUserMsg: CopilotMessage = {
         id: `user_${Date.now()}`,
         sender: 'user',
-        content: promptInput,
+        content: activePrompt,
         timestamp: new Date().toISOString()
       };
       setMessages([localUserMsg]);
-      const activePrompt = promptInput;
-      setPromptInput('');
 
       // 3. Dispatch chat call
       const copilotResponse = await CopilotService.sendChatMessage(session.id, activePrompt, isMockMode);
@@ -157,7 +163,11 @@ export const Copilot: React.FC = () => {
       loadSessions();
     } catch (err: any) {
       console.error('Failed to trigger chat initialization:', err);
-      alert(err.message || 'Chat compilation failed. Check tier limits.');
+      setErrorState({
+        message: err.message || 'Chat compilation failed. Check tier limits.',
+        prompt: activePrompt,
+        sessionId: createdSessionId
+      });
     } finally {
       setSending(false);
     }
@@ -167,6 +177,7 @@ export const Copilot: React.FC = () => {
     e.preventDefault();
     if (!promptInput.trim() || !activeSession || sending) return;
 
+    setErrorState(null);
     const currentPrompt = promptInput;
     setPromptInput('');
     setSending(true);
@@ -185,7 +196,33 @@ export const Copilot: React.FC = () => {
       loadSessions();
     } catch (err: any) {
       console.error('Failed to process message query:', err);
-      alert(err.message || 'Limit reached or rate limit blocked request.');
+      setErrorState({
+        message: err.message || 'Limit reached or rate limit blocked request.',
+        prompt: currentPrompt,
+        sessionId: activeSession.id
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!errorState) return;
+    const { prompt, sessionId } = errorState;
+    setErrorState(null);
+    setSending(true);
+
+    try {
+      const copilotResponse = await CopilotService.sendChatMessage(sessionId, prompt, isMockMode);
+      setMessages(prev => [...prev, copilotResponse]);
+      loadSessions();
+    } catch (err: any) {
+      console.error('Failed to retry message query:', err);
+      setErrorState({
+        message: err.message || 'Limit reached or rate limit blocked request.',
+        prompt,
+        sessionId
+      });
     } finally {
       setSending(false);
     }
@@ -250,11 +287,12 @@ export const Copilot: React.FC = () => {
     if (!exportTicker.trim()) return;
     setExporting(true);
     setExportReport(null);
+    setExportError(null);
     try {
       const md = await CopilotService.exportReport(exportTicker.toUpperCase().trim(), exportExchange, isMockMode);
       setExportReport(md);
     } catch (err: any) {
-      alert('Filing facts generation failed for this ticker.');
+      setExportError(err.message || 'Filing facts generation failed for this ticker.');
     } finally {
       setExporting(false);
     }
@@ -521,6 +559,65 @@ export const Copilot: React.FC = () => {
                   </div>
                 </div>
               ))}
+              {errorState && (
+                <div style={{
+                  alignSelf: 'flex-start',
+                  maxWidth: '85%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  border: '1px solid #E5D0D1',
+                  background: '#FAF1F1',
+                  padding: '1.25rem',
+                  borderRadius: '4px',
+                  boxShadow: 'var(--shadow-subtle)'
+                }}>
+                  <span style={{ fontSize: '0.65rem', color: '#b91c1c', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
+                    ⚠️ ERROR OCCURRED
+                  </span>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontFamily: 'var(--font-sans)', fontWeight: '500' }}>
+                    Copilot encountered a response-formatting problem. The response could not be processed.
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#7f1d1d', fontFamily: 'var(--font-mono)' }}>
+                    {errorState.message}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={handleRetry}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        fontSize: '0.75rem',
+                        background: 'var(--color-accent)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        transition: 'background 0.15s'
+                      }}
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPromptInput(errorState.prompt);
+                        setErrorState(null);
+                      }}
+                      style={{
+                        padding: '0.4rem 0.8rem',
+                        fontSize: '0.75rem',
+                        background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid #E2DACD',
+                        borderRadius: '3px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Edit Message
+                    </button>
+                  </div>
+                </div>
+              )}
               {sending && (
                 <div style={{ alignSelf: 'flex-start', display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid #E2DACD', padding: '0.5rem 1rem', borderRadius: '4px', boxShadow: 'var(--shadow-subtle)' }}>
                   <Activity className="animate-spin" size={14} style={{ color: 'var(--color-accent)' }} />
@@ -575,6 +672,11 @@ export const Copilot: React.FC = () => {
               </button>
             </form>
 
+            {exportError && (
+              <span style={{ fontSize: '0.72rem', color: '#b91c1c', marginTop: '0.35rem', fontFamily: 'var(--font-mono)' }}>
+                ⚠️ {exportError}
+              </span>
+            )}
             {exportReport && (
               <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-success-text)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}>

@@ -639,20 +639,36 @@ app.post('/api/commentary/generate', async (c) => {
       token
     );
 
-    // If fallback was used, surface the informational message by injecting it into candidate text
-    if (fallbackUsed && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+    // Normalize response text to guarantee valid JSON matching schema
+    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
       try {
         const rawText = data.candidates[0].content.parts[0].text;
-        const parsed = JSON.parse(rawText.trim());
-        parsed._metadata = {
-          fallbackModelUsed: true,
-          requestedModel: modelName,
-          actualModel: actualModel,
-          infoMessage: `Temporarily switched to ${actualModel} due to high demand on ${modelName}.`
-        };
+        const parsed = AIModelRegistry.normalizeAIResponse(rawText, 'Editorial Commentary');
+        parsed._metadata = parsed._metadata || {};
+        parsed._metadata.fallbackModelUsed = fallbackUsed;
+        parsed._metadata.requestedModel = modelName;
+        parsed._metadata.actualModel = actualModel;
+        if (fallbackUsed) {
+          parsed._metadata.infoMessage = `Temporarily switched to ${actualModel} due to high demand on ${modelName}.`;
+        }
         data.candidates[0].content.parts[0].text = JSON.stringify(parsed);
       } catch (parseErr) {
-        console.error('[Gemini Failover] Failed to inject metadata into raw JSON candidate text:', parseErr);
+        console.error('[Gemini Failover] Failed to normalize candidate text:', parseErr);
+      }
+    } else if (data.choices?.[0]?.message?.content) {
+      try {
+        const rawText = data.choices[0].message.content;
+        const parsed = AIModelRegistry.normalizeAIResponse(rawText, 'Editorial Commentary');
+        parsed._metadata = parsed._metadata || {};
+        parsed._metadata.fallbackModelUsed = fallbackUsed;
+        parsed._metadata.requestedModel = modelName;
+        parsed._metadata.actualModel = actualModel;
+        if (fallbackUsed) {
+          parsed._metadata.infoMessage = `Temporarily switched to ${actualModel} due to high demand on ${modelName}.`;
+        }
+        data.choices[0].message.content = JSON.stringify(parsed);
+      } catch (parseErr) {
+        console.error('[OpenRouter Failover] Failed to normalize choice content:', parseErr);
       }
     }
 
@@ -2697,7 +2713,7 @@ app.post('/api/copilot/chat', async (c) => {
 
               const profUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(sym)}&token=${finnhubKey}`;
               const profRes = await fetch(profUrl).catch(() => null);
-              const pData = profRes && profRes.ok ? await profRes.json().catch(() => null) : null;
+              const pData: any = profRes && profRes.ok ? await profRes.json().catch(() => null) : null;
 
               quotesResults.push({
                 ticker: sym,

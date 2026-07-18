@@ -432,6 +432,14 @@ export interface TelemetryRecord {
   recoveryTimeMs?: number;
   /** The planner trace listing selected, executed, succeeded/failed tools */
   planningTrace?: any[];
+  rawResponseFormat?: string;
+  expectedResponseFormat?: string;
+  normalizationMethod?: string;
+  parseSuccess?: boolean;
+  structuredOutputValidation?: string;
+  recoveryAttempted?: boolean;
+  recoverySuccess?: boolean;
+  actualUnderlyingModel?: string;
 }
 
 export interface OrchestratorConfig {

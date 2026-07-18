@@ -144,17 +144,32 @@ Output JSON format exactly:`;
       }
 
       const responseData = await response.json();
-      const rawText = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+      const rawText = responseData.candidates?.[0]?.content?.parts?.[0]?.text || responseData.choices?.[0]?.message?.content;
       
       if (!rawText) {
-        throw new Error("No response text found in candidate parts.");
+        throw new Error("No response text found in backend AI response.");
       }
 
-      // Parse output
-      const cleanJson = JSON.parse(rawText.trim());
+      // Parse output safely
+      let cleanJson: any = {};
+      try {
+        cleanJson = JSON.parse(rawText.trim());
+      } catch (parseErr) {
+        console.warn("[GeminiService] Failed to parse rawText as JSON directly, attempting recovery:", parseErr);
+        const trimmed = rawText.trim();
+        const startIdx = trimmed.indexOf('{');
+        const endIdx = trimmed.lastIndexOf('}');
+        if (startIdx !== -1 && endIdx > startIdx) {
+          try {
+            cleanJson = JSON.parse(trimmed.substring(startIdx, endIdx + 1));
+          } catch (e) {
+            console.warn("[GeminiService] Recovery parsing failed as well.");
+          }
+        }
+      }
 
       const aiCommentary: Omit<AICommentary, 'id' | 'userId'> = {
-        executiveSummary: cleanJson.executiveSummary || 'No summary generated.',
+        executiveSummary: cleanJson.executiveSummary || rawText || 'No summary generated.',
         portfolioCommentary: cleanJson.portfolioCommentary || 'No portfolio analysis available.',
         riskCommentary: cleanJson.riskCommentary || 'No risk assessment generated.',
         opportunityCommentary: cleanJson.opportunityCommentary || 'No opportunities scan analysis.',
