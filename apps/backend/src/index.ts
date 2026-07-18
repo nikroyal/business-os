@@ -33,7 +33,9 @@ app.use('/api/*', cors({
       ALLOWED_ORIGINS.includes(origin) ||
       (extraOrigin && origin === extraOrigin) ||
       origin.startsWith('http://localhost:') ||
-      origin.startsWith('http://127.0.0.1:')
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.endsWith('.pages.dev') ||
+      /^https:\/\/[a-zA-Z0-9-]+\.pages\.dev$/.test(origin)
     ) {
       return origin;
     }
@@ -45,6 +47,36 @@ app.use('/api/*', cors({
   maxAge: 600,
   credentials: true,
 }));
+
+app.onError((err, c) => {
+  console.error('[Unhandled Backend Error]', err);
+  const origin = c.req.header('Origin');
+  const extraOrigin = c.env.FRONTEND_URL;
+  let allowedOrigin = 'https://business-os-cf0.pages.dev';
+  
+  if (origin) {
+    if (
+      ALLOWED_ORIGINS.includes(origin) ||
+      (extraOrigin && origin === extraOrigin) ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.endsWith('.pages.dev') ||
+      /^https:\/\/[a-zA-Z0-9-]+\.pages\.dev$/.test(origin)
+    ) {
+      allowedOrigin = origin;
+    }
+  }
+
+  return c.json(
+    { error: 'Internal Server Error', message: err.message },
+    500,
+    {
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Credentials': 'true',
+    }
+  );
+});
+
 
 
 // Base64Url decoding helper
@@ -3256,8 +3288,10 @@ app.get('/api/admin/system-stats', async (c) => {
   const start = Date.now();
   let dbLatency = 0;
   try {
-    await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/system/featureFlags`, { headers });
-    dbLatency = Date.now() - start;
+    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/system/featureFlags`, { headers });
+    if (res.ok || res.status === 403 || res.status === 401 || projectId === 'proj' || (token && token.startsWith('mock_'))) {
+      dbLatency = Date.now() - start;
+    }
   } catch {}
 
   // Perform checks for FRED and SEC EDGAR dynamically

@@ -1705,7 +1705,7 @@ export class FirestoreClient {
 
   async getHoldings(userId: string): Promise<Holding[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/users/${userId}/holdings`);
+      const res = await fetch(`${this.baseUrl}/users/${userId}/holdings`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return [];
         console.error(`Failed to get holdings for user ${userId}: HTTP ${res.status}`);
@@ -1722,7 +1722,7 @@ export class FirestoreClient {
 
   async getPortfolioHistory(userId: string): Promise<any[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/users/${userId}/portfolioHistory`);
+      const res = await fetch(`${this.baseUrl}/users/${userId}/portfolioHistory`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return [];
         console.error(`Failed to get portfolioHistory for ${userId}: HTTP ${res.status}`);
@@ -1739,7 +1739,7 @@ export class FirestoreClient {
 
   async getWatchlist(userId: string): Promise<WatchlistItem[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/users/${userId}/watchlist`);
+      const res = await fetch(`${this.baseUrl}/users/${userId}/watchlist`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return [];
         console.error(`Failed to get watchlist for user ${userId}: HTTP ${res.status}`);
@@ -1769,7 +1769,7 @@ export class FirestoreClient {
 
     const res = await fetch(`${this.baseUrl}/users/${userId}/reports?documentId=${id}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1794,7 +1794,7 @@ export class FirestoreClient {
 
     const res = await fetch(`${this.baseUrl}/users/${userId}/opportunities/latest`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1817,7 +1817,7 @@ export class FirestoreClient {
 
     const res = await fetch(`${this.baseUrl}/users/${userId}/dispatchHistory?documentId=${id}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1829,7 +1829,7 @@ export class FirestoreClient {
 
   async getDispatchHistory(userId: string): Promise<DispatchHistory[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/users/${userId}/dispatchHistory`);
+      const res = await fetch(`${this.baseUrl}/users/${userId}/dispatchHistory`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return [];
         console.error(`Failed to get dispatchHistory for ${userId}: HTTP ${res.status}`);
@@ -1847,7 +1847,7 @@ export class FirestoreClient {
   async getCompanyIntelligence(ticker: string, exchange: string): Promise<CompanyIntelligence | null> {
     try {
       const key = `${ticker}:${exchange}`;
-      const res = await fetch(`${this.baseUrl}/companyIntelligence/${encodeURIComponent(key)}`);
+      const res = await fetch(`${this.baseUrl}/companyIntelligence/${encodeURIComponent(key)}`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get companyIntelligence for ${key}: HTTP ${res.status}`);
@@ -1869,7 +1869,7 @@ export class FirestoreClient {
     }
     const res = await fetch(`${this.baseUrl}/companyIntelligence/${encodeURIComponent(key)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1904,7 +1904,7 @@ export class FirestoreClient {
     }
     const res = await fetch(`${this.baseUrl}/secCompanyFacts/${encodeURIComponent(key)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1938,7 +1938,7 @@ export class FirestoreClient {
     };
     const res = await fetch(`${this.baseUrl}/fredIndicators/latest`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1961,7 +1961,7 @@ export class FirestoreClient {
     }
     const res = await fetch(`${this.baseUrl}/system/secSchedulerState`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -1980,7 +1980,7 @@ export class FirestoreClient {
 
   async getSecSchedulerStatus(): Promise<any | null> {
     try {
-      const res = await fetch(`${this.baseUrl}/system/secSchedulerState`);
+      const res = await fetch(`${this.baseUrl}/system/secSchedulerState`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get secSchedulerState: HTTP ${res.status}`);
@@ -2005,7 +2005,7 @@ export class FirestoreClient {
     };
 
     try {
-      const res = await fetch(`${this.baseUrl}/system/schedulerState`);
+      const res = await fetch(`${this.baseUrl}/system/schedulerState`, { headers: this.headers });
       if (res.ok) {
         const data = await res.json() as any;
         const doc = fromFirestoreDoc(data);
@@ -2048,7 +2048,7 @@ export class FirestoreClient {
       
       const res = await fetch(`${this.baseUrl}/system/schedulerState`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.headers },
         body: JSON.stringify({ fields })
       });
       if (!res.ok) {
@@ -2062,7 +2062,7 @@ export class FirestoreClient {
 
   async getSecIngestionIndex(): Promise<any | null> {
     try {
-      const res = await fetch(`${this.baseUrl}/system/secIngestionIndex`);
+      const res = await fetch(`${this.baseUrl}/system/secIngestionIndex`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         return null;
@@ -2083,7 +2083,7 @@ export class FirestoreClient {
       }
       const res = await fetch(`${this.baseUrl}/system/secIngestionIndex`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...this.headers },
         body: JSON.stringify({ fields })
       });
       if (!res.ok) {
@@ -2098,7 +2098,7 @@ export class FirestoreClient {
   async getUserConviction(userId: string, ticker: string, exchange: string): Promise<UserConviction | null> {
     try {
       const key = `${ticker}:${exchange}`;
-      const res = await fetch(`${this.baseUrl}/users/${userId}/convictions/${encodeURIComponent(key)}`);
+      const res = await fetch(`${this.baseUrl}/users/${userId}/convictions/${encodeURIComponent(key)}`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get conviction for ${userId} ${key}: HTTP ${res.status}`);
@@ -2120,7 +2120,7 @@ export class FirestoreClient {
     }
     const res = await fetch(`${this.baseUrl}/users/${conviction.userId}/convictions/${encodeURIComponent(key)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -2132,7 +2132,7 @@ export class FirestoreClient {
 
   async getAllUserConvictions(userId: string): Promise<UserConviction[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/users/${userId}/convictions`);
+      const res = await fetch(`${this.baseUrl}/users/${userId}/convictions`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return [];
         console.error(`Failed to get convictions list for ${userId}: HTTP ${res.status}`);
@@ -2165,7 +2165,7 @@ export class FirestoreClient {
 
   async getNewsCache(key: string): Promise<any | null> {
     try {
-      const res = await fetch(`${this.baseUrl}/newsCache/${encodeURIComponent(key)}`);
+      const res = await fetch(`${this.baseUrl}/newsCache/${encodeURIComponent(key)}`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get newsCache for ${key}: HTTP ${res.status}`);
@@ -2191,7 +2191,7 @@ export class FirestoreClient {
     };
     const res = await fetch(`${this.baseUrl}/newsCache/${encodeURIComponent(key)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {
@@ -2211,7 +2211,7 @@ export class FirestoreClient {
   async getResearchReportCache(ticker: string, exchange: string, version: string, date: string): Promise<any | null> {
     try {
       const key = `${ticker}_${exchange}_${version}_${date}`.toUpperCase().replace(/\//g, '_');
-      const res = await fetch(`${this.baseUrl}/researchCache/${encodeURIComponent(key)}`);
+      const res = await fetch(`${this.baseUrl}/researchCache/${encodeURIComponent(key)}`, { headers: this.headers });
       if (!res.ok) {
         if (res.status === 404) return null;
         console.error(`Failed to get researchCache for ${key}: HTTP ${res.status}`);
@@ -2233,7 +2233,7 @@ export class FirestoreClient {
     }
     const res = await fetch(`${this.baseUrl}/researchCache/${encodeURIComponent(key)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({ fields })
     });
     if (!res.ok) {

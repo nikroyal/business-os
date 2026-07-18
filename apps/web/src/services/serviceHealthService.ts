@@ -12,7 +12,9 @@ export interface ServiceStatus {
     | 'healthy'
     | 'cache_empty'
     | 'waiting_for_scheduled_sync'
-    | 'last_sync_failed';
+    | 'last_sync_failed'
+    | 'unreachable'
+    | 'unknown';
   color: 'green' | 'orange' | 'red' | 'gray';
   description: string;
 }
@@ -72,8 +74,8 @@ export class ServiceHealthService {
     const health: PlatformHealth = {
       lastChecked: generatedTimestamp,
       services: {
-        worker: { name: 'Cloudflare Worker API', status: 'failure', color: 'red', description: 'Reaching edge backend...' },
-        firestore: { name: 'Firestore', status: 'failure', color: 'red', description: 'Verifying DB connectivity...' },
+        worker: { name: 'Cloudflare Worker API', status: 'unreachable', color: 'gray', description: 'Reaching edge backend...' },
+        firestore: { name: 'Firestore', status: 'unknown', color: 'gray', description: 'Verifying DB connectivity...' },
         finnhub: { name: 'Finnhub', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         gemini: { name: 'Gemini', status: 'not_configured', color: 'gray', description: 'Pending API check' },
         resend: { name: 'Resend', status: 'not_configured', color: 'gray', description: 'Pending API check' },
@@ -97,10 +99,12 @@ export class ServiceHealthService {
         case 'last_sync_failed':
         case 'failure':
           return { status, color: 'red' };
-        case 'not_configured':
-          return { status: 'not_configured', color: 'gray' };
-        default:
+        case 'unreachable':
           return { status, color: 'red' };
+        case 'not_configured':
+        case 'unknown':
+        default:
+          return { status, color: 'gray' };
       }
     };
 
@@ -128,7 +132,7 @@ export class ServiceHealthService {
     } catch (err: any) {
       health.services.worker = {
         name: 'Cloudflare Worker API',
-        status: 'failure',
+        status: 'unreachable',
         color: 'red',
         description: `Unreachable: ${err.message || err}`
       };
@@ -234,42 +238,28 @@ export class ServiceHealthService {
         } else {
           // Worker was reachable but status services endpoint failed (e.g., unauthorized)
           const desc = `Health endpoint returned status ${res.status}`;
-          health.services.finnhub = { name: 'Finnhub', status: 'failure', color: 'red', description: desc };
-          health.services.gemini = { name: 'Gemini', status: 'failure', color: 'red', description: desc };
-          health.services.resend = { name: 'Resend', status: 'failure', color: 'red', description: desc };
-          health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
-          health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
+          health.services.finnhub = { name: 'Finnhub', status: 'unknown', color: 'gray', description: desc };
+          health.services.gemini = { name: 'Gemini', status: 'unknown', color: 'gray', description: desc };
+          health.services.resend = { name: 'Resend', status: 'unknown', color: 'gray', description: desc };
+          health.services.fred = { name: 'FRED', status: 'unknown', color: 'gray', description: desc };
+          health.services.secEdgar = { name: 'SEC EDGAR', status: 'unknown', color: 'gray', description: desc };
         }
       } catch (err: any) {
         const desc = `Verification failed: ${err.message || err}`;
-        health.services.finnhub = { name: 'Finnhub', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
-        health.services.gemini = { name: 'Gemini', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
-        health.services.resend = { name: 'Resend', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
-        
-        if (authService.isMock) {
-          const { secStatus, secDesc, secMeta, fredStatus, fredDesc, fredMeta } = this.getMockOfflinePublicServicesHealth();
-          health.services.secEdgar = { name: 'SEC EDGAR', status: secStatus, color: secStatus === 'healthy' ? 'green' : 'orange', description: secDesc, metadata: secMeta } as any;
-          health.services.fred = { name: 'FRED', status: fredStatus, color: fredStatus === 'healthy' ? 'green' : 'orange', description: fredDesc, metadata: fredMeta } as any;
-        } else {
-          health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
-          health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
-        }
+        health.services.finnhub = { name: 'Finnhub', status: 'unknown', color: 'gray', description: desc };
+        health.services.gemini = { name: 'Gemini', status: 'unknown', color: 'gray', description: desc };
+        health.services.resend = { name: 'Resend', status: 'unknown', color: 'gray', description: desc };
+        health.services.fred = { name: 'FRED', status: 'unknown', color: 'gray', description: desc };
+        health.services.secEdgar = { name: 'SEC EDGAR', status: 'unknown', color: 'gray', description: desc };
       }
     } else {
       // Worker is down, so backend services are implicitly unreachable
       const desc = 'Cloudflare Worker is down / unreachable';
-      health.services.finnhub = { name: 'Finnhub', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
-      health.services.gemini = { name: 'Gemini', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
-      health.services.resend = { name: 'Resend', status: authService.isMock ? 'not_configured' : 'failure', color: authService.isMock ? 'gray' : 'red', description: desc };
-      
-      if (authService.isMock) {
-        const { secStatus, secDesc, secMeta, fredStatus, fredDesc, fredMeta } = this.getMockOfflinePublicServicesHealth();
-        health.services.secEdgar = { name: 'SEC EDGAR', status: secStatus, color: secStatus === 'healthy' ? 'green' : 'orange', description: secDesc, metadata: secMeta } as any;
-        health.services.fred = { name: 'FRED', status: fredStatus, color: fredStatus === 'healthy' ? 'green' : 'orange', description: fredDesc, metadata: fredMeta } as any;
-      } else {
-        health.services.fred = { name: 'FRED', status: 'failure', color: 'red', description: desc };
-        health.services.secEdgar = { name: 'SEC EDGAR', status: 'failure', color: 'red', description: desc };
-      }
+      health.services.finnhub = { name: 'Finnhub', status: 'unknown', color: 'gray', description: desc };
+      health.services.gemini = { name: 'Gemini', status: 'unknown', color: 'gray', description: desc };
+      health.services.resend = { name: 'Resend', status: 'unknown', color: 'gray', description: desc };
+      health.services.fred = { name: 'FRED', status: 'unknown', color: 'gray', description: desc };
+      health.services.secEdgar = { name: 'SEC EDGAR', status: 'unknown', color: 'gray', description: desc };
     }
 
     // 4. Data Quality cache check
@@ -300,25 +290,25 @@ export class ServiceHealthService {
         } else {
           health.services.dataMoat = {
             name: 'Data Moat & Cache',
-            status: 'degraded',
-            color: 'orange',
+            status: 'unknown',
+            color: 'gray',
             description: `Failed to load data quality: HTTP ${res.status}`
           };
         }
       } catch (err: any) {
         health.services.dataMoat = {
           name: 'Data Moat & Cache',
-          status: 'failure',
-          color: 'red',
+          status: 'unknown',
+          color: 'gray',
           description: `Data quality check failed: ${err.message || err}`
         };
       }
     } else {
       health.services.dataMoat = {
         name: 'Data Moat & Cache',
-        status: 'failure',
-        color: 'red',
-        description: 'Cloudflare Worker is down'
+        status: 'unknown',
+        color: 'gray',
+        description: 'Cloudflare Worker is down / unreachable'
       };
     }
 
@@ -343,67 +333,7 @@ export class ServiceHealthService {
     return health;
   }
 
-  /**
-   * Helper to derive public services health status when running offline in Demo Mode.
-   */
-  private static getMockOfflinePublicServicesHealth() {
-    let secCachedCount = 0;
-    let oldestFilingDateStr = '';
-    let hasStaleCompany = false;
-    const secTickers = ['AAPL', 'MSFT'];
 
-    for (const t of secTickers) {
-      const cached = localStorage.getItem(`sec_facts_${t}`);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          secCachedCount++;
-          const filings = parsed.data?.recentFilings || [];
-          for (const f of filings) {
-            if (f.filingDate && (!oldestFilingDateStr || f.filingDate < oldestFilingDateStr)) {
-              oldestFilingDateStr = f.filingDate;
-            }
-          }
-          const ageMs = Date.now() - parsed.cachedAt;
-          if (ageMs > 5 * 24 * 60 * 60 * 1000) {
-            hasStaleCompany = true;
-          }
-        } catch {}
-      }
-    }
-
-    const secStatus = secCachedCount === 0 
-      ? 'cache_empty' 
-      : hasStaleCompany 
-        ? 'waiting_for_scheduled_sync' 
-        : 'healthy';
-
-    const secDesc = secCachedCount === 0 
-      ? 'SEC filings cache is empty (Offline).' 
-      : `SEC EDGAR is available (Offline). ${secCachedCount} mock companies cached.`;
-
-    const secMeta = {
-      lastIngestionRun: new Date().toISOString(),
-      companiesCached: secCachedCount,
-      filingsCached: secCachedCount * 3,
-      oldestCachedFilingAge: oldestFilingDateStr ? Math.floor((Date.now() - new Date(oldestFilingDateStr).getTime()) / (1000 * 3600 * 24)) : 0,
-      cacheFreshness: secCachedCount === 0 ? 'missing' : hasStaleCompany ? 'stale' : 'fresh'
-    };
-
-    return {
-      secStatus,
-      secDesc,
-      secMeta,
-      fredStatus: 'healthy',
-      fredDesc: 'FRED economic indicators are operational (Offline).',
-      fredMeta: {
-        lastSuccessfulCheck: new Date().toISOString(),
-        apiConnectivity: 'connected',
-        latestIndicatorCount: 7,
-        cacheFreshness: 'fresh'
-      }
-    };
-  }
 }
 
 export default ServiceHealthService;

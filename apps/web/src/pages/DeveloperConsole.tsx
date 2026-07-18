@@ -89,6 +89,31 @@ export const DeveloperConsole: React.FC = () => {
   const [flagsError, setFlagsError] = useState<{ status: string; message: string } | null>(null);
   const [logsError, setLogsError] = useState<{ status: string; message: string } | null>(null);
 
+  const fallbackHealthWhenUnreachable = {
+    firestore: { status: 'unknown', latency: 0 },
+    finnhub: { status: 'unknown', latency: 0 },
+    gemini: { status: 'unknown', latency: 0 },
+    openrouter: { status: 'unknown', latency: 0 },
+    fred: { status: 'unknown', latency: 0 },
+    secEdgar: { status: 'unknown', latency: 0 }
+  };
+
+  const fallbackAnalytics = {
+    gemini: { error: 'Backend unreachable' },
+    finnhub: { requestsToday: 0, hitRate: 0, count429: 0, latency: 0 },
+    fred: { cachedIndicators: 0, lastRefresh: '' },
+    sec: { companiesCached: 0, filingsCached: 0, lastIngestion: '', queueHealth: 'unknown' }
+  };
+
+  const fallbackQueues = {
+    secIngestion: { status: 'unknown', lastExecution: '', duration: 0, pending: 0, failures: 0, retries: 0 },
+    fredRefresh: { status: 'unknown', lastExecution: '', duration: 0, pending: 0, failures: 0, retries: 0 },
+    newsIngestion: { status: 'unknown', lastExecution: '', duration: 0, pending: 0, failures: 0, retries: 0 },
+    researchCache: { status: 'unknown', lastExecution: '', duration: 0, pending: 0, failures: 0, retries: 0 },
+    dailyDispatch: { status: 'unknown', lastExecution: '', duration: 0, pending: 0, failures: 0, retries: 0 },
+    emailQueue: { status: 'unknown', lastExecution: '', duration: 0, pending: 0, failures: 0, retries: 0 }
+  };
+
   const parseApiError = (e: any) => {
     let status = "HTTP 500 Internal Error";
     let msg = e.message || String(e);
@@ -293,6 +318,10 @@ export const DeveloperConsole: React.FC = () => {
     (log.targetUserId || '').toLowerCase().includes(auditFilter.toLowerCase())
   );
 
+  const displayHealth = (health || fallbackHealthWhenUnreachable) as any;
+  const displayAnalytics = (apiAnalytics || fallbackAnalytics) as any;
+  const displayQueues = (queues || fallbackQueues) as any;
+
   return (
     <div className="scrollable-page">
       <div style={{ animation: 'fadeIn 0.25s ease-out', textAlign: 'left' }}>
@@ -397,11 +426,28 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 1: System Operations Center (NOC Overview) */}
-      {activeTab === 'Health' && statsError && (
+      {activeTab === 'Health' && statsError && !statsError.status?.includes("Network Error") && (
         <ApiErrorDisplay endpoint="/api/admin/system-stats" error={statsError} onRetry={loadStats} />
       )}
-      {activeTab === 'Health' && !statsError && health && apiAnalytics && (
+      {activeTab === 'Health' && (!statsError || statsError.status?.includes("Network Error")) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {statsError && statsError.status?.includes("Network Error") && (
+            <div style={{
+              background: '#FFF5F5',
+              border: '1px solid #FEB2B2',
+              color: '#C53030',
+              padding: '1rem',
+              borderRadius: '6px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              <span style={{ fontWeight: 'bold' }}>⚠️ BACKEND UNREACHABLE (CORS BLOCKED)</span>
+              <span>The operations console cannot communicate with the Cloudflare Worker backend. Verify the backend service is deployed and running. Tracing path failed.</span>
+            </div>
+          )}
           
           {/* Top 2x2 Grid: Health Matrix & AI Overview */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
@@ -424,7 +470,7 @@ export const DeveloperConsole: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(health).map(([node, detail]: any) => {
+                  {Object.entries(displayHealth).map(([node, detail]: any) => {
                     const s = (detail?.status || '').toLowerCase();
                     const isGreen = ['operational', 'available', 'healthy'].includes(s);
                     const isOrange = ['degraded', 'cache_empty', 'waiting_for_scheduled_sync'].includes(s);
@@ -480,19 +526,19 @@ export const DeveloperConsole: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Total Daily Requests:</span>
-                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics.gemini?.requestsToday ?? 0} calls</strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>{displayAnalytics.gemini?.requestsToday ?? 0} calls</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Total Daily Tokens:</span>
-                    <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{(apiAnalytics.gemini?.totalTokens ?? apiAnalytics.gemini?.totalTokensToday ?? 0).toLocaleString()}</strong>
+                    <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{(displayAnalytics.gemini?.totalTokens ?? displayAnalytics.gemini?.totalTokensToday ?? 0).toLocaleString()}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #E2DACD', paddingBottom: '0.5rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Daily Cost Estimate:</span>
-                    <strong style={{ color: 'var(--color-success-text)', fontSize: '1rem' }}>${(apiAnalytics.gemini?.dailyCost ?? 0).toFixed(4)}</strong>
+                    <strong style={{ color: 'var(--color-success-text)', fontSize: '1rem' }}>${(displayAnalytics.gemini?.dailyCost ?? 0).toFixed(4)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.25rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Prompt Cache Hit Ratio:</span>
-                    <strong style={{ color: 'var(--color-warning-text)' }}>{apiAnalytics.gemini?.hitRate ?? apiAnalytics.gemini?.cacheHitRate ?? 0}%</strong>
+                    <strong style={{ color: 'var(--color-warning-text)' }}>{displayAnalytics.gemini?.hitRate ?? displayAnalytics.gemini?.cacheHitRate ?? 0}%</strong>
                   </div>
                 </div>
               </div>
@@ -529,7 +575,7 @@ export const DeveloperConsole: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {queues && Object.entries(queues).map(([key, q]: any) => {
+                  {displayQueues && Object.entries(displayQueues).map(([key, q]: any) => {
                     const status = (q?.status || 'idle').toLowerCase();
                     const isGreen = ['idle', 'success', 'healthy', 'completed'].includes(status);
                     const isOrange = ['running', 'degraded', 'awaiting_first_execution'].includes(status);
@@ -572,15 +618,15 @@ export const DeveloperConsole: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>FRED Economic Cache:</span> 
-                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.fred?.cachedIndicators ?? 0} indicators</strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>{displayAnalytics?.fred?.cachedIndicators ?? 0} indicators</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>SEC EDGAR Coverage:</span> 
-                    <strong style={{ color: 'var(--text-primary)' }}>{apiAnalytics?.sec?.companiesCached ?? 0} companies ({apiAnalytics?.sec?.filingsCached ?? 0} filings)</strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>{displayAnalytics?.sec?.companiesCached ?? 0} companies ({displayAnalytics?.sec?.filingsCached ?? 0} filings)</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2DACD', paddingBottom: '0.35rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Finnhub Rate Limits (429s):</span> 
-                    <strong style={{ color: 'var(--color-success-text)' }}>{apiAnalytics?.finnhub?.count429 ?? 0} errors today</strong>
+                    <strong style={{ color: 'var(--color-success-text)' }}>{displayAnalytics?.finnhub?.count429 ?? 0} errors today</strong>
                   </div>
                 </div>
 
@@ -610,11 +656,29 @@ export const DeveloperConsole: React.FC = () => {
       )}
 
       {/* Tab 2: System Queue status */}
-      {activeTab === 'Queues' && statsError && (
+      {activeTab === 'Queues' && statsError && !statsError.status?.includes("Network Error") && (
         <ApiErrorDisplay endpoint="/api/admin/system-stats" error={statsError} onRetry={loadStats} />
       )}
-      {activeTab === 'Queues' && !statsError && queues && (
-        <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', boxShadow: 'var(--shadow-subtle)' }}>
+      {activeTab === 'Queues' && (!statsError || statsError.status?.includes("Network Error")) && displayQueues && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {statsError && statsError.status?.includes("Network Error") && (
+            <div style={{
+              background: '#FFF5F5',
+              border: '1px solid #FEB2B2',
+              color: '#C53030',
+              padding: '1rem',
+              borderRadius: '6px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
+            }}>
+              <span style={{ fontWeight: 'bold' }}>⚠️ BACKEND UNREACHABLE (CORS BLOCKED)</span>
+              <span>The operations console cannot communicate with the Cloudflare Worker backend. Verify the backend service is deployed and running. Tracing path failed.</span>
+            </div>
+          )}
+          <div className="card" style={{ background: '#fff', padding: '1.5rem', border: '1px solid #E2DACD', boxShadow: 'var(--shadow-subtle)' }}>
           <h3 style={{ margin: '0 0 1.25rem 0', padding: 0, border: 'none', color: 'var(--text-primary)', fontSize: '1.1rem', fontFamily: 'var(--font-serif)', fontWeight: 'normal' }}>System Job Queue Dashboard</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
@@ -630,7 +694,7 @@ export const DeveloperConsole: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(queues || {}).map(([key, q]: any) => {
+              {Object.entries(displayQueues || {}).map(([key, q]: any) => {
                 if (!q) return null;
                 let nextExecution = '—';
                 if (q.lastExecution) {
@@ -659,7 +723,7 @@ export const DeveloperConsole: React.FC = () => {
                   </tr>
                 );
               })}
-              {(!queues || Object.keys(queues).length === 0) && (
+              {(!displayQueues || Object.keys(displayQueues).length === 0) && (
                 <tr>
                   <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No background jobs have executed.
@@ -669,6 +733,7 @@ export const DeveloperConsole: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
       )}
 
       {/* Tab 3: User Administration Directories */}
