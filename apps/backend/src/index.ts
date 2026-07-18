@@ -2976,12 +2976,12 @@ CONVERSATIONAL ANALYST BEHAVIOR:
 5. Format sources naturally inline, e.g., "Apple holds over $160B in cash [[1]](https://sec.gov/edgar)." Never output separate technical blocks for sources or details.
 6. Propose exactly 2-3 highly relevant follow-up questions at the very end. Format each follow-up on its own line exactly as:
    * [Follow-up: Your suggested question here]
-7. Return your response strictly as a JSON object matching this schema, without any markdown code wrapping:
+7. Return your response strictly as a JSON object matching this schema exactly — no markdown fences, no comments:
 {
-  "response": "Your complete markdown formatted reply content here.",
+  "response": "Your complete markdown-formatted reply here. Include the follow-up questions at the end using the * [Follow-up: ...] format.",
   "metadata": {
-    "confidenceScore": 92, // 0-100 rating based on data coverage
-    "dataFreshness": "Updated 2h ago" // "Live", "Cached"
+    "confidenceScore": 90,
+    "dataFreshness": "Live"
   }
 }`;
 

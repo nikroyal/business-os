@@ -258,35 +258,87 @@ export class CopilotService {
         usedSources.push({ name: 'SEC EDGAR Archive', url: 'https://sec.gov' });
       }
 
-      // Generate a mock response using details
+      // Generate a conversational mock response
       let response = '';
-      if (prompt.toLowerCase().includes('portfolio') || prompt.toLowerCase().includes('holding')) {
-        response = `Based on your cached portfolio data, you hold allocations in technology growth assets. 
-        
-### Portfolio Grounding Details
-* Your HHI index remains in the **Moderate** zone.
-* Diversification score is rated at **74/100**.
-* You have notable exposure in **USD-denominated assets** (which introduces currency volatility risk).
+      const lp = prompt.toLowerCase();
 
-No specific trade suggestions will be made. Please monitor sector overexposures in the dashboard.`;
-      } else if (prompt.toLowerCase().includes('inflation') || prompt.toLowerCase().includes('yield') || prompt.toLowerCase().includes('macro')) {
-        response = `### Macroeconomic Indicators (FRED Grounded)
-* **CPI Inflation (YoY):** 3.3% [[1]](https://fred.stlouisfed.org) (Flat trend)
-* **US 10-Year Treasury Yield:** 4.35% (Slightly falling trend)
-* **Yield Curve Spread (10Y-2Y):** -0.35 points (Inverted)
+      if (lp.includes('apple') || lp.includes('aapl')) {
+        response = `Apple remains one of the most resilient businesses in the market. The company generates extraordinary free cash flow — over $100B annually — and has returned enormous capital to shareholders through buybacks, which mechanically supports EPS growth even in flat revenue environments.
 
-**Economic Analysis:**
-Inflation indicators remain above target rates. Multiple expansion headwinds are present for high valuation growth stocks under the current yields regime. Inverted yield spreads historically warn of prospective macro contractions.`;
+That said, whether it's a good investment right now depends on your time horizon and entry price. Apple's forward P/E sits in the mid-to-high 20s, which is elevated relative to its historical average and relative to its revenue growth rate (low single digits). The Services segment is the real growth engine here — it's higher margin, recurring, and growing at ~15% annually.
+
+**Key risks to watch:**
+- China revenue concentration (~17% of total) and ongoing geopolitical tension
+- Regulatory pressure on the App Store take rate in the EU and US
+- AI monetisation is still largely unproven at scale
+
+The bull case is that Services re-rates the stock higher as investors assign a SaaS-like multiple to that segment. The bear case is that hardware growth plateaus and the market de-rates the premium.
+
+* [Follow-up: How does Apple's Services revenue compare to its hardware margins?]
+* [Follow-up: What does Apple's valuation look like compared to Microsoft?]
+* [Follow-up: What are the biggest risks to Apple's China business?]`;
+      } else if (lp.includes('nvidia') || lp.includes('nvda') || lp.includes('amd')) {
+        response = `Nvidia and AMD are both strong semiconductor businesses, but they're at very different points in their cycles right now.
+
+Nvidia is in a league of its own when it comes to AI infrastructure. Their H100 and Blackwell GPU families have essentially created a monopoly on large-scale AI training workloads. Data center revenue grew over 400% year-over-year at peak, and while that rate will normalise, the absolute demand from hyperscalers (Microsoft, Google, Amazon, Meta) remains enormous. The risk is valuation — Nvidia trades at a significant premium and any demand slowdown would hit hard.
+
+AMD, by contrast, is the best positioned challenger. Their MI300X GPU is gaining traction in inference workloads, and their CPU business (EPYC) is still taking share from Intel in servers. AMD is cheaper on a relative basis and has a cleaner execution story.
+
+**The short answer:** Nvidia has a stronger moat and better near-term demand visibility. AMD has a better risk/reward if you believe GPU competition will intensify.
+
+* [Follow-up: What is Nvidia's current valuation multiple compared to historical levels?]
+* [Follow-up: Which hyperscalers are AMD's biggest customers for MI300X?]
+* [Follow-up: How does AMD's EPYC server market share compare to Intel Xeon?]`;
+      } else if (lp.includes('portfolio') || lp.includes('holding') || lp.includes('position')) {
+        response = `Looking at your portfolio, you're currently allocated across technology growth assets with moderate diversification. A few things stand out.
+
+Your concentration in US equities is high — which has worked well historically but introduces meaningful single-market risk. The HHI (Herfindahl–Hirschman Index) for your sector exposure sits in the **moderate zone**, meaning you're not dangerously concentrated, but there's room to improve balance.
+
+The key macro factor bearing on your holdings right now is the interest rate environment. If rates stay higher for longer, growth multiples will face continued pressure. If we get cuts in the next two quarters, that would be a meaningful tailwind for the tech-heavy allocation you have.
+
+**One flag worth noting:** currency risk. Your portfolio is predominantly USD-denominated. If the dollar weakens (which some FRED indicators suggest is possible), international purchasing power of those assets decreases in relative terms.
+
+* [Follow-up: What is my current sector allocation breakdown?]
+* [Follow-up: How would a 1% rate cut affect my portfolio?]
+* [Follow-up: Which of my holdings has the highest concentration risk?]`;
+      } else if (lp.includes('inflation') || lp.includes('cpi') || lp.includes('interest rate') || lp.includes('macro') || lp.includes('economy') || lp.includes('gdp') || lp.includes('yield')) {
+        response = `The US macro picture right now is genuinely complex — we're in a late-cycle environment that doesn't fit neatly into a single narrative.
+
+Inflation has come down significantly from its 2022 peak of ~9%, but the "last mile" to the Fed's 2% target has proven sticky. Core services inflation, driven largely by shelter costs and wages, is running around 3.3% YoY. That's why the Fed has been cautious about cutting rates despite market pressure.
+
+The yield curve remains inverted — the 2-year Treasury yields more than the 10-year, which has historically been a recession indicator. That said, this inversion has persisted far longer than typical cycles, leading some economists to question its predictive reliability in the current environment.
+
+GDP growth has been more resilient than many expected — consumer spending, particularly in services, has held up. But leading indicators like the ISM Manufacturing Index and credit card delinquency rates are flashing early warning signs.
+
+**Bottom line:** the base case is a soft landing, but the distribution of outcomes is wider than usual.
+
+* [Follow-up: What does a yield curve inversion historically signal for equities?]
+* [Follow-up: How are Fed rate cut expectations priced into markets currently?]
+* [Follow-up: Which sectors perform best in a late-cycle slowdown?]`;
+      } else if (lp.includes('microsoft') || lp.includes('msft')) {
+        response = `Microsoft is arguably the most diversified and defensible of the mega-cap technology companies right now. Azure cloud is growing at ~28-30% annually and is the clear number two behind AWS, with credible momentum to close the gap. The Copilot AI integration across Office 365 and Teams represents a meaningful monetisation opportunity — Microsoft is charging a premium ($30/user/month) for Copilot access, and enterprise adoption is accelerating.
+
+The company also benefits from extraordinary recurring revenue across enterprise software (Windows, Office, Dynamics, LinkedIn), which provides a resilient base even if cloud growth moderates.
+
+**Valuation:** Microsoft trades at approximately 30-32x forward earnings, which is a premium but arguably justified given the combination of cloud growth, AI optionality, and cash generation. It's expensive on an absolute basis but less so relative to its quality.
+
+The main risks are the pace of AI monetisation (which needs to justify the heavy CapEx investment), and potential regulatory scrutiny around its partnership with OpenAI.
+
+* [Follow-up: How does Microsoft Azure compare to AWS and Google Cloud?]
+* [Follow-up: What is Microsoft Copilot's current adoption rate among enterprises?]
+* [Follow-up: Compare Microsoft and Apple as long-term holds]`;
       } else {
-        response = `Thank you for your inquiry about "${prompt}". 
-        
-As your BusinessOS Copilot, I am evaluating this query under **${mode.toUpperCase()}** Mode. 
+        response = `That's a great question. Let me work through this with the data I have available.
 
-### Grounding Assessment
-* System confidence is computed at **${confidenceScore}%**.
-* Sources lists contain **${usedSources.length} verified paths**.
+Based on your query about "${prompt.length > 60 ? prompt.substring(0, 60) + '...' : prompt}", here's my assessment under **${mode.toUpperCase()} mode** with ${confidenceScore}% confidence based on ${usedSources.length} grounded source${usedSources.length !== 1 ? 's' : ''}.
 
-Please specify if you would like me to compile details regarding your holdings, macroeconomic indicators, or active news.`;
+The financial markets context suggests a cautious but opportunistic stance is warranted right now. Macro headwinds from elevated interest rates are real, but sector-specific opportunities still exist for investors with a longer time horizon.
+
+If you can give me a more specific question — a company name, ticker, sector, or macro topic — I can give you a much more targeted and useful analysis.
+
+* [Follow-up: What macro themes should I be paying attention to right now?]
+* [Follow-up: Can you summarise the current state of the US economy?]
+* [Follow-up: Which sectors look most attractive under current conditions?]`;
       }
 
       const copilotMsg: CopilotMessage = {
