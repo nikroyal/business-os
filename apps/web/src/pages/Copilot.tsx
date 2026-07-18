@@ -21,6 +21,296 @@ import {
   ExternalLink
 } from 'lucide-react';
 
+const promptSuggestions = [
+  { title: "Analyze Solvency Risk", prompt: "Analyze the moat status, solvency risks, and smart money flow indicators for AAPL based on recent disclosures.", icon: "📊" },
+  { title: "FRED Yield Inversions", prompt: "Summarize the latest FRED economic indicators. Is there an active yield curve inversion in the cache?", icon: "📈" },
+  { title: "Holdings & Rate Limits", prompt: "Explain the active Finnhub rate limit metrics and verify the status of our current model configuration routing policy.", icon: "🛡️" },
+  { title: "Filing Facts Compiles", prompt: "Generate a list of cached SEC EDGAR company filings and identify which tickers require a fresh synchronization.", icon: "📂" },
+];
+
+// Inline Markdown Parser: Bold, Italic, Code, Links
+const renderInlineMarkdown = (text: string): React.ReactNode[] => {
+  const parts: React.ReactNode[] = [];
+  let key = 0;
+  let currentText = text;
+  
+  while (currentText) {
+    const boldMatch = currentText.match(/^([^\*]*)\*\*([^\*]+)\*\*(.*)$/);
+    const codeMatch = currentText.match(/^([^`]*)`([^`]+)`(.*)$/);
+    const linkMatch = currentText.match(/^([^\[]*)\[([^\]]+)\]\(([^)]+)\)(.*)$/);
+    
+    const boldIndex = boldMatch ? currentText.indexOf('**') : -1;
+    const codeIndex = codeMatch ? currentText.indexOf('`') : -1;
+    const linkIndex = linkMatch ? currentText.indexOf('[') : -1;
+    
+    const indices = [
+      { type: 'bold', index: boldIndex, match: boldMatch },
+      { type: 'code', index: codeIndex, match: codeMatch },
+      { type: 'link', index: linkIndex, match: linkMatch }
+    ].filter(x => x.index !== -1).sort((a, b) => a.index - b.index);
+    
+    if (indices.length === 0) {
+      parts.push(<span key={key++}>{currentText}</span>);
+      break;
+    }
+    
+    const primary = indices[0];
+    if (primary.type === 'bold' && primary.match) {
+      const [_, pre, boldVal, post] = primary.match;
+      if (pre) parts.push(<span key={key++}>{pre}</span>);
+      parts.push(<strong key={key++} style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{boldVal}</strong>);
+      currentText = post;
+    } else if (primary.type === 'code' && primary.match) {
+      const [_, pre, codeVal, post] = primary.match;
+      if (pre) parts.push(<span key={key++}>{pre}</span>);
+      parts.push(
+        <code key={key++} style={{
+          background: '#FAF1F1',
+          padding: '0.15rem 0.35rem',
+          borderRadius: '3px',
+          fontSize: '0.85em',
+          fontFamily: 'var(--font-mono, monospace)',
+          color: '#c2410c',
+          border: '1px solid #fed7aa'
+        }}>
+          {codeVal}
+        </code>
+      );
+      currentText = post;
+    } else if (primary.type === 'link' && primary.match) {
+      const [_, pre, linkText, linkUrl, post] = primary.match;
+      if (pre) parts.push(<span key={key++}>{pre}</span>);
+      parts.push(
+        <a key={key++} href={linkUrl} target="_blank" rel="noopener noreferrer" style={{
+          color: 'var(--color-accent)',
+          textDecoration: 'underline',
+          fontWeight: '500'
+        }}>
+          {linkText}
+        </a>
+      );
+      currentText = post;
+    }
+  }
+  
+  return parts.length > 0 ? parts : [text];
+};
+
+// Render Table Block Helper
+const renderTableBlock = (lines: string[], key: number): React.ReactNode => {
+  const rows = lines.map(line => {
+    return line.split('|').map(cell => cell.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
+  }).filter(row => row.length > 0);
+
+  if (rows.length === 0) return null;
+
+  const isDivider = (row: string[]) => row.every(cell => cell.startsWith('-') || cell.startsWith(':'));
+  const filteredRows = rows.filter(row => !isDivider(row));
+
+  const headers = filteredRows[0];
+  const bodyRows = filteredRows.slice(1);
+
+  return (
+    <div key={key} style={{ overflowX: 'auto', margin: '0.75rem 0', border: '1px solid #E2DACD', borderRadius: '4px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+        <thead>
+          <tr style={{ background: '#FAF8F5', borderBottom: '2px solid var(--color-primary)' }}>
+            {headers.map((h, i) => (
+              <th key={i} style={{ padding: '0.6rem 0.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((row, rIdx) => (
+            <tr key={rIdx} style={{ borderBottom: '1px solid #E2DACD', background: rIdx % 2 === 1 ? '#FAF8F5' : 'transparent' }}>
+              {row.map((cell, cIdx) => (
+                <td key={cIdx} style={{ padding: '0.6rem 0.8rem', color: 'var(--text-secondary)' }}>
+                  {renderInlineMarkdown(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// Main Markdown Block Parser
+const renderMarkdown = (text: string) => {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentBlockType: 'paragraph' | 'ul' | 'ol' | 'code' | 'table' | 'none' = 'none';
+  let accumLines: string[] = [];
+
+  const flushBlock = (key: number) => {
+    if (accumLines.length === 0) return;
+    const content = accumLines.join('\n');
+    
+    if (currentBlockType === 'code') {
+      elements.push(
+        <pre key={key} style={{
+          background: '#F0EBE1',
+          border: '1px solid #E2DACD',
+          borderRadius: '4px',
+          padding: '1rem',
+          overflowX: 'auto',
+          fontSize: '0.8rem',
+          fontFamily: 'var(--font-mono, monospace)',
+          margin: '0.5rem 0',
+          color: 'var(--text-primary)'
+        }}>
+          <code>{content}</code>
+        </pre>
+      );
+    } else if (currentBlockType === 'ul') {
+      elements.push(
+        <ul key={key} style={{ paddingLeft: '1.5rem', margin: '0.5rem 0', listStyleType: 'disc' }}>
+          {accumLines.map((li, i) => (
+            <li key={i} style={{ marginBottom: '0.25rem' }}>{renderInlineMarkdown(li)}</li>
+          ))}
+        </ul>
+      );
+    } else if (currentBlockType === 'ol') {
+      elements.push(
+        <ol key={key} style={{ paddingLeft: '1.5rem', margin: '0.5rem 0', listStyleType: 'decimal' }}>
+          {accumLines.map((li, i) => (
+            <li key={i} style={{ marginBottom: '0.25rem' }}>{renderInlineMarkdown(li)}</li>
+          ))}
+        </ol>
+      );
+    } else if (currentBlockType === 'table') {
+      elements.push(renderTableBlock(accumLines, key));
+    } else {
+      elements.push(
+        <p key={key} style={{ margin: '0.5rem 0', lineHeight: '1.6' }}>
+          {renderInlineMarkdown(content)}
+        </p>
+      );
+    }
+    accumLines = [];
+    currentBlockType = 'none';
+  };
+
+  let blockKey = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      if (currentBlockType === 'code') {
+        flushBlock(blockKey++);
+      } else {
+        flushBlock(blockKey++);
+        currentBlockType = 'code';
+      }
+      continue;
+    }
+
+    if (currentBlockType === 'code') {
+      accumLines.push(line);
+      continue;
+    }
+
+    if (trimmed.startsWith('#')) {
+      flushBlock(blockKey++);
+      const match = trimmed.match(/^(#{1,6})\s+(.*)$/);
+      if (match) {
+        const level = match[1].length;
+        const text = match[2];
+        const fontSize = level === 1 ? '1.5rem' : level === 2 ? '1.3rem' : level === 3 ? '1.15rem' : '1rem';
+        const margin = level === 1 ? '1.25rem 0 0.5rem' : '0.85rem 0 0.4rem';
+        elements.push(
+          React.createElement(`h${level}`, {
+            key: blockKey++,
+            style: {
+              fontSize,
+              margin,
+              fontFamily: 'var(--font-serif)',
+              color: 'var(--text-primary)',
+              borderBottom: level <= 2 ? '1px solid #E2DACD' : 'none',
+              paddingBottom: level <= 2 ? '0.25rem' : '0',
+              fontWeight: 'bold'
+            }
+          }, renderInlineMarkdown(text))
+        );
+        continue;
+      }
+    }
+
+    if (trimmed === '---' || trimmed === '***') {
+      flushBlock(blockKey++);
+      elements.push(<hr key={blockKey++} style={{ border: 'none', borderTop: '1px solid #E2DACD', margin: '1rem 0' }} />);
+      continue;
+    }
+
+    if (trimmed.startsWith('>')) {
+      flushBlock(blockKey++);
+      const text = trimmed.substring(1).trim();
+      elements.push(
+        <blockquote key={blockKey++} style={{
+          borderLeft: '4px solid var(--color-accent)',
+          paddingLeft: '1rem',
+          margin: '0.75rem 0',
+          color: 'var(--text-secondary)',
+          fontStyle: 'italic',
+          background: '#FAF8F5',
+          padding: '0.5rem 1rem'
+        }}>
+          {renderInlineMarkdown(text)}
+        </blockquote>
+      );
+      continue;
+    }
+
+    if (trimmed.startsWith('* ') || trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      if (currentBlockType !== 'ul') {
+        flushBlock(blockKey++);
+        currentBlockType = 'ul';
+      }
+      accumLines.push(trimmed.substring(2));
+      continue;
+    }
+
+    if (/^\d+\.\s/.test(trimmed)) {
+      if (currentBlockType !== 'ol') {
+        flushBlock(blockKey++);
+        currentBlockType = 'ol';
+      }
+      const matchContent = trimmed.match(/^\d+\.\s+(.*)$/);
+      accumLines.push(matchContent ? matchContent[1] : trimmed);
+      continue;
+    }
+
+    if (trimmed.startsWith('|')) {
+      if (currentBlockType !== 'table') {
+        flushBlock(blockKey++);
+        currentBlockType = 'table';
+      }
+      accumLines.push(trimmed);
+      continue;
+    }
+
+    if (!trimmed) {
+      flushBlock(blockKey++);
+      continue;
+    }
+
+    if (currentBlockType !== 'paragraph' && currentBlockType !== 'none') {
+      flushBlock(blockKey++);
+    }
+    currentBlockType = 'paragraph';
+    accumLines.push(line);
+  }
+
+  flushBlock(blockKey++);
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>{elements}</div>;
+};
+
 export const Copilot: React.FC = () => {
   const { user, isMockMode } = useAuth();
   const [sessions, setSessions] = useState<CopilotSession[]>([]);
@@ -222,6 +512,40 @@ export const Copilot: React.FC = () => {
         message: err.message || 'Limit reached or rate limit blocked request.',
         prompt,
         sessionId
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSuggestionClick = async (promptText: string) => {
+    setPromptInput('');
+    setErrorState(null);
+    setSending(true);
+    let createdSessionId = '';
+    try {
+      const session = await CopilotService.createSession(promptText, researchMode, isMockMode);
+      createdSessionId = session.id;
+      setSessions(prev => [session, ...prev]);
+      setActiveSession(session);
+      
+      const localUserMsg: CopilotMessage = {
+        id: `user_${Date.now()}`,
+        sender: 'user',
+        content: promptText,
+        timestamp: new Date().toISOString()
+      };
+      setMessages([localUserMsg]);
+
+      const copilotResponse = await CopilotService.sendChatMessage(session.id, promptText, isMockMode);
+      setMessages(prev => [...prev, copilotResponse]);
+      loadSessions();
+    } catch (err: any) {
+      console.error('Failed suggestion trigger:', err);
+      setErrorState({
+        message: err.message || 'Chat compilation failed.',
+        prompt: promptText,
+        sessionId: createdSessionId
       });
     } finally {
       setSending(false);
@@ -499,7 +823,11 @@ export const Copilot: React.FC = () => {
                     boxShadow: 'var(--shadow-subtle)'
                   }}>
                     {/* Render custom markdown details */}
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                    {msg.sender === 'user' ? (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                    ) : (
+                      <div>{renderMarkdown(msg.content)}</div>
+                    )}
 
                     {/* Copilot Metadata, Citations, Freshness indicators */}
                     {msg.metadata && (
@@ -629,9 +957,51 @@ export const Copilot: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1.25rem', color: 'var(--text-secondary)', padding: '2rem' }}>
               <Compass size={40} style={{ color: 'var(--color-accent)' }} />
               <h3 style={{ margin: 0, padding: 0, fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>BusinessOS Copilot</h3>
-              <p style={{ margin: 0, padding: 0, fontSize: '0.88rem', textAlign: 'center', maxWidth: '400px', fontFamily: 'var(--font-serif)', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+              <p style={{ margin: 0, padding: 0, fontSize: '0.88rem', textAlign: 'center', maxWidth: '400px', fontFamily: 'var(--font-serif)', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                 Ask complex questions about your active holdings, sector HHI limits, yield curve inversions, macro FRED stats, or recent SEC submissions.
               </p>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '1rem',
+                maxWidth: '650px',
+                width: '100%',
+                marginTop: '1rem'
+              }}>
+                {promptSuggestions.map((suggestion, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleSuggestionClick(suggestion.prompt)}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #E2DACD',
+                      padding: '1rem',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.4rem',
+                      alignItems: 'flex-start',
+                      transition: 'all 0.2s',
+                      boxShadow: 'var(--shadow-subtle)',
+                      textAlign: 'left'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--color-accent)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#E2DACD';
+                      e.currentTarget.style.transform = 'none';
+                    }}
+                  >
+                    <span style={{ fontSize: '1.5rem' }}>{suggestion.icon}</span>
+                    <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)' }}>{suggestion.title}</strong>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>{suggestion.prompt}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />
