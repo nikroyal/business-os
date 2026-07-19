@@ -97,6 +97,65 @@ function base64UrlDecode(str: string): Uint8Array {
 let cachedGoogleCerts: any[] | null = null;
 let cachedGoogleCertsExpires = 0;
 
+async function verifyJwtSignature(jwk: any, parts: string[]): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['verify']
+  );
+
+  const rawData = new TextEncoder().encode(parts[0] + '.' + parts[1]);
+  const signatureBytes = base64UrlDecode(parts[2]);
+
+  return await crypto.subtle.verify(
+    'RSASSA-PKCS1-v1_5',
+    key,
+    signatureBytes as any,
+    rawData as any
+  );
+}
+
+async function getGooglePublicKeys(): Promise<any[]> {
+  const nowMs = Date.now();
+  if (cachedGoogleCerts && nowMs < cachedGoogleCertsExpires) {
+    console.log('[Auth Trace] 5. Google public certificates retrieved from cache.');
+    return cachedGoogleCerts;
+  }
+
+  console.log('[Auth Trace] 5. Cache miss or expired. Fetching Google public certificates from securetoken endpoint...');
+  const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
+  if (!certsRes.ok) {
+    console.log(`[Auth Trace] 5. Failed to fetch Google public certificates: HTTP ${certsRes.status}`);
+    throw new Error('Failed to fetch Google public certificates');
+  }
+
+  let ttlSeconds = 3600; // 1 hour default fallback
+  const cacheControl = certsRes.headers.get('cache-control');
+  if (cacheControl) {
+    const matches = cacheControl.match(/max-age=(\d+)/);
+    if (matches && matches[1]) {
+      ttlSeconds = parseInt(matches[1], 10);
+    }
+  } else {
+    const expires = certsRes.headers.get('expires');
+    if (expires) {
+      const parsedExpires = Date.parse(expires);
+      if (!isNaN(parsedExpires)) {
+        ttlSeconds = Math.max(0, Math.floor((parsedExpires - nowMs) / 1000));
+      }
+    }
+  }
+
+  const body = (await certsRes.json()) as any;
+  const keys = body.keys || [];
+  cachedGoogleCerts = keys;
+  cachedGoogleCertsExpires = nowMs + (ttlSeconds * 1000);
+  console.log(`[Auth Trace] 5. Downloaded Google signing certificates successfully. Count: ${keys.length}`);
+  return keys;
+}
+
 // In-memory rate limiting map for Gemini calls
 const lastGeminiCallTimes = new Map<string, number>();
 
@@ -161,42 +220,7 @@ async function authenticateUser(c: any, next: any) {
     }
 
     // Fetch Google public keys with caching (Part 7)
-    let keys: any[] = [];
-    const nowMs = Date.now();
-    if (cachedGoogleCerts && nowMs < cachedGoogleCertsExpires) {
-      console.log('[Auth Trace] 5. Google public certificates retrieved from cache.');
-      keys = cachedGoogleCerts;
-    } else {
-      console.log('[Auth Trace] 5. Cache miss or expired. Fetching Google public certificates from securetoken endpoint...');
-      const certsRes = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
-      if (!certsRes.ok) {
-        console.log(`[Auth Trace] 5. Failed to fetch Google public certificates: HTTP ${certsRes.status}`);
-        throw new Error('Failed to fetch Google public certificates');
-      }
-      
-      let ttlSeconds = 3600; // 1 hour default fallback
-      const cacheControl = certsRes.headers.get('cache-control');
-      if (cacheControl) {
-        const matches = cacheControl.match(/max-age=(\d+)/);
-        if (matches && matches[1]) {
-          ttlSeconds = parseInt(matches[1], 10);
-        }
-      } else {
-        const expires = certsRes.headers.get('expires');
-        if (expires) {
-          const parsedExpires = Date.parse(expires);
-          if (!isNaN(parsedExpires)) {
-            ttlSeconds = Math.max(0, Math.floor((parsedExpires - nowMs) / 1000));
-          }
-        }
-      }
-
-      const body = (await certsRes.json()) as any;
-      keys = body.keys || [];
-      cachedGoogleCerts = keys;
-      cachedGoogleCertsExpires = nowMs + (ttlSeconds * 1000);
-      console.log(`[Auth Trace] 5. Downloaded Google signing certificates successfully. Count: ${keys.length}`);
-    }
+    const keys = await getGooglePublicKeys();
 
     const jwk = keys.find((k: any) => k.kid === header.kid);
     if (!jwk) {
@@ -206,23 +230,7 @@ async function authenticateUser(c: any, next: any) {
 
     // Verify cryptographic signature
     console.log('[Auth Trace] 6. Verifying cryptographic signature...');
-    const key = await crypto.subtle.importKey(
-      'jwk',
-      jwk,
-      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
-    const rawData = new TextEncoder().encode(parts[0] + '.' + parts[1]);
-    const signatureBytes = base64UrlDecode(parts[2]);
-
-    const isValid = await crypto.subtle.verify(
-      'RSASSA-PKCS1-v1_5',
-      key,
-      signatureBytes as any,
-      rawData as any
-    );
+    const isValid = await verifyJwtSignature(jwk, parts);
 
     if (!isValid) {
       console.log('[Auth Trace] 9. Failure: Invalid cryptographic signature (returning 401 at line 143)');
